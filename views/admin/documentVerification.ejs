@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Verification</title>
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <div class="admin-container">
+    <!-- Sidebar (same as dashboard) -->
+    <aside class="sidebar">
+      <div class="logo">
+        <h2>Admin Panel</h2>
+      </div>
+      <nav class="nav-menu">
+        <ul>
+          <li><a href="/admin/dashboard">Dashboard</a></li>
+          <li><a href="/admin/users">Users</a></li>
+          <li><a href="/admin/drivers">Drivers</a></li>
+          <li><a href="/admin/documents" class="active">Documents</a></li>
+          <li><a href="/admin/profile">Profile</a></li>
+          <li><a href="/admin/logout">Logout</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="header">
+        <h1>Document Verification</h1>
+      </header>
+
+      <!-- Filter Options -->
+      <div class="filter-bar">
+        <select id="statusFilter" onchange="filterDocuments()">
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="verified">Verified</option>
+          <option value="rejected">Rejected</option>
+        </select>
+
+        <select id="typeFilter" onchange="filterDocuments()">
+          <option value="">All Types</option>
+          <option value="license">License</option>
+          <option value="insurance">Insurance</option>
+          <option value="registration">Registration</option>
+        </select>
+      </div>
+
+      <!-- Documents Table -->
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Driver Name</th>
+              <th>Document Type</th>
+              <th>Upload Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (documents && documents.length > 0) { %>
+              <% documents.forEach(doc => { %>
+                <tr>
+                  <td><%= doc.driverId.userId.name %></td>
+                  <td><span class="badge badge-info"><%= doc.documentType %></span></td>
+                  <td><%= new Date(doc.uploadedAt).toLocaleDateString() %></td>
+                  <td>
+                    <% if (doc.status === 'pending') { %>
+                      <span class="badge badge-warning">Pending</span>
+                    <% } else if (doc.status === 'verified') { %>
+                      <span class="badge badge-success">Verified</span>
+                    <% } else { %>
+                      <span class="badge badge-danger">Rejected</span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <a href="/admin/documents/<%= doc._id %>" class="btn btn-sm btn-primary">View</a>
+                    <% if (doc.status === 'pending') { %>
+                      <button onclick="verifyDocument('<%= doc._id %>')" class="btn btn-sm btn-success">Verify</button>
+                      <button onclick="rejectDocument('<%= doc._id %>')" class="btn btn-sm btn-danger">Reject</button>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } else { %>
+              <tr>
+                <td colspan="5" style="text-align: center;">No documents found</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <% if (pagination.page > 1) { %>
+          <a href="?page=<%= pagination.page - 1 %>" class="btn btn-sm">Previous</a>
+        <% } %>
+        
+        <span>Page <%= pagination.page %> of <%= pagination.pages %></span>
+        
+        <% if (pagination.page < pagination.pages) { %>
+          <a href="?page=<%= pagination.page + 1 %>" class="btn btn-sm">Next</a>
+        <% } %>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function verifyDocument(docId) {
+      if (confirm('Are you sure you want to verify this document?')) {
+        // Make API call to verify
+        fetch(`/api/admin/documents/${docId}/verify`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+        .then(res => res.json())
+        .then(data => {
+          alert('Document verified successfully');
+          location.reload();
+        })
+        .catch(err => alert('Error verifying document'));
+      }
+    }
+
+    function rejectDocument(docId) {
+      const reason = prompt('Enter rejection reason:');
+      if (reason) {
+        fetch(`/api/admin/documents/${docId}/reject`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ rejectionReason: reason })
+        })
+        .then(res => res.json())
+        .then(data => {
+          alert('Document rejected successfully');
+          location.reload();
+        })
+        .catch(err => alert('Error rejecting document'));
+      }
+    }
+  </script>
+</body>
+</html>
