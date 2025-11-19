@@ -263,6 +263,76 @@ exports.updateDocument = async (req, res) => {
     return errorResponse(res, error.message || 'Update failed', 500);
   }
 };
+
+
+exports.uploadDriverDocuments = async (req, res) => {
+  try {
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return errorResponse(res, 'No files uploaded', 400);
+    }
+
+    const driver = await Driver.findOne({ userId: req.user._id });
+    if (!driver) {
+      return errorResponse(res, 'Driver profile not found', 404);
+    }
+
+    const uploadedDocuments = [];
+
+    // Process each uploaded file
+    for (const [fieldName, files] of Object.entries(req.files)) {
+      const file = files[0]; // Each field has array with 1 file
+      
+      // Map fieldname to document type
+      const documentTypeMap = {
+        'profilePhoto': 'profile',
+        'aadhaarFront': 'aadhaar_front',
+        'aadhaarBack': 'aadhaar_back',
+        'licenseFront': 'license_front',
+        'licenseBack': 'license_back',
+        'panCard': 'pan_card',
+        'vehicleRC': 'vehicle_rc',
+        'vehicleInsurance': 'insurance',
+        'policeVerification': 'police_verification',
+        'otherDocument': 'other'
+      };
+
+      const documentType = documentTypeMap[fieldName] || 'other';
+      const fileUrl = `/uploads/documents/${file.filename}`;
+
+      // Create document record
+      const document = await Document.create({
+        driverId: driver._id,
+        documentType,
+        fileUrl,
+        status: 'pending'
+      });
+
+      uploadedDocuments.push({
+        fieldName,
+        documentType,
+        fileUrl,
+        documentId: document._id
+      });
+    }
+
+    // Update driver profile status
+    if (driver.profileStatus === 'incomplete') {
+      driver.profileStatus = 'pending_verification';
+      await driver.save();
+    }
+
+    return successResponse(res, 'Documents uploaded successfully', {
+      uploadedCount: uploadedDocuments.length,
+      documents: uploadedDocuments
+    }, 201);
+
+  } catch (error) {
+    console.error('Upload Driver Documents Error:', error);
+    return errorResponse(res, error.message || 'Failed to upload documents', 500);
+  }
+};
+
+
 // Get Driver Documents
 // exports.getDriverDocuments = async (req, res) => {
 //   try {

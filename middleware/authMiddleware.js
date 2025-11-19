@@ -173,40 +173,6 @@ exports.isCustomer = async (req, res, next) => {
 //   }
 // };
 
-// exports.protectAdmin = async (req, res, next) => {
-//   try {
-//     let adminId = null;
-
-//     // 1. Session (Web)
-//     if (req.session?.admin?.id) {
-//       adminId = req.session.admin.id;
-//     }
-//     // 2. JWT Token (API)
-//     else if (req.headers.authorization?.startsWith('Bearer ')) {
-//       const token = req.headers.authorization.split(' ')[1];
-//       const decoded = verifyToken(token);
-//       if (!decoded || !decoded.userId) {
-//         return unauthorizedResponse(res, 'Invalid or expired token');
-//       }
-//       adminId = decoded.userId;
-//     } else {
-//       return unauthorizedResponse(res, 'Admin login required');
-//     }
-
-//     const admin = await Admin.findById(adminId).select('-password');
-//     if (!admin || !admin.isActive) {
-//       return unauthorizedResponse(res, 'Admin not found or deactivated');
-//     }
-
-//     req.admin = admin;  // YEHI ZAROORI HAI
-//     next();
-
-//   } catch (error) {
-//     console.error('Admin Auth Error:', error);
-//     return unauthorizedResponse(res, 'Authentication failed');
-//   }
-// };
-
 exports.protectAdmin = async (req, res, next) => {
   try {
     let token;
@@ -264,3 +230,13 @@ exports.isAdmin = (req, res, next) => {
   }
 };
 
+// Check if user is customer
+exports.isCustomer = async (req, res, next) => {
+  if (req.user.role !== 'customer') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Customer role required.'
+    });
+  }
+  next();
+};

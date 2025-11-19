@@ -12,6 +12,13 @@ const authRoutes = require('./routes/authRoutes');
 const driverRoutes = require('./routes/driverRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const adminRoutes = require('./routes/admin/adminRoutes');
+const deliveryRoutes = require("./routes/deliveryRoutes")
+const trackingRoutes = require("./routes/trackingRoutes")
+const journeyRoutes = require("./routes/journeyRoutes")
+const routeRoutes = require("./routes/routeRoutes")
+const feedbackRoutes = require("./routes/feedbackRoutes")
+// const orderRoutes = require("./routes/orderRoutes")
+const orderRoutes = require("./routes/admin/orderRoutes")
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -48,8 +55,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/profile', profileRoutes);
 
+app.use("/api/deliveries",deliveryRoutes)
+app.use("/api/tracking",trackingRoutes)
+app.use("/api/journey",journeyRoutes) 
+app.use("/api/routes",routeRoutes)
+app.use("/api/feedback",feedbackRoutes)
+// app.use("/api/orders",orderRoutes)   //create order user
 
 app.use('/admin', adminRoutes);
+app.use("/admin/order",orderRoutes)
 
 // Root route
 app.get('/', (req, res) => {

@@ -178,4 +178,4 @@ module.exports = {
   // Raw multer instances (agar custom chahiye)
   documentUpload: multer({ storage: documentStorage, fileFilter }),
   profileUpload: multer({ storage: profileStorage, fileFilter })
-};
+}; 
