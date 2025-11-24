@@ -474,8 +474,7 @@ exports.rejectDocument = async (req, res) => {
     if (!driver) return errorResponse(res, 'Document not found', 404);
 
     const doc = driver.documents.id(documentId);
-    doc.status = 'rejected';
-    doc.verifiedBy = admin._id;
+    doc.status = 'rejected';0
     doc.verifiedAt = new Date();
     doc.rejectionReason = rejectionReason;
 
@@ -487,7 +486,7 @@ exports.rejectDocument = async (req, res) => {
     errorResponse(res, 'Rejection failed', 500);
   }
 };
-
+ 
 // Approve/Reject Driver Profile
 exports.approveDriverProfile = async (req, res) => {
   try {

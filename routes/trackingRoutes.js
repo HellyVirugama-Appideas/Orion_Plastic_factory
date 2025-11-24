@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const trackingController = require('../controllers/trackingController');
-const { authenticateDriver, isDriver, isAdmin } = require('../middleware/authMiddleware');
+const { authenticateDriver, isDriver, isAdmin, protectAdmin } = require('../middleware/authMiddleware');
 
 // Driver Routes
 router.post(
@@ -30,14 +30,14 @@ router.get(
 // Admin Routes
 router.get(
   '/history/:deliveryId',
-  authenticateDriver,
+  protectAdmin,
   isAdmin,
   trackingController.getTrackingHistory
 );
 
 router.delete(
   '/cleanup',
-  authenticateDriver,
+  protectAdmin,
   isAdmin,
   trackingController.deleteOldTrackingLogs
 );

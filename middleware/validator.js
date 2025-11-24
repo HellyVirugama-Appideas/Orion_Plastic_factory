@@ -183,3 +183,18 @@ exports.validateRequiredFields = (fields) => {
     next();
   };
 };
+// Validate license number format
+exports.validateLicenseNumber = (req, res, next) => {
+  const { licenseNumber } = req.body;
+  
+  if (!licenseNumber) {
+    return next();
+  }
+
+  // Basic validation - adjust regex based on your country's format
+  if (licenseNumber.length < 8 || licenseNumber.length > 20) {
+    return errorResponse(res, 'Invalid license number format', 400);
+  }
+
+  next();
+};

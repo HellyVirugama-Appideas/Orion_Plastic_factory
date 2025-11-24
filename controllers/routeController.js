@@ -68,6 +68,7 @@ exports.createRoute = async (req, res) => {
   }
 };
 
+
 // Auto-arrange Route based on Geolocation
 exports.autoArrangeRoute = async (req, res) => {
   try {
@@ -93,10 +94,10 @@ exports.autoArrangeRoute = async (req, res) => {
     }));
 
     // Get start location (or use first delivery's pickup location)
-    const startLat = route.startLocation?.coordinates?.latitude || 
-                     route.deliveries[0].deliveryId.pickupLocation.coordinates.latitude;
-    const startLng = route.startLocation?.coordinates?.longitude || 
-                     route.deliveries[0].deliveryId.pickupLocation.coordinates.longitude;
+    const startLat = route.startLocation?.coordinates?.latitude ||
+      route.deliveries[0].deliveryId.pickupLocation.coordinates.latitude;
+    const startLng = route.startLocation?.coordinates?.longitude ||
+      route.deliveries[0].deliveryId.pickupLocation.coordinates.longitude;
 
     // Optimize route
     const optimizedSequence = optimizeRoute(startLat, startLng, locations);

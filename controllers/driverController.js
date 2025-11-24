@@ -7,391 +7,417 @@
 // const { sendWelcomeEmail } = require('../utils/emailHelper');
 // const { sendPinResetSMS } = require('../utils/smsHelper');
 // const { successResponse, errorResponse } = require('../utils/responseHelper');
+// const mongoose = require('mongoose');
+// const bcrypt = require('bcryptjs');
 
-// // Driver Signup
 // exports.driverSignup = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
 //   try {
 //     const {
-//       name,
-//       email,
-//       phone,
-//       password,
-//       licenseNumber,
-//       vehicleType,
-//       vehicleNumber,
-//       vehicleModel,
-//       vehicleColor,
-//       pin
+//       name, email, phone, password,
+//       licenseNumber, vehicleType, vehicleNumber,
+//       vehicleModel, vehicleColor, pin
 //     } = req.body;
 
-//     // Validate PIN format
-//     if (!isValidPinFormat(pin)) {
+//     // Validate PIN
+//     if (!pin || !/^\d{4}$/.test(pin)) {
 //       return errorResponse(res, 'PIN must be exactly 4 digits', 400);
 //     }
 
-//     // Check if user already exists
-//     const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
-//     if (existingUser) {
-//       return errorResponse(res, 'User with this email or phone already exists', 400);
+//     // Validate password length
+//     if (!password || password.length < 6) {
+//       return errorResponse(res, 'Password must be at least 6 characters', 400);
 //     }
 
-//     // Check if license or vehicle number already exists
-//     const existingDriver = await Driver.findOne({
-//       $or: [{ licenseNumber }, { vehicleNumber }]
+//     // Check if driver already exists (email, phone, license, vehicle)
+//     const exists = await Driver.findOne({
+//       $or: [
+//         { email },
+//         { phone },
+//         { licenseNumber },
+//         { vehicleNumber: vehicleNumber?.toUpperCase() }
+//       ]
 //     });
-//     if (existingDriver) {
-//       return errorResponse(res, 'License number or vehicle number already registered', 400);
+
+//     if (exists) {
+//       return errorResponse(res, 'Email, phone, license or vehicle already registered', 400);
 //     }
 
-//     // Create user
-//     const user = await User.create({
+//     // Hash password aur PIN
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const hashedPin = await bcrypt.hash(pin, 10);
+
+//     // SIRF DRIVER CREATE KARO — User mat banao!
+//     const driver = await Driver.create([{
 //       name,
-//       email,
+//       email: email.toLowerCase(),
 //       phone,
-//       password,
-//       role: 'driver'
-//     });
+//       password: hashedPassword,
+//       role: 'driver',
 
-//     // Hash PIN
-//     const hashedPin = await hashPin(pin);
-
-//     // Create driver profile
-//     const driver = await Driver.create({
-//       userId: user._id,
 //       licenseNumber,
 //       vehicleType,
-//       vehicleNumber,
-//       vehicleModel,
-//       vehicleColor,
+//       vehicleNumber: vehicleNumber.toUpperCase(),
+//       vehicleModel: vehicleModel || '',
+//       vehicleColor: vehicleColor || '',
 //       pin: hashedPin,
-//       profileStatus: 'incomplete'
-//     });
 
-//     // Generate tokens - FIX HERE
-//     const accessToken = jwtHelper.generateAccessToken(user._id, user.role);
-//     const refreshToken = jwtHelper.generateRefreshToken(user._id);
+//       profileStatus: 'pending_verification',
+//       isActive: true
+//     }], { session });
 
-//     // Save refresh token
-//     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-//     await RefreshToken.create({
-//       userId: user._id,
+//     // Generate tokens (driver._id use karo)
+//     const accessToken = jwtHelper.generateAccessToken(driver[0]._id, 'driver');
+//     const refreshToken = jwtHelper.generateRefreshToken(driver[0]._id);
+//     const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+//     await RefreshToken.create([{
+//       userId: driver[0]._id,
 //       token: refreshToken,
-//       expiresAt
-//     });
+//       expiresAt: expiry
+//     }], { session });
 
-//     // Create session
-//     await Session.create({
-//       userId: user._id,
+//     await Session.create([{
+//       userId: driver[0]._id,
 //       token: accessToken,
-//       deviceInfo: req.headers['user-agent'],
+//       deviceInfo: req.headers['user-agent'] || 'Unknown',
 //       ipAddress: req.ip,
-//       expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-//     });
+//       expiresAt: expiry
+//     }], { session });
 
-//     // Send welcome email
-//     await sendWelcomeEmail(user.email, user.name);
+//     await session.commitTransaction();
 
-//     successResponse(res, 'Driver registered successfully', {
-//       user: {
-//         id: user._id,
-//         name: user.name,
-//         email: user.email,
-//         phone: user.phone,
-//         role: user.role
-//       },
+//     // Email bhejo
+//     sendWelcomeEmail(email, name).catch(console.error);
+
+//     return successResponse(res, 'Driver registered successfully!', {
 //       driver: {
-//         id: driver._id,
-//         licenseNumber: driver.licenseNumber,
-//         vehicleType: driver.vehicleType,
-//         vehicleNumber: driver.vehicleNumber,
-//         profileStatus: driver.profileStatus
+//         id: driver[0]._id,
+//         name: driver[0].name,
+//         email: driver[0].email,
+//         phone: driver[0].phone,
+//         profileStatus: driver[0].profileStatus
 //       },
 //       accessToken,
 //       refreshToken
 //     }, 201);
+
 //   } catch (error) {
+//     await session.abortTransaction();
 //     console.error('Driver Signup Error:', error);
-//     errorResponse(res, error.message);
+
+//     if (error.code === 11000) {
+//       return errorResponse(res, 'Email, phone, license or vehicle already exists', 400);
+//     }
+//     if (error.name === 'ValidationError') {
+//       const msg = Object.values(error.errors)[0]?.message || 'Invalid data';
+//       return errorResponse(res, msg, 400);
+//     }
+
+//     return errorResponse(res, 'Registration failed', 500);
+//   } finally {
+//     session.endSession();
 //   }
 // };
 
-// // Driver Signin
 // exports.driverSignin = async (req, res) => {
 //   try {
 //     const { email, password } = req.body;
 
-//     // Find user
-//     const user = await User.findOne({ email, role: 'driver' });
-//     if (!user) {
-//       return errorResponse(res, 'Invalid credentials', 401);
+//     // Basic validation
+//     if (!email || !password) {
+//       return errorResponse(res, 'Email and password are required', 400);
 //     }
 
-//     // Check if user is active
-//     if (!user.isActive) {
-//       return errorResponse(res, 'Account is deactivated', 403);
+//     // Sirf Driver collection mein dhundo (User ko chhodo bilkul)
+//     const driver = await Driver.findOne({
+//       email: email.toLowerCase()
+//     }).select('+password'); // +password because we excluded it in toJSON
+
+//     // Agar driver nahi mila
+//     if (!driver) {
+//       return errorResponse(res, 'Invalid email or password', 401);
 //     }
 
-//     // Verify password
-//     const isPasswordValid = await user.comparePassword(password);
+//     // Account deactivated?
+//     if (!driver.isActive) {
+//       return errorResponse(res, 'Your account has been deactivated. Contact support.', 403);
+//     }
+
+//     // Password check
+//     const isPasswordValid = await driver.comparePassword(password);
 //     if (!isPasswordValid) {
-//       return errorResponse(res, 'Invalid credentials', 401);
+//       return errorResponse(res, 'Invalid email or password', 401);
 //     }
 
-//     // Get driver profile
-//     const driver = await Driver.findOne({ userId: user._id });
+//     // Generate tokens (driver._id use karo, User ka nahi)
+//     const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
+//     const refreshToken = jwtHelper.generateRefreshToken(driver._id);
 
-//     // Generate tokens - FIX HERE
-//     const accessToken = jwtHelper.generateAccessToken(user._id, user.role);
-//     const refreshToken = jwtHelper.generateRefreshToken(user._id);
+//     const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-//     // Save refresh token
-//     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+//     // Save tokens in Session & RefreshToken (userId = driver._id)
 //     await RefreshToken.create({
-//       userId: user._id,
+//       userId: driver._id,
 //       token: refreshToken,
-//       expiresAt
+//       expiresAt: expiry
 //     });
 
-//     // Create session
 //     await Session.create({
-//       userId: user._id,
+//       userId: driver._id,
 //       token: accessToken,
-//       deviceInfo: req.headers['user-agent'],
-//       ipAddress: req.ip,
-//       expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+//       deviceInfo: req.headers['user-agent'] || 'Unknown',
+//       ipAddress: req.ip || 'Unknown',
+//       userAgent: req.headers['user-agent'] || 'Unknown',
+//       expiresAt: expiry
 //     });
 
-//     successResponse(res, 'Login successful', {
-//       user: {
-//         id: user._id,
-//         name: user.name,
-//         email: user.email,
-//         phone: user.phone,
-//         role: user.role
-//       },
+//     // Success response
+//     return successResponse(res, 'Driver login successful', {
 //       driver: {
 //         id: driver._id,
+//         name: driver.name,
+//         email: driver.email,
+//         phone: driver.phone,
+//         role: driver.role,
 //         profileStatus: driver.profileStatus,
-//         isAvailable: driver.isAvailable
+//         isAvailable: driver.isAvailable,
+//         isActive: driver.isActive,
+//         vehicleType: driver.vehicleType,
+//         vehicleNumber: driver.vehicleNumber,
+//         profileImage: driver.profileImage || null
 //       },
 //       accessToken,
 //       refreshToken
 //     });
+
 //   } catch (error) {
 //     console.error('Driver Signin Error:', error);
-//     errorResponse(res, error.message);
+//     return errorResponse(res, 'Login failed. Please try again.', 500);
 //   }
 // };
 
-// // Validate PIN
+// //  Validate PIN - FIXED
 // exports.validatePin = async (req, res) => {
 //   try {
 //     const { pin } = req.body;
 
-//     // Get driver
-//     const driver = await Driver.findOne({ userId: req.user._id });
+//     if (!pin || !/^\d{4}$/.test(pin)) {
+//       return errorResponse(res, 'PIN must be 4 digits', 400);
+//     }
+
+//     // YEHI SAHI HAI — direct driver._id se dhundo
+//     const driver = await Driver.findById(req.user._id);
+
 //     if (!driver) {
-//       return errorResponse(res, 'Driver profile not found', 404);
+//       return errorResponse(res, 'Driver not found', 404);
 //     }
 
-//     // Check if PIN is locked
+//     if (!driver.isActive) {
+//       return errorResponse(res, 'Account deactivated', 403);
+//     }
+
+//     // Lock check
 //     if (driver.pinLockedUntil && driver.pinLockedUntil > new Date()) {
-//       const minutesLeft = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
-//       return errorResponse(res, `PIN is locked. Try again in ${minutesLeft} minutes`, 423);
+//       const mins = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
+//       return errorResponse(res, `PIN locked. Try again in ${mins} minute(s)`, 423);
 //     }
 
-//     // Validate PIN
-//     const isValid = await validatePin(pin, driver.pin);
+//     const isValid = await bcrypt.compare(pin, driver.pin);
 
 //     if (!isValid) {
-//       driver.pinAttempts += 1;
-
-//       // Lock PIN after 3 failed attempts
+//       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
 //       if (driver.pinAttempts >= 3) {
-//         driver.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+//         driver.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
 //         driver.pinAttempts = 0;
-//         await driver.save();
-//         return errorResponse(res, 'Too many failed attempts. PIN locked for 15 minutes', 423);
 //       }
-
 //       await driver.save();
-//       return errorResponse(res, `Invalid PIN. ${3 - driver.pinAttempts} attempts remaining`, 401);
+//       return errorResponse(res, `Wrong PIN. ${3 - driver.pinAttempts} attempts left`, 401);
 //     }
 
-//     // Reset attempts on success
 //     driver.pinAttempts = 0;
 //     driver.pinLockedUntil = null;
 //     await driver.save();
 
-//     successResponse(res, 'PIN validated successfully');
+//     return successResponse(res, 'PIN validated successfully');
+
 //   } catch (error) {
 //     console.error('Validate PIN Error:', error);
-//     errorResponse(res, error.message);
+//     return errorResponse(res, 'Validation failed', 500);
 //   }
 // };
 
-// // Change PIN
+// //  Change PIN - FIXED
 // exports.changePin = async (req, res) => {
 //   try {
 //     const { currentPin, newPin } = req.body;
 
-//     // Get driver
-//     const driver = await Driver.findOne({ userId: req.user._id });
-//     if (!driver) {
-//       return errorResponse(res, 'Driver profile not found', 404);
+//     if (!currentPin || !newPin || currentPin === newPin) {
+//       return errorResponse(res, 'Current & new PIN required and must be different', 400);
 //     }
 
-//     // Verify current PIN
-//     const isValid = await validatePin(currentPin, driver.pin);
+//     if (!/^\d{4}$/.test(newPin)) {
+//       return errorResponse(res, 'New PIN must be 4 digits', 400);
+//     }
+
+//     const driver = await Driver.findById(req.user._id);
+//     if (!driver) return errorResponse(res, 'Driver not found', 404);
+
+//     if (driver.pinLockedUntil && driver.pinLockedUntil > new Date()) {
+//       const mins = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
+//       return errorResponse(res, `PIN locked. Try again in ${mins} minute(s)`, 423);
+//     }
+
+//     const isValid = await bcrypt.compare(currentPin, driver.pin);
 //     if (!isValid) {
-//       return errorResponse(res, 'Current PIN is incorrect', 401);
+//       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
+//       if (driver.pinAttempts >= 3) {
+//         driver.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+//         driver.pinAttempts = 0;
+//       }
+//       await driver.save();
+//       return errorResponse(res, `Wrong current PIN. ${3 - driver.pinAttempts} attempts left`, 401);
 //     }
 
-//     // Hash and update new PIN
-//     driver.pin = await hashPin(newPin);
+//     driver.pin = await bcrypt.hash(newPin, 10);
 //     driver.pinAttempts = 0;
 //     driver.pinLockedUntil = null;
 //     await driver.save();
 
-//     successResponse(res, 'PIN changed successfully');
+//     return successResponse(res, 'PIN changed successfully');
+
 //   } catch (error) {
-//     console.error('Change PIN Error:', error);
-//     errorResponse(res, error.message);
+//     console.error(error);
+//     return errorResponse(res, 'Failed to change PIN', 500);
 //   }
 // };
 
-// // Forgot PIN
+// // Forgot PIN - FIXED (Sirf Driver se dhundo)
 // exports.forgotPin = async (req, res) => {
 //   try {
 //     const { phone } = req.body;
 
-//     // Find user by phone
-//     const user = await User.findOne({ phone, role: 'driver' });
-//     if (!user) {
-//       // Don't reveal if user exists
-//       return successResponse(res, 'If phone number exists, reset code has been sent');
+//     if (!phone || !/^\d{10}$/.test(phone)) {
+//       return errorResponse(res, 'Valid 10-digit phone required', 400);
 //     }
 
-//     // Get driver
-//     const driver = await Driver.findOne({ userId: user._id });
+//     const driver = await Driver.findOne({ phone });
+//     if (!driver) {
+//       return successResponse(res, 'If phone exists, you will receive a reset code');
+//     }
 
-//     // Generate reset token
-//     const resetToken = generateResetToken();
+//     const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
-//     // Save reset token
 //     driver.resetPinToken = resetToken;
 //     driver.resetPinExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 //     await driver.save();
 
-//     // Send SMS with reset code
-//     await sendPinResetSMS(user.phone, resetToken);
+//     sendPinResetSMS(phone, resetToken).catch(console.error);
 
-//     successResponse(res, 'PIN reset code has been sent to your phone');
+//     return successResponse(res, 'If phone exists, reset code sent');
+
 //   } catch (error) {
-//     console.error('Forgot PIN Error:', error);
-//     errorResponse(res, error.message);
+//     console.error(error);
+//     return errorResponse(res, 'Request failed', 500);
 //   }
 // };
 
-// // Reset PIN
+// //  Reset PIN - FIXED
 // exports.resetPin = async (req, res) => {
 //   try {
 //     const { phone, resetToken, newPin } = req.body;
 
-//     // Validate new PIN format
-//     if (!isValidPinFormat(newPin)) {
-//       return errorResponse(res, 'PIN must be exactly 4 digits', 400);
+//     if (!phone || !resetToken || !newPin) {
+//       return errorResponse(res, 'All fields required', 400);
 //     }
 
-//     // Find user
-//     const user = await User.findOne({ phone, role: 'driver' });
-//     if (!user) {
-//       return errorResponse(res, 'Invalid reset code', 400);
+//     if (!/^\d{10}$/.test(phone) || !/^\d{4}$/.test(newPin)) {
+//       return errorResponse(res, 'Invalid phone or PIN format', 400);
 //     }
 
-//     // Find driver with valid reset token
 //     const driver = await Driver.findOne({
-//       userId: user._id,
+//       phone,
 //       resetPinToken: resetToken,
 //       resetPinExpires: { $gt: new Date() }
 //     });
 
 //     if (!driver) {
-//       return errorResponse(res, 'Invalid or expired reset code', 400);
+//       return errorResponse(res, 'Invalid or expired code', 400);
 //     }
 
-//     // Hash and update PIN
-//     driver.pin = await hashPin(newPin);
-//     driver.pinAttempts = 0;
-//     driver.pinLockedUntil = null;
+//     driver.pin = await bcrypt.hash(newPin, 10);
 //     driver.resetPinToken = undefined;
 //     driver.resetPinExpires = undefined;
+//     driver.pinAttempts = 0;
+//     driver.pinLockedUntil = null;
 //     await driver.save();
 
-//     successResponse(res, 'PIN reset successful');
+//     return successResponse(res, 'PIN reset successful');
+
 //   } catch (error) {
-//     console.error('Reset PIN Error:', error);
-//     errorResponse(res, error.message);
+//     console.error(error);
+//     return errorResponse(res, 'Reset failed', 500);
 //   }
 // };
 
-// // Get Driver Profile
+// //  Get Profile 
+// // controllers/profileController.js
 // exports.getDriverProfile = async (req, res) => {
 //   try {
-//     const driver = await Driver.findOne({ userId: req.user._id })
-//       .populate('userId', 'name email phone profileImage');
+//     const driver = await Driver.findById(req.user._id)
+//       .select('-password -pin -resetPinToken -resetPinExpires'); // sensitive fields hata do
 
-//     if (!driver) {
-//       return errorResponse(res, 'Driver profile not found', 404);
-//     }
+//     if (!driver) return errorResponse(res, 'Profile not found', 404);
 
-//     successResponse(res, 'Driver profile retrieved successfully', driver);
+//     return successResponse(res, 'Profile fetched successfully', {
+//       driver: driver.toJSON(), // documents bhi include honge
+//       totalDocuments: driver.documents.length,
+//       profileStatus: driver.profileStatus
+//     });
+
 //   } catch (error) {
-//     console.error('Get Driver Profile Error:', error);
-//     errorResponse(res, error.message);
+//     console.error(error);
+//     return errorResponse(res, 'Failed to fetch profile', 500);
 //   }
 // };
 
-// // Toggle Driver Availability
+// // 6. Toggle Availability 
 // exports.toggleAvailability = async (req, res) => {
 //   try {
-//     const driver = await Driver.findOne({ userId: req.user._id });
+//     const driver = await Driver.findById(req.user._id);
+//     if (!driver) return errorResponse(res, 'Driver not found', 404);
 
-//     if (!driver) {
-//       return errorResponse(res, 'Driver profile not found', 404);
-//     }
-
-//     // Check if profile is approved
 //     if (driver.profileStatus !== 'approved') {
-//       return errorResponse(res, 'Profile must be approved before going online', 403);
+//       return errorResponse(res, 'Profile not approved yet', 403);
 //     }
 
-//     // Toggle availability
 //     driver.isAvailable = !driver.isAvailable;
 //     await driver.save();
 
-//     successResponse(res, 'Availability updated successfully', {
+//     return successResponse(res, `You are now ${driver.isAvailable ? 'online' : 'offline'}`, {
 //       isAvailable: driver.isAvailable
 //     });
+
 //   } catch (error) {
-//     console.error('Toggle Availability Error:', error);
-//     errorResponse(res, error.message);
+//     console.error(error);
+//     return errorResponse(res, 'Failed to update status', 500);
 //   }
 // };
 
 
-const User = require('../models/User');
 const Driver = require('../models/Driver');
 const Session = require('../models/Session');
 const RefreshToken = require('../models/RefreshToken');
 const jwtHelper = require('../utils/jwtHelper');
-const { hashPin, validatePin, isValidPinFormat, generateResetToken } = require('../utils/pinHelper');
 const { sendWelcomeEmail } = require('../utils/emailHelper');
 const { sendPinResetSMS } = require('../utils/smsHelper');
 const { successResponse, errorResponse } = require('../utils/responseHelper');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+// DRIVER SIGNUP (WITHOUT VEHICLE DETAILS) 
 
 exports.driverSignup = async (req, res) => {
   const session = await mongoose.startSession();
@@ -399,89 +425,107 @@ exports.driverSignup = async (req, res) => {
 
   try {
     const {
-      name, email, phone, password,
-      licenseNumber, vehicleType, vehicleNumber,
-      vehicleModel, vehicleColor, pin
+      name,
+      email,
+      phone,
+      password,
+      licenseNumber,
+      pin
     } = req.body;
 
-    // Validate PIN
-    if (!pin || !/^\d{4}$/.test(pin)) {
+    // Validate required fields
+    if (!name || !email || !phone || !password || !licenseNumber || !pin) {
+      return errorResponse(res, 'All fields are required', 400);
+    }
+
+    // Validate PIN format (4 digits)
+    if (!/^\d{4}$/.test(pin)) {
       return errorResponse(res, 'PIN must be exactly 4 digits', 400);
     }
 
     // Validate password length
-    if (!password || password.length < 6) {
+    if (password.length < 6) {
       return errorResponse(res, 'Password must be at least 6 characters', 400);
     }
 
-    // Check if driver already exists (email, phone, license, vehicle)
-    const exists = await Driver.findOne({
+    // Check if driver already exists (email, phone, license)
+    const existingDriver = await Driver.findOne({
       $or: [
-        { email },
+        { email: email.toLowerCase() },
         { phone },
-        { licenseNumber },
-        { vehicleNumber: vehicleNumber?.toUpperCase() }
+        { licenseNumber: licenseNumber.toUpperCase() }
       ]
-    });
+    }); 
 
-    if (exists) {
-      return errorResponse(res, 'Email, phone, license or vehicle already registered', 400);
+    if (existingDriver) {
+      if (existingDriver.email === email.toLowerCase()) {
+        return errorResponse(res, 'Email is already registered', 400);
+      }
+      if (existingDriver.phone === phone) {
+        return errorResponse(res, 'Phone number is already registered', 400);
+      }
+      if (existingDriver.licenseNumber === licenseNumber.toUpperCase()) {
+        return errorResponse(res, 'License number is already registered', 400);
+      }
     }
 
-    // Hash password aur PIN
+    // Hash password and PIN
     const hashedPassword = await bcrypt.hash(password, 10);
     const hashedPin = await bcrypt.hash(pin, 10);
 
-    // SIRF DRIVER CREATE KARO — User mat banao!
+    // Create driver (WITHOUT vehicle details)
     const driver = await Driver.create([{
       name,
       email: email.toLowerCase(),
       phone,
       password: hashedPassword,
-      role: 'driver',
-
-      licenseNumber,
-      vehicleType,
-      vehicleNumber: vehicleNumber.toUpperCase(),
-      vehicleModel: vehicleModel || '',
-      vehicleColor: vehicleColor || '',
+      licenseNumber: licenseNumber.toUpperCase(),
       pin: hashedPin,
-
-      profileStatus: 'pending_verification',
-      isActive: true
+      role: 'driver',
+      profileStatus: 'incomplete', // Vehicle assignment pending
+      isActive: true,
+      isAvailable: false
     }], { session });
 
-    // Generate tokens (driver._id use karo)
+    // Generate tokens
     const accessToken = jwtHelper.generateAccessToken(driver[0]._id, 'driver');
     const refreshToken = jwtHelper.generateRefreshToken(driver[0]._id);
-    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+    // Save refresh token
     await RefreshToken.create([{
       userId: driver[0]._id,
       token: refreshToken,
       expiresAt: expiry
     }], { session });
 
+    // Save session
     await Session.create([{
       userId: driver[0]._id,
       token: accessToken,
       deviceInfo: req.headers['user-agent'] || 'Unknown',
-      ipAddress: req.ip,
+      ipAddress: req.ip || 'Unknown',
+      userAgent: req.headers['user-agent'] || 'Unknown',
       expiresAt: expiry
     }], { session });
 
     await session.commitTransaction();
 
-    // Email bhejo
-    sendWelcomeEmail(email, name).catch(console.error);
+    // Send welcome email (async)
+    sendWelcomeEmail(email, name).catch(err => {
+      console.error('Welcome Email Error:', err);
+    });
 
-    return successResponse(res, 'Driver registered successfully!', {
+    return successResponse(res, 'Driver registered successfully! Admin will assign vehicle.', {
       driver: {
         id: driver[0]._id,
         name: driver[0].name,
         email: driver[0].email,
         phone: driver[0].phone,
-        profileStatus: driver[0].profileStatus
+        licenseNumber: driver[0].licenseNumber,
+        profileStatus: driver[0].profileStatus,
+        isActive: driver[0].isActive,
+        message: 'Vehicle will be assigned by admin. Please upload required documents.'
       },
       accessToken,
       refreshToken
@@ -492,56 +536,58 @@ exports.driverSignup = async (req, res) => {
     console.error('Driver Signup Error:', error);
 
     if (error.code === 11000) {
-      return errorResponse(res, 'Email, phone, license or vehicle already exists', 400);
+      const field = Object.keys(error.keyPattern)[0];
+      return errorResponse(res, `${field} already exists`, 400);
     }
+    
     if (error.name === 'ValidationError') {
-      const msg = Object.values(error.errors)[0]?.message || 'Invalid data';
-      return errorResponse(res, msg, 400);
+      const messages = Object.values(error.errors).map(err => err.message);
+      return errorResponse(res, messages.join(', '), 400);
     }
 
-    return errorResponse(res, 'Registration failed', 500);
+    return errorResponse(res, 'Registration failed. Please try again.', 500);
+    
   } finally {
     session.endSession();
   }
 };
 
+
 exports.driverSignin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Basic validation
+    // Validation
     if (!email || !password) {
       return errorResponse(res, 'Email and password are required', 400);
     }
 
-    // Sirf Driver collection mein dhundo (User ko chhodo bilkul)
+    // Find driver by email
     const driver = await Driver.findOne({
       email: email.toLowerCase()
-    }).select('+password'); // +password because we excluded it in toJSON
+    }).select('+password');
 
-    // Agar driver nahi mila
     if (!driver) {
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
-    // Account deactivated?
+    // Check if account is active
     if (!driver.isActive) {
-      return errorResponse(res, 'Your account has been deactivated. Contact support.', 403);
+      return errorResponse(res, 'Your account has been deactivated. Please contact support.', 403);
     }
 
-    // Password check
+    // Verify password
     const isPasswordValid = await driver.comparePassword(password);
     if (!isPasswordValid) {
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
-    // Generate tokens (driver._id use karo, User ka nahi)
+    // Generate tokens
     const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
     const refreshToken = jwtHelper.generateRefreshToken(driver._id);
+    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-    // Save tokens in Session & RefreshToken (userId = driver._id)
+    // Save tokens
     await RefreshToken.create({
       userId: driver._id,
       token: refreshToken,
@@ -558,19 +604,24 @@ exports.driverSignin = async (req, res) => {
     });
 
     // Success response
-    return successResponse(res, 'Driver login successful', {
+    return successResponse(res, 'Login successful', {
       driver: {
         id: driver._id,
         name: driver.name,
         email: driver.email,
         phone: driver.phone,
+        licenseNumber: driver.licenseNumber,
         role: driver.role,
         profileStatus: driver.profileStatus,
         isAvailable: driver.isAvailable,
         isActive: driver.isActive,
         vehicleType: driver.vehicleType,
         vehicleNumber: driver.vehicleNumber,
-        profileImage: driver.profileImage || null
+        vehicleModel: driver.vehicleModel,
+        vehicleAssigned: !!driver.vehicleNumber,
+        profileImage: driver.profileImage,
+        rating: driver.rating,
+        totalRides: driver.totalRides
       },
       accessToken,
       refreshToken
@@ -582,7 +633,7 @@ exports.driverSignin = async (req, res) => {
   }
 };
 
-//  Validate PIN - FIXED
+// VALIDATE PIN 
 exports.validatePin = async (req, res) => {
   try {
     const { pin } = req.body;
@@ -591,133 +642,174 @@ exports.validatePin = async (req, res) => {
       return errorResponse(res, 'PIN must be 4 digits', 400);
     }
 
-    // YEHI SAHI HAI — direct driver._id se dhundo
-    const driver = await Driver.findById(req.user._id);
+    const driver = await Driver.findById(req.user._id).select('+pin');
 
     if (!driver) {
       return errorResponse(res, 'Driver not found', 404);
     }
 
     if (!driver.isActive) {
-      return errorResponse(res, 'Account deactivated', 403);
+      return errorResponse(res, 'Account is deactivated', 403);
     }
 
-    // Lock check
+    // Check if PIN is locked
     if (driver.pinLockedUntil && driver.pinLockedUntil > new Date()) {
-      const mins = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
-      return errorResponse(res, `PIN locked. Try again in ${mins} minute(s)`, 423);
+      const minutesLeft = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
+      return errorResponse(res, `PIN is locked. Try again in ${minutesLeft} minute(s)`, 423);
     }
 
-    const isValid = await bcrypt.compare(pin, driver.pin);
+    // Verify PIN
+    const isValid = await driver.comparePin(pin);
 
     if (!isValid) {
       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
+      
+      // Lock PIN after 3 failed attempts
       if (driver.pinAttempts >= 3) {
-        driver.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+        driver.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
         driver.pinAttempts = 0;
+        await driver.save();
+        return errorResponse(res, 'PIN locked due to multiple failed attempts. Try again in 15 minutes.', 423);
       }
+      
       await driver.save();
-      return errorResponse(res, `Wrong PIN. ${3 - driver.pinAttempts} attempts left`, 401);
+      const attemptsLeft = 3 - driver.pinAttempts;
+      return errorResponse(res, `Invalid PIN. ${attemptsLeft} attempt(s) remaining`, 401);
     }
 
+    // Reset attempts on successful validation
     driver.pinAttempts = 0;
     driver.pinLockedUntil = null;
     await driver.save();
 
-    return successResponse(res, 'PIN validated successfully');
+    return successResponse(res, 'PIN validated successfully', {
+      validated: true
+    });
 
   } catch (error) {
     console.error('Validate PIN Error:', error);
-    return errorResponse(res, 'Validation failed', 500);
+    return errorResponse(res, 'PIN validation failed', 500);
   }
 };
 
-//  Change PIN - FIXED
+// CHANGE PIN 
 exports.changePin = async (req, res) => {
   try {
     const { currentPin, newPin } = req.body;
 
-    if (!currentPin || !newPin || currentPin === newPin) {
-      return errorResponse(res, 'Current & new PIN required and must be different', 400);
+    if (!currentPin || !newPin) {
+      return errorResponse(res, 'Current PIN and new PIN are required', 400);
+    }
+
+    if (currentPin === newPin) {
+      return errorResponse(res, 'New PIN must be different from current PIN', 400);
     }
 
     if (!/^\d{4}$/.test(newPin)) {
       return errorResponse(res, 'New PIN must be 4 digits', 400);
     }
 
-    const driver = await Driver.findById(req.user._id);
-    if (!driver) return errorResponse(res, 'Driver not found', 404);
-
-    if (driver.pinLockedUntil && driver.pinLockedUntil > new Date()) {
-      const mins = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
-      return errorResponse(res, `PIN locked. Try again in ${mins} minute(s)`, 423);
+    const driver = await Driver.findById(req.user._id).select('+pin');
+    
+    if (!driver) {
+      return errorResponse(res, 'Driver not found', 404);
     }
 
-    const isValid = await bcrypt.compare(currentPin, driver.pin);
+    // Check if PIN is locked
+    if (driver.pinLockedUntil && driver.pinLockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
+      return errorResponse(res, `PIN is locked. Try again in ${minutesLeft} minute(s)`, 423);
+    }
+
+    // Verify current PIN
+    const isValid = await driver.comparePin(currentPin);
+    
     if (!isValid) {
       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
+      
       if (driver.pinAttempts >= 3) {
         driver.pinLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
         driver.pinAttempts = 0;
+        await driver.save();
+        return errorResponse(res, 'PIN locked due to multiple failed attempts', 423);
       }
+      
       await driver.save();
-      return errorResponse(res, `Wrong current PIN. ${3 - driver.pinAttempts} attempts left`, 401);
+      const attemptsLeft = 3 - driver.pinAttempts;
+      return errorResponse(res, `Invalid current PIN. ${attemptsLeft} attempt(s) remaining`, 401);
     }
 
+    // Update PIN
     driver.pin = await bcrypt.hash(newPin, 10);
     driver.pinAttempts = 0;
     driver.pinLockedUntil = null;
     await driver.save();
 
-    return successResponse(res, 'PIN changed successfully');
+    return successResponse(res, 'PIN changed successfully', {
+      message: 'Your PIN has been updated. Please use the new PIN for future access.'
+    });
 
   } catch (error) {
-    console.error(error);
+    console.error('Change PIN Error:', error);
     return errorResponse(res, 'Failed to change PIN', 500);
   }
 };
 
-// Forgot PIN - FIXED (Sirf Driver se dhundo)
+// FORGOT PIN 
 exports.forgotPin = async (req, res) => {
   try {
     const { phone } = req.body;
 
     if (!phone || !/^\d{10}$/.test(phone)) {
-      return errorResponse(res, 'Valid 10-digit phone required', 400);
+      return errorResponse(res, 'Valid 10-digit phone number required', 400);
     }
 
     const driver = await Driver.findOne({ phone });
+    
     if (!driver) {
-      return successResponse(res, 'If phone exists, you will receive a reset code');
+      // Don't reveal if phone exists
+      return successResponse(res, 'If your phone number exists in our system, you will receive a reset code', {
+        message: 'Check your SMS for the PIN reset code'
+      });
     }
 
+    // Generate 6-digit reset token
     const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
 
     driver.resetPinToken = resetToken;
     driver.resetPinExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await driver.save();
 
-    sendPinResetSMS(phone, resetToken).catch(console.error);
+    // Send SMS (async)
+    sendPinResetSMS(phone, resetToken).catch(err => {
+      console.error('SMS Error:', err);
+    });
 
-    return successResponse(res, 'If phone exists, reset code sent');
+    return successResponse(res, 'If your phone number exists in our system, you will receive a reset code', {
+      message: 'Check your SMS for the PIN reset code'
+    });
 
   } catch (error) {
-    console.error(error);
-    return errorResponse(res, 'Request failed', 500);
+    console.error('Forgot PIN Error:', error);
+    return errorResponse(res, 'Request failed. Please try again.', 500);
   }
 };
 
-//  Reset PIN - FIXED
+//  RESET PIN 
 exports.resetPin = async (req, res) => {
   try {
     const { phone, resetToken, newPin } = req.body;
 
     if (!phone || !resetToken || !newPin) {
-      return errorResponse(res, 'All fields required', 400);
+      return errorResponse(res, 'Phone number, reset token, and new PIN are required', 400);
     }
 
-    if (!/^\d{10}$/.test(phone) || !/^\d{4}$/.test(newPin)) {
-      return errorResponse(res, 'Invalid phone or PIN format', 400);
+    if (!/^\d{10}$/.test(phone)) {
+      return errorResponse(res, 'Invalid phone number format', 400);
+    }
+
+    if (!/^\d{4}$/.test(newPin)) {
+      return errorResponse(res, 'New PIN must be 4 digits', 400);
     }
 
     const driver = await Driver.findOne({
@@ -727,9 +819,10 @@ exports.resetPin = async (req, res) => {
     });
 
     if (!driver) {
-      return errorResponse(res, 'Invalid or expired code', 400);
+      return errorResponse(res, 'Invalid or expired reset code', 400);
     }
 
+    // Update PIN
     driver.pin = await bcrypt.hash(newPin, 10);
     driver.resetPinToken = undefined;
     driver.resetPinExpires = undefined;
@@ -737,54 +830,78 @@ exports.resetPin = async (req, res) => {
     driver.pinLockedUntil = null;
     await driver.save();
 
-    return successResponse(res, 'PIN reset successful');
-
-  } catch (error) {
-    console.error(error);
-    return errorResponse(res, 'Reset failed', 500);
-  }
-};
-
-//  Get Profile 
-// controllers/profileController.js
-exports.getDriverProfile = async (req, res) => {
-  try {
-    const driver = await Driver.findById(req.user._id)
-      .select('-password -pin -resetPinToken -resetPinExpires'); // sensitive fields hata do
-
-    if (!driver) return errorResponse(res, 'Profile not found', 404);
-
-    return successResponse(res, 'Profile fetched successfully', {
-      driver: driver.toJSON(), // documents bhi include honge
-      totalDocuments: driver.documents.length,
-      profileStatus: driver.profileStatus
+    return successResponse(res, 'PIN reset successful', {
+      message: 'You can now use your new PIN to access the app'
     });
 
   } catch (error) {
-    console.error(error);
+    console.error('Reset PIN Error:', error);
+    return errorResponse(res, 'PIN reset failed', 500);
+  }
+};
+
+//  GET DRIVER PROFILE 
+exports.getDriverProfile = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.user._id)
+      .select('-password -pin -resetPinToken -resetPinExpires -pinAttempts -pinLockedUntil');
+
+    if (!driver) {
+      return errorResponse(res, 'Driver profile not found', 404);
+    }
+
+    // Check if vehicle is assigned
+    const vehicleAssigned = !!(driver.vehicleNumber && driver.vehicleType);
+
+    return successResponse(res, 'Profile retrieved successfully', {
+      driver: driver.toJSON(),
+      vehicleAssigned,
+      documentsUploaded: driver.documents.length,
+      documentsVerified: driver.documents.filter(doc => doc.status === 'verified').length,
+      documentsPending: driver.documents.filter(doc => doc.status === 'pending').length,
+      canGoOnline: driver.profileStatus === 'approved' && vehicleAssigned
+    });
+
+  } catch (error) {
+    console.error('Get Driver Profile Error:', error);
     return errorResponse(res, 'Failed to fetch profile', 500);
   }
 };
 
-// 6. Toggle Availability 
+//  TOGGLE AVAILABILITY 
 exports.toggleAvailability = async (req, res) => {
   try {
     const driver = await Driver.findById(req.user._id);
-    if (!driver) return errorResponse(res, 'Driver not found', 404);
-
-    if (driver.profileStatus !== 'approved') {
-      return errorResponse(res, 'Profile not approved yet', 403);
+    
+    if (!driver) {
+      return errorResponse(res, 'Driver not found', 404);
     }
 
+    // Check if profile is approved
+    if (driver.profileStatus !== 'approved') {
+      return errorResponse(res, 'Your profile is not approved yet. Cannot go online.', 403);
+    }
+
+    // Check if vehicle is assigned
+    if (!driver.vehicleNumber || !driver.vehicleType) {
+      return errorResponse(res, 'Vehicle not assigned yet. Cannot go online.', 403);
+    }
+
+    // Toggle availability
     driver.isAvailable = !driver.isAvailable;
     await driver.save();
 
-    return successResponse(res, `You are now ${driver.isAvailable ? 'online' : 'offline'}`, {
-      isAvailable: driver.isAvailable
+    const status = driver.isAvailable ? 'online' : 'offline';
+    
+    return successResponse(res, `You are now ${status}`, {
+      isAvailable: driver.isAvailable,
+      status
     });
 
   } catch (error) {
-    console.error(error);
-    return errorResponse(res, 'Failed to update status', 500);
+    console.error('Toggle Availability Error:', error);
+    return errorResponse(res, 'Failed to update availability status', 500);
   }
 };
+
+module.exports = exports;

@@ -94,104 +94,127 @@ exports.startJourney = async (req, res) => {
 //     const { journeyId } = req.params;
 //     const { latitude, longitude, address, finalRemarks } = req.body;
 
+//     // 1. Validate location
 //     if (!latitude || !longitude) {
-//       return errorResponse(res, 'End location is required', 400);
+//       return errorResponse(res, 'End location (latitude & longitude) is required', 400);
 //     }
 
-//     // Get journey
+//     // 2. Get journey
 //     const journey = await Journey.findById(journeyId);
 //     if (!journey) {
 //       return errorResponse(res, 'Journey not found', 404);
 //     }
 
-//     // Verify driver
-//     const driver = await Driver.findOne({ userId: req.user._id });
-//     if (!driver || journey.driverId.toString() !== driver._id.toString()) {
-//       return errorResponse(res, 'Unauthorized', 403);
+//     // DRIVER ALREADY IN req.user (authenticateDriver)
+//     const driver = req.user; 
+
+//     // 3. Verify ownership
+//     if (journey.driverId.toString() !== driver._id.toString()) {
+//       return errorResponse(res, 'Unauthorized: This journey does not belong to you', 403);
 //     }
 
-//     // Check if already ended
-//     if (journey.status === 'completed' || journey.status === 'cancelled') {
+//     // 4. Check if already ended
+//     if (['completed', 'cancelled'].includes(journey.status)) {
 //       return errorResponse(res, 'Journey already ended', 400);
 //     }
 
-//     // Calculate total distance
+//     // 5. Calculate total distance (start + waypoints + end)
 //     let totalDistance = 0;
-    
-//     // Distance from start to end
-//     totalDistance = calculateDistance(
-//       journey.startLocation.coordinates.latitude,
-//       journey.startLocation.coordinates.longitude,
-//       latitude,
-//       longitude
-//     );
 
-//     // Add waypoint distances
-//     for (let i = 1; i < journey.waypoints.length; i++) {
-//       const prev = journey.waypoints[i - 1].location.coordinates;
-//       const curr = journey.waypoints[i].location.coordinates;
+//     // Start to first waypoint
+//     if (journey.waypoints.length > 0) {
 //       totalDistance += calculateDistance(
-//         prev.latitude,
-//         prev.longitude,
-//         curr.latitude,
-//         curr.longitude
+//         journey.startLocation.coordinates.latitude,
+//         journey.startLocation.coordinates.longitude,
+//         journey.waypoints[0].location.coordinates.latitude,
+//         journey.waypoints[0].location.coordinates.longitude
+//       );
+
+//       // Between waypoints
+//       for (let i = 1; i < journey.waypoints.length; i++) {
+//         const prev = journey.waypoints[i - 1].location.coordinates;
+//         const curr = journey.waypoints[i].location.coordinates;
+//         totalDistance += calculateDistance(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+//       }
+
+//       // Last waypoint to end
+//       const lastWaypoint = journey.waypoints[journey.waypoints.length - 1];
+//       totalDistance += calculateDistance(
+//         lastWaypoint.location.coordinates.latitude,
+//         lastWaypoint.location.coordinates.longitude,
+//         latitude,
+//         longitude
+//       );
+//     } else {
+//       // No waypoints → direct start to end
+//       totalDistance = calculateDistance(
+//         journey.startLocation.coordinates.latitude,
+//         journey.startLocation.coordinates.longitude,
+//         latitude,
+//         longitude
 //       );
 //     }
 
-//     // Calculate duration
+//     // 6. Duration & Speed
 //     const endTime = new Date();
-//     const durationMs = endTime - journey.startTime;
+//     const durationMs = endTime - new Date(journey.startTime);
 //     const durationMinutes = Math.round(durationMs / 60000);
-
-//     // Calculate average speed
 //     const durationHours = durationMinutes / 60;
 //     const averageSpeed = durationHours > 0 ? totalDistance / durationHours : 0;
 
-//     // Update journey
+//     // 7. Update Journey
 //     journey.endLocation = {
-//       coordinates: { latitude, longitude },
-//       address: address || ''
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: address || 'Delivery completed'
 //     };
 //     journey.endTime = endTime;
 //     journey.status = 'completed';
 //     journey.totalDistance = parseFloat(totalDistance.toFixed(2));
 //     journey.totalDuration = durationMinutes;
 //     journey.averageSpeed = parseFloat(averageSpeed.toFixed(2));
-//     journey.finalRemarks = finalRemarks || '';
+//     journey.finalRemarks = finalRemarks || 'Delivery completed successfully';
 //     await journey.save();
 
-//     // Update delivery status
+//     // 8. Update Delivery
 //     const delivery = await Delivery.findById(journey.deliveryId);
-//     if (delivery && delivery.status !== 'delivered') {
+//     if (delivery) {
 //       delivery.status = 'delivered';
 //       delivery.actualDeliveryTime = endTime;
 //       await delivery.save();
 
-//       // Create status history
+//       // Status History
 //       await DeliveryStatusHistory.create({
 //         deliveryId: delivery._id,
 //         status: 'delivered',
 //         location: {
-//           coordinates: { latitude, longitude },
-//           address
+//           coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//           address: address || 'Final destination'
 //         },
-//         remarks: 'Journey completed',
+//         remarks: 'Journey completed by driver',
 //         updatedBy: {
-//           userId: req.user._id,
+//           userId: driver._id,
 //           userRole: 'driver',
-//           userName: req.user.name
+//           userName: driver.name || 'Driver'
 //         }
 //       });
 //     }
 
-//     return successResponse(res, 'Journey ended successfully', { journey });
+//     return successResponse(res, 'Journey ended & delivery marked as completed!', {
+//       journey: {
+//         id: journey._id,
+//         totalDistance: journey.totalDistance,
+//         totalDuration: journey.totalDuration,
+//         averageSpeed: journey.averageSpeed,
+//         status: journey.status
+//       },
+//       deliveryStatus: delivery?.status || 'delivered'
+//     });
 
 //   } catch (error) {
-//     console.error('End Journey Error:', error);
+//     console.error('End Journey Error:', error.message);
 //     return errorResponse(res, error.message || 'Failed to end journey', 500);
 //   }
 // };
-
 exports.endJourney = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -209,7 +232,7 @@ exports.endJourney = async (req, res) => {
     }
 
     // DRIVER ALREADY IN req.user (authenticateDriver)
-    const driver = req.user; 
+    const driver = req.user;
 
     // 3. Verify ownership
     if (journey.driverId.toString() !== driver._id.toString()) {
@@ -221,10 +244,9 @@ exports.endJourney = async (req, res) => {
       return errorResponse(res, 'Journey already ended', 400);
     }
 
-    // 5. Calculate total distance (start + waypoints + end)
+    // 5. Calculate total distance
     let totalDistance = 0;
 
-    // Start to first waypoint
     if (journey.waypoints.length > 0) {
       totalDistance += calculateDistance(
         journey.startLocation.coordinates.latitude,
@@ -233,14 +255,12 @@ exports.endJourney = async (req, res) => {
         journey.waypoints[0].location.coordinates.longitude
       );
 
-      // Between waypoints
       for (let i = 1; i < journey.waypoints.length; i++) {
         const prev = journey.waypoints[i - 1].location.coordinates;
         const curr = journey.waypoints[i].location.coordinates;
         totalDistance += calculateDistance(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
       }
 
-      // Last waypoint to end
       const lastWaypoint = journey.waypoints[journey.waypoints.length - 1];
       totalDistance += calculateDistance(
         lastWaypoint.location.coordinates.latitude,
@@ -249,7 +269,6 @@ exports.endJourney = async (req, res) => {
         longitude
       );
     } else {
-      // No waypoints → direct start to end
       totalDistance = calculateDistance(
         journey.startLocation.coordinates.latitude,
         journey.startLocation.coordinates.longitude,
@@ -285,7 +304,6 @@ exports.endJourney = async (req, res) => {
       delivery.actualDeliveryTime = endTime;
       await delivery.save();
 
-      // Status History
       await DeliveryStatusHistory.create({
         deliveryId: delivery._id,
         status: 'delivered',
@@ -302,14 +320,28 @@ exports.endJourney = async (req, res) => {
       });
     }
 
-    return successResponse(res, 'Journey ended & delivery marked as completed!', {
+    // 9. DRIVER KO FREE KAR DO — YEH LINE ADD KI!
+    await Driver.findByIdAndUpdate(
+      driver._id,
+      { 
+        isAvailable: true,
+        currentJourney: null,
+        $unset: { activeDelivery: "" } // agar field hai to
+      },
+      { new: true }
+    );
+
+    // Optional: Driver rating update ya earnings badhana baad mein kar dena
+
+    return successResponse(res, 'Journey ended successfully! You are now free for new deliveries', {
       journey: {
         id: journey._id,
-        totalDistance: journey.totalDistance,
-        totalDuration: journey.totalDuration,
-        averageSpeed: journey.averageSpeed,
-        status: journey.status
+        status: journey.status,
+        totalDistance: journey.totalDistance + ' km',
+        totalDuration: journey.totalDuration + ' mins',
+        averageSpeed: journey.averageSpeed + ' km/h'
       },
+      driverStatus: 'Available',
       deliveryStatus: delivery?.status || 'delivered'
     });
 
@@ -579,33 +611,54 @@ exports.getDriverJourneyHistory = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
 
-    const driver = await Driver.findOne({ userId: req.user._id });
-    if (!driver) {
-      return errorResponse(res, 'Driver profile not found', 404);
+    const driver = req.user;
+
+    if (!driver || driver.role !== 'driver') {
+      return errorResponse(res, 'Driver profile not found or unauthorized', 404);
     }
 
     const query = { driverId: driver._id };
     if (status) query.status = status;
 
     const journeys = await Journey.find(query)
-      .populate('deliveryId', 'trackingNumber orderId status')
+      .populate({
+        path: 'deliveryId',
+        select: 'trackingNumber status pickupLocation deliveryLocation'
+      })
+      .select('status startTime endTime totalDistance totalDuration averageSpeed waypoints images')
       .sort({ startTime: -1 })
       .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .lean();
 
     const total = await Journey.countDocuments(query);
 
-    return successResponse(res, 'Journey history retrieved successfully', {
-      journeys,
-      pagination: {
-        total,
-        page: parseInt(page),
-        pages: Math.ceil(total / limit)
-      }
+    // Clean & beautiful response
+    const formattedJourneys = journeys.map(j => ({
+      journeyId: j._id,
+      trackingNumber: j.deliveryId?.trackingNumber || 'N/A',
+      status: j.status,
+      deliveryStatus: j.deliveryId?.status || 'unknown',
+      startTime: j.startTime,
+      endTime: j.endTime || null,
+      duration: j.totalDuration ? `${j.totalDuration} mins` : 'In Progress',
+      distance: j.totalDistance ? `${j.totalDistance.toFixed(2)} km` : 'N/A',
+      averageSpeed: j.averageSpeed ? `${j.averageSpeed.toFixed(1)} km/h` : 'N/A',
+      pickup: j.deliveryId?.pickupLocation?.address || 'N/A',
+      delivery: j.deliveryId?.deliveryLocation?.address || 'N/A',
+      totalWaypoints: j.waypoints?.length || 0,
+      totalImages: j.images?.length || 0
+    }));
+
+    return successResponse(res, 'Your journey history retrieved successfully', {
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+      journeys: formattedJourneys
     });
 
   } catch (error) {
-    console.error('Get Driver Journey History Error:', error);
-    return errorResponse(res, 'Failed to retrieve journey history', 500);
+    console.error('Get Driver Journey History Error:', error.message);
+    return errorResponse(res, 'Failed to retrieve your journey history', 500);
   }
 };

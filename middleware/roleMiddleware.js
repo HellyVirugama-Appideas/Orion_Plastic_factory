@@ -1,48 +1,39 @@
 const Permission = require('../models/Permission');
 const Role = require('../models/Role');
 const Admin = require('../models/Admin');
-const { forbiddenResponse } = require('../utils/responseHelper');
+const { forbiddenResponse, errorResponse } = require('../utils/responseHelper');
 
-// Check specific permission
-// exports.checkPermission = (resource, action) => {
-//   return async (req, res, next) => {
-//     try {
-//       if (req.user.role !== 'admin') {
-//         return forbiddenResponse(res, 'Admin access required');
-//       }
 
-//       // Get admin details with permissions
-//       const admin = await Admin.findOne({ userId: req.user._id })
-//         .populate('permissions');
+// Permission structure
+const permissions = {
+  admin: {
+    vehicles: ['create', 'read', 'update', 'delete'],
+    customers: ['create', 'read', 'update', 'delete'],
+    regions: ['create', 'read', 'update', 'delete'],
+    // drivers: ['create', 'read', 'update', 'delete'],
+    // permissions object
+    drivers: ['create', 'read', 'update', 'delete', 'approve', 'reject', 'block', 'unblock'],
+    orders: ['create', 'read', 'update', 'delete'],
+    deliveries: ['create', 'read', 'update', 'delete']
+  },
+  manager: {
+    vehicles: ['read', 'update'],
+    customers: ['create', 'read', 'update'],
+    regions: ['read'],
+    drivers: ['read', 'update'],
+    orders: ['create', 'read', 'update'],
+    deliveries: ['create', 'read', 'update']
+  },
+  driver: {
+    deliveries: ['read', 'update'],
+    orders: ['read']
+  }
+};
 
-//       if (!admin) {
-//         return forbiddenResponse(res, 'Admin profile not found');
-//       }
-
-//       // Check if admin has required permission
-//       const hasPermission = admin.permissions.some(
-//         permission => permission.resource === resource && permission.action === action
-//       );
-
-//       if (!hasPermission) {
-//         return forbiddenResponse(res, `Permission denied: ${action} on ${resource}`);
-//       }
-
-//       next();
-//     } catch (error) {
-//       return res.status(500).json({
-//         success: false,
-//         message: 'Error checking permissions',
-//         error: error.message
-//       });
-//     }
-//   };
-// };
-// middleware/roleMiddleware.js → PURA REPLACE KAR DO
 
 exports.checkPermission = (resource, action) => {
   return (req, res, next) => {
-    // Admin ho sakta hai req.admin ya req.user mein
+
     const user = req.admin || req.user;
 
     if (!user) {
@@ -52,13 +43,10 @@ exports.checkPermission = (resource, action) => {
       });
     }
 
-    // Agar admin hai (chahe Admin model ho ya User model) → sab permission
     if (user.role === 'admin' || user.isSuperAdmin || user.role === 'admin') {
       return next();
     }
 
-    // Future mein granular permissions add kar sakte ho
-    // Abhi ke liye admin ko hi sab allow
     return res.status(403).json({
       success: false,
       message: 'Permission denied - Admin access required'
@@ -102,3 +90,36 @@ exports.checkAnyPermission = (permissionsArray) => {
     }
   };
 };
+
+
+
+// exports.checkPermission = (resource, action) => {
+//   return (req, res, next) => {
+//     const user = req.user;
+
+//     if (!user || !user.role) {
+//       return errorResponse(res, 'Not authenticated', 401);
+//     }
+
+//     const role = user.role;
+
+//     if (!permissions[role]) {
+//       return errorResponse(res, 'Invalid role', 403);
+//     }
+
+//     const allowedActions = permissions[role][resource];
+
+//     if (!allowedActions || !allowedActions.includes(action)) {
+//       return errorResponse(res, `Permission denied: Cannot ${action} ${resource}`, 403);
+//     }
+
+//     next();
+//   };
+// };
+// // Check if user is admin or manager
+// exports.isAdminOrManager = (req, res, next) => {
+//   if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+//     return errorResponse(res, 'Access denied. Admin or Manager role required.', 403);
+//   }
+//   next();
+// };

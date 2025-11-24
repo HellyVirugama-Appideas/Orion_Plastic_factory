@@ -143,35 +143,101 @@ exports.isCustomer = async (req, res, next) => {
 
 // exports.protectAdmin = async (req, res, next) => {
 //   try {
-//     let adminId = null;
-//     let token = null;
+//     let token;
 
-//     // Session check (web)
-//     if (req.session?.admin?.id) {
-//       adminId = req.session.admin.id;
-//     }
-//     // JWT check (API)
-//     else if (req.headers.authorization?.startsWith('Bearer ')) {
+//     if (req.headers.authorization?.startsWith('Bearer ')) {
 //       token = req.headers.authorization.split(' ')[1];
-//       const decoded = verifyToken(token);
-//       if (!decoded?.userId) return unauthorizedResponse(res, 'Invalid token');
-//       adminId = decoded.userId;
-//     } else {
-//       return unauthorizedResponse(res, 'Admin login required');
 //     }
 
-//     const admin = await Admin.findById(adminId).select('-password');
-//     if (!admin || !admin.isActive) {
-//       return unauthorizedResponse(res, 'Admin not found or deactivated');
+//     if (!token) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Not authorized, no token'
+//       });
+//     }
+
+//     // Verify token
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+//     // Admin collection se dhundo!
+//     const admin = await Admin.findById(decoded.userId || decoded.id);
+
+//     if (!admin) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Admin not found or invalid token'
+//       });
+//     }
+
+//     if (!admin.isActive) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'Admin account is deactivated'
+//       });
 //     }
 
 //     req.admin = admin;
-//     next();
+//     req.admin.role = 'admin';
 
+//     next();
 //   } catch (error) {
-//     return unauthorizedResponse(res, 'Authentication failed');
+//     console.error('protectAdmin Error:', error.message);
+//     return res.status(401).json({
+//       success: false,
+//       message: 'Invalid or expired token'
+//     });
 //   }
 // };
+
+// exports.protectAdmin = async (req, res, next) => {
+//   try {
+//     let token;
+
+//     if (req.headers.authorization?.startsWith('Bearer ')) {
+//       token = req.headers.authorization.split(' ')[1];
+//     }
+
+//     if (!token) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Not authorized, no token'
+//       });
+//     }
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+//     const admin = await Admin.findById(decoded.userId || decoded.id);
+
+//     if (!admin) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Admin not found or invalid token'
+//       });
+//     }
+
+//     if (!admin.isActive) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'Admin account is deactivated'
+//       });
+//     }
+
+//     // req.user = admin;          
+//     // req.user.role = 'admin';    
+
+//     req.admin = admin;
+//     req.admin.role = 'admin';
+
+//     next();
+//   } catch (error) {
+//     console.error('protectAdmin Error:', error.message);
+//     return res.status(401).json({
+//       success: false,
+//       message: 'Invalid or expired token'
+//     });
+//   }
+// };
+
 
 exports.protectAdmin = async (req, res, next) => {
   try {
@@ -188,10 +254,7 @@ exports.protectAdmin = async (req, res, next) => {
       });
     }
 
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Admin collection se dhundo!
     const admin = await Admin.findById(decoded.userId || decoded.id);
 
     if (!admin) {
@@ -208,19 +271,19 @@ exports.protectAdmin = async (req, res, next) => {
       });
     }
 
-    // YEHI ZAROORI — req.admin set karo (req.user nahi!)
+    req.user = admin;
+    req.user.role = 'admin';
+
     req.admin = admin;
-    req.admin.role = 'admin'; // optional, agar kahi use ho
 
     next();
   } catch (error) {
-    console.error('protectAdmin Error:', error.message);
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token'
     });
   }
-};
+}; 
 
 exports.isAdmin = (req, res, next) => {
   if (req.admin && req.admin.role === 'admin') {

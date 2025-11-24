@@ -63,8 +63,8 @@ const adminSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    default: 'admin',
-    enum: ['admin', 'superadmin']  // agar zarurat ho
+    enum: ['admin', 'superadmin'] ,
+    default: 'admin'
   },
 
   // Admin specific fields
@@ -77,7 +77,7 @@ const adminSchema = new mongoose.Schema({
     type: String,
     unique: true,
     trim: true,
-    sparse: true  // agar kuch admins ke pass nahi hai to null allowed
+    sparse: true 
   },
   permissions: [{
     type: String,

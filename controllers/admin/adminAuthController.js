@@ -327,7 +327,7 @@
 // };
 
 
-// controllers/adminController.js
+// controllers/adminController.js 
 
 const Admin = require('../../models/Admin');
 const Session = require('../../models/Session');
@@ -447,6 +447,17 @@ exports.adminSignin = async (req, res) => {
     errorResponse(res, error.message || 'Login failed', 500);
   }
 };
+// Render login page
+exports.renderLogin = (req, res) => {
+  if (req.cookies.adminToken) {
+    return res.redirect('dashboard/index');
+  }
+  res.render('auth/login', {
+    title: 'Admin Login',
+    error: null
+  });
+};
+
 
 // Get Admin Profile
 exports.getAdminProfile = async (req, res) => {
@@ -510,3 +521,110 @@ exports.updateAdminProfile = async (req, res) => {
   }
 };
 
+exports.adminLogout = async (req, res) => {
+  try {
+    const adminId = req.admin._id; 
+    const authHeader = req.headers.authorization;
+    let token = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    if (!token) {
+      res.clearCookie('adminToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+      return successResponse(res, 'Logged out successfully (token not found)');
+    }
+
+    await Session.deleteOne({
+      userId: adminId,
+      token: token
+    });
+
+    await RefreshToken.deleteOne({
+      userId: adminId,
+      token: { $exists: true }
+    });
+
+    res.clearCookie('adminToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    return successResponse(res, 'Logged out successfully!');
+
+  } catch (error) {
+    console.error('Admin Logout Error:', error);
+    return errorResponse(res, 'Logout failed', 500);
+  }
+};
+
+exports.adminLogoutAll = async (req, res) => {
+  try {
+    const adminId = req.admin._id;
+
+    await Session.deleteMany({ userId: adminId });
+
+    await RefreshToken.deleteMany({ userId: adminId });   
+
+    res.clearCookie('adminToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    return successResponse(res, 'Logged out from all devices successfully!');
+
+  } catch (error) {
+    console.error('Admin Logout All Error:', error);
+    return errorResponse(res, 'Failed to logout from all devices', 500);
+  }
+};
+
+exports.logout = async(req,res)=>{
+  try{
+    const adminId = req.admin._id;
+    const authHeader = req.headers.authorization;
+    const token = null;
+
+    if(authHeader && authHeader.startsWith("Bearer ")){
+      token = authHeader.split(" ")[1]
+    }
+    if(!token){
+      res.clearCookie('/admin/Token',{
+        httpOnly: true,
+        secure : process.env.NODE_ENV || "production",
+        sameSite : "strict"
+      })
+    }
+    await Session.deleteOne({
+      userId : adminId,
+      token : token
+    })
+
+    await RefreshToken.deleteOne({
+      userId : adminId,
+      token : { $exists: true }
+    })
+    
+    res.clearCookie('adminToken',{
+      httpOnly : true,
+      secure : process.env.NODE_ENV || "production",
+      sameSite : "strict",
+      path : "/"
+    })
+
+    return successResponse(res, "Logout successfully")
+
+  }catch(error){
+    console.error("logout error",error)
+    return errorResponse(res, "Failed to logout from this devices",500)
+  }
+}

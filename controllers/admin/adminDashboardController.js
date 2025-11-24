@@ -101,51 +101,6 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // Get All Drivers (with pagination)
-// exports.getAllDrivers = async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, profileStatus, isAvailable, search } = req.query;
-
-//     // Build query
-//     const query = {};
-//     if (profileStatus) query.profileStatus = profileStatus;
-//     if (isAvailable !== undefined) query.isAvailable = isAvailable === 'true';
-
-//     // Get drivers
-//     let drivers = await Driver.find(query)
-//       .populate('userId', 'name email phone profileImage isActive')
-//       .sort({ createdAt: -1 })
-//       .limit(limit * 1)
-//       .skip((page - 1) * limit);
-
-//     // Apply search filter on populated user data if needed
-//     if (search) {
-//       drivers = drivers.filter(driver => {
-//         const user = driver.userId;
-//         return (
-//           user.name.toLowerCase().includes(search.toLowerCase()) ||
-//           user.email.toLowerCase().includes(search.toLowerCase()) ||
-//           user.phone.includes(search) ||
-//           driver.licenseNumber.toLowerCase().includes(search.toLowerCase()) ||
-//           driver.vehicleNumber.toLowerCase().includes(search.toLowerCase())
-//         );
-//       });
-//     }
-
-//     const total = await Driver.countDocuments(query);
-
-//     successResponse(res, 'Drivers retrieved successfully', {
-//       drivers,
-//       pagination: {
-//         total,
-//         page: parseInt(page),
-//         pages: Math.ceil(total / limit)
-//       }
-//     });
-//   } catch (error) {
-//     errorResponse(res, error.message);
-//   }
-// };
-// Get All Drivers (with pagination) — FINAL WORKING VERSION
 exports.getAllDrivers = async (req, res) => {
   try {
     const { page = 1, limit = 10, profileStatus, isAvailable, search } = req.query;
@@ -286,5 +241,92 @@ exports.deleteUser = async (req, res) => {
   } catch (error) {
     console.error('Delete User Error:', error);
     return errorResponse(res, error.message || 'Failed to delete user', 500);
+  }
+};
+
+exports.renderDashboard = async (req, res) => {
+  try {
+    // Get statistics
+    const [
+      totalOrders,
+      totalDeliveries,
+      totalDrivers,
+      totalCustomers,
+      pendingOrders,
+      activeDeliveries,
+      availableDrivers,
+      todayRevenue,
+      recentOrders,
+      activeDeliveriesData
+    ] = await Promise.all([
+      Order.countDocuments(),
+      Delivery.countDocuments(),
+      Driver.countDocuments(),
+      User.countDocuments({ role: 'customer' }),
+      Order.countDocuments({ status: 'pending' }),
+      Delivery.countDocuments({ status: { $in: ['assigned', 'picked_up', 'in_transit', 'out_for_delivery'] } }),
+      Driver.countDocuments({ isAvailable: true }),
+      Order.aggregate([
+        {
+          $match: {
+            createdAt: {
+              $gte: new Date(new Date().setHours(0, 0, 0, 0))
+            },
+            status: { $ne: 'cancelled' }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$totalAmount' }
+          }
+        }
+      ]),
+      Order.find()
+        .populate('customerId', 'name email')
+        .populate('deliveryId', 'trackingNumber status')
+        .sort({ createdAt: -1 })
+        .limit(10),
+      Delivery.find({ status: { $in: ['assigned', 'picked_up', 'in_transit', 'out_for_delivery'] } })
+        .populate('customerId', 'name phone')
+        .populate('driverId')
+        .limit(10)
+    ]);
+
+    // Get order status breakdown
+    const orderStatusBreakdown = await Order.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    // Get delivery status breakdown
+    const deliveryStatusBreakdown = await Delivery.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    res.render('admin/dashboard/index', {
+      title: 'Dashboard',
+      user: req.user,
+      stats: {
+        totalOrders,
+        totalDeliveries,
+        totalDrivers,
+        totalCustomers,
+        pendingOrders,
+        activeDeliveries,
+        availableDrivers,
+        todayRevenue: todayRevenue[0]?.total || 0
+      },
+      orderStatusBreakdown,
+      deliveryStatusBreakdown,
+      recentOrders,
+      activeDeliveries: activeDeliveriesData
+    });
+  } catch (error) {
+    console.error('Dashboard Error:', error);
+    res.render('admin/dashboard/index', {
+      title: 'Dashboard',
+      user: req.user,
+      error: 'Failed to load dashboard data'
+    });
   }
 };

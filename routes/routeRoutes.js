@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const routeController = require('../controllers/routeController');
-const { authenticate, isAdmin, isDriver } = require('../middleware/authMiddleware');
+const { authenticate, isAdmin, isDriver, protectAdmin, authenticateDriver } = require('../middleware/authMiddleware');
 const { checkPermission } = require('../middleware/roleMiddleware');
 
 // Admin Routes
 router.post(
-  '/',
-  authenticate,
+  '/',  
+  protectAdmin,
   isAdmin,
   checkPermission('routes', 'create'),
   routeController.createRoute
@@ -15,7 +15,7 @@ router.post(
 
 router.patch(
   '/:routeId/auto-arrange',
-  authenticate,
+  protectAdmin,
   isAdmin,
   checkPermission('routes', 'update'),
   routeController.autoArrangeRoute
@@ -23,7 +23,7 @@ router.patch(
 
 router.patch(
   '/:routeId/manual-arrange',
-  authenticate,
+  protectAdmin,
   isAdmin,
   checkPermission('routes', 'update'),
   routeController.manualArrangeRoute
@@ -31,7 +31,7 @@ router.patch(
 
 router.get(
   '/',
-  authenticate,
+  protectAdmin,
   isAdmin,
   checkPermission('routes', 'read'),
   routeController.getAllRoutes
@@ -45,7 +45,7 @@ router.get(
 
 router.delete(
   '/:routeId',
-  authenticate,
+  protectAdmin,
   isAdmin,
   checkPermission('routes', 'delete'),
   routeController.deleteRoute
@@ -54,21 +54,21 @@ router.delete(
 // Driver Routes
 router.get(
   '/driver/active',
-  authenticate,
+  authenticateDriver,
   isDriver,
   routeController.getDriverActiveRoutes
 );
 
 router.patch(
   '/:routeId/start',
-  authenticate,
+  authenticateDriver,
   isDriver,
   routeController.startRoute
 );
 
 router.patch(
   '/:routeId/complete',
-  authenticate,
+  authenticateDriver,
   isDriver,
   routeController.completeRoute
 );

@@ -27,12 +27,12 @@ const orderItemSchema = new mongoose.Schema({
   },
   unitPrice: {
     type: Number,
-    required: true,
+    required: false,
     min: 0
   },
   totalPrice: {
     type: Number,
-    required: true,
+    required: false,
     min: 0
   },
   specifications: {
@@ -64,48 +64,48 @@ const orderSchema = new mongoose.Schema({
   },
   items: [orderItemSchema],
   
-  // Pricing
-  subtotal: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  taxAmount: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  taxPercentage: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 100
-  },
-  shippingCharges: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  discount: {
-    amount: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    percentage: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100
-    },
-    code: String,
-    reason: String
-  },
-  totalAmount: {
-    type: Number,
-    required: true,
-    min: 0
-  },
+  // // Pricing
+  // subtotal: {
+  //   type: Number,
+  //   required: false,
+  //   min: 0
+  // },
+  // taxAmount: {
+  //   type: Number,
+  //   default: 0,
+  //   min: 0
+  // },
+  // taxPercentage: {
+  //   type: Number,
+  //   default: 0,
+  //   min: 0,
+  //   max: 100
+  // },
+  // shippingCharges: {
+  //   type: Number,
+  //   default: 0,
+  //   min: 0
+  // },
+  // discount: {
+  //   amount: {
+  //     type: Number,
+  //     default: 0,
+  //     min: 0
+  //   },
+  //   percentage: {
+  //     type: Number,
+  //     default: 0,
+  //     min: 0,
+  //     max: 100
+  //   },
+  //   code: String,
+  //   reason: String
+  // },
+  // totalAmount: {
+  //   type: Number,
+  //   required: false,
+  //   min: 0
+  // },
 
   // Pickup Location
   pickupLocation: {
@@ -270,39 +270,39 @@ orderSchema.virtual('orderAgeHours').get(function() {
 });
 
 // Pre-save middleware to calculate totals
-orderSchema.pre('save', function(next) {
-  // Calculate subtotal from items
-  if (this.items && this.items.length > 0) {
-    this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
-  }
+// orderSchema.pre('save', function(next) {
+//   // Calculate subtotal from items
+//   if (this.items && this.items.length > 0) {
+//     this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
+//   }
 
-  // Calculate total amount
-  let total = this.subtotal;
+//   // Calculate total amount
+//   let total = this.subtotal;
   
-  // Add tax
-  if (this.taxPercentage > 0) {
-    this.taxAmount = (this.subtotal * this.taxPercentage) / 100;
-    total += this.taxAmount;
-  }
+//   // Add tax
+//   if (this.taxPercentage > 0) {
+//     this.taxAmount = (this.subtotal * this.taxPercentage) / 100;
+//     total += this.taxAmount;
+//   }
   
-  // Add shipping charges
-  total += this.shippingCharges || 0;
+//   // Add shipping charges
+//   total += this.shippingCharges || 0;
   
-  // Subtract discount
-  if (this.discount.percentage > 0) {
-    this.discount.amount = (this.subtotal * this.discount.percentage) / 100;
-  }
-  total -= this.discount.amount || 0;
+//   // Subtract discount
+//   if (this.discount.percentage > 0) {
+//     this.discount.amount = (this.subtotal * this.discount.percentage) / 100;
+//   }
+//   total -= this.discount.amount || 0;
   
-  this.totalAmount = Math.max(0, total);
+//   this.totalAmount = Math.max(0, total);
 
-  // // Calculate due amount
-  // if (this.paymentDetails) {
-  //   this.paymentDetails.dueAmount = this.totalAmount - (this.paymentDetails.paidAmount || 0);
-  // }
+//   // // Calculate due amount
+//   // if (this.paymentDetails) {
+//   //   this.paymentDetails.dueAmount = this.totalAmount - (this.paymentDetails.paidAmount || 0);
+//   // }
 
-  next();
-});
+//   next();
+// });
 
 // Static method to generate order number
 orderSchema.statics.generateOrderNumber = async function() {
@@ -341,3 +341,22 @@ orderSchema.methods.canBeModified = function() {
 const Order = mongoose.model('Order', orderSchema);
 
 module.exports = Order;
+
+// {
+//   "name": "Mumbai Route - November 28, 2024",
+//   "driverId": "673def789ghi012345678901",
+//   "deliveryIds": [
+//     "691eb8618e208429aaf768ca",
+//     "691eb8bb8e208429aaf768d7"
+//   ],
+//   "startLocation": {
+//     "address": "Orion Plastic Factory, Plot No. 45, GIDC Industrial Estate, Vatva, Ahmedabad, Gujarat 382445",
+//     "coordinates": {
+//       "latitude": 22.9871,
+//       "longitude": 72.6369
+//     }
+//   },
+//   "notes": "Priority route - Multiple deliveries in Mumbai area. Ensure all deliveries completed by 6 PM."
+// }
+
+

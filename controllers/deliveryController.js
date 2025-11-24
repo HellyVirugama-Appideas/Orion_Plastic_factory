@@ -65,8 +65,8 @@ exports.createDelivery = async (req, res) => {
       scheduledDeliveryTime: scheduledDeliveryTime ? new Date(scheduledDeliveryTime) : null,
       priority,
       instructions,
-      trackingNumber,           // ← Auto generated
-      createdBy: adminId,       // ← Safe (null bhi chalega)
+      trackingNumber,           
+      createdBy: adminId,      
       status: 'pending'
     });
 
@@ -84,78 +84,20 @@ exports.createDelivery = async (req, res) => {
 
     const trackingUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/track/${trackingNumber}`;
 
-    return successResponse(res, 'Delivery created successfully!', {
-      delivery,
-      trackingUrl
-    }, 201);
+    // return successResponse(res, 'Delivery created successfully!', {
+    //   delivery,
+    //   trackingUrl
+    // }, 201);
+    res.redirect(`/admin/deliveries/${delivery._id}?success=Delivery created successfully`);
 
   } catch (error) {
     console.error('Create Delivery Error:', error.message);
-    return errorResponse(res, error.message || 'Failed to create delivery', 500);
+    // return errorResponse(res, error.message || 'Failed to create delivery', 500);
+     res.redirect('/admin/deliveries/create?error=Failed to create delivery');
   }
 };
 
 // Assign Driver to Deliver
-// exports.assignDriver = async (req, res) => {
-//   try {
-//     const { deliveryId } = req.params;
-//     const { driverId } = req.body;
-
-//     if (!driverId) return errorResponse(res, 'Driver ID is required', 400);
-
-//     // 1. Delivery check
-//     const delivery = await Delivery.findById(deliveryId);
-//     if (!delivery) return errorResponse(res, 'Delivery not found', 404);
-//     if (delivery.status !== 'pending') return errorResponse(res, 'Delivery already assigned or in progress', 400);
-
-//     // 2. Driver fetch (Tumhara Driver model standalone hai)
-//     const driver = await Driver.findById(driverId);
-//     if (!driver) return errorResponse(res, 'Driver not found', 404);
-
-//     // 3. Driver ke paas hi sab kuch hai — name, phone, email already driver me hai!
-//     if (!driver.isAvailable) return errorResponse(res, 'Driver is not available', 400);
-//     if (driver.profileStatus !== 'approved') return errorResponse(res, 'Driver profile not approved', 400);
-
-//     // 4. Assign Driver
-//     delivery.driverId = driver._id;
-//     delivery.vehicleNumber = driver.vehicleNumber;
-//     delivery.status = 'assigned';
-//     await delivery.save();
-
-//     // 5. Driver ko unavailable kar do
-//     driver.isAvailable = false;
-//     await driver.save();
-
-//     // 6. Status History
-//     await DeliveryStatusHistory.create({
-//       deliveryId: delivery._id,
-//       status: 'assigned',
-//       remarks: `Assigned to ${driver.name} (${driver.vehicleNumber})`,
-//       updatedBy: {
-//         userId: req.user?._id || null,
-//         userRole: req.user?.role || 'admin',
-//         userName: req.user?.name || 'Admin'
-//       }
-//     });
-
-//     // 7. Success Response
-//     return successResponse(res, 'Driver assigned successfully!', {
-//       delivery,
-//       driver: {
-//         id: driver._id,
-//         name: driver.name,
-//         phone: driver.phone,
-//         email: driver.email,
-//         vehicleNumber: driver.vehicleNumber,
-//         vehicleType: driver.vehicleType
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Assign Driver Error:', error.message);
-//     return errorResponse(res, error.message || 'Failed to assign driver', 500);
-//   }
-// };
 exports.assignDriver = async (req, res) => {
   try {
     const { deliveryId } = req.params;
@@ -334,8 +276,6 @@ exports.updateDeliveryStatus = async (req, res) => {
 };
 
 // Get Delivery Details
-// controllers/deliveryController.js → YE PURA FUNCTION REPLACE KAR DO
-
 exports.getDeliveryDetails = async (req, res) => {
   try {
     const { deliveryId } = req.params;
@@ -450,7 +390,7 @@ exports.getAllDeliveries = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, driverId, search } = req.query;
 
-    const query = {};
+    const query = { };
     if (status) query.status = status;
     if (driverId) query.driverId = driverId;
     if (search) {
@@ -461,28 +401,48 @@ exports.getAllDeliveries = async (req, res) => {
     }
 
     const deliveries = await Delivery.find(query)
-      .populate('customerId', 'name email phone')
-      .populate({
-        path: 'driverId',
-        populate: { path: 'userId', select: 'name phone' }
-      })
+      .populate('customerId', 'name email phone companyName')
+      .populate('driverId', 'name phone vehicleNumber vehicleType profileImage rating') // ← FIXED!
+      .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
-      .skip((page - 1) * limit);
-
+      .skip((page - 1) * limit)
+      .lean(); 
     const total = await Delivery.countDocuments(query);
 
+    // Clean & beautiful response
+    const formattedDeliveries = deliveries.map(d => ({
+      id: d._id,
+      trackingNumber: d.trackingNumber,
+      status: d.status,
+      priority: d.priority,
+      createdAt: d.createdAt,
+      customer: d.customerId ? {
+        name: d.customerId.name,
+        phone: d.customerId.phone,
+        email: d.customerId.email
+      } : null,
+      driver: d.driverId ? {
+        id: d.driverId._id,
+        name: d.driverId.name,
+        phone: d.driverId.phone,
+        vehicle: d.driverId.vehicleNumber
+      } : null,
+      createdBy: d.createdBy ? d.createdBy.name : 'System'
+    }));
+
     return successResponse(res, 'Deliveries retrieved successfully', {
-      deliveries,
+      deliveries: formattedDeliveries,
       pagination: {
         total,
         page: parseInt(page),
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(total / limit),
+        limit: parseInt(limit)
       }
     });
 
   } catch (error) {
-    console.error('Get All Deliveries Error:', error);
+    console.error('Get All Deliveries Error:', error.message);
     return errorResponse(res, 'Failed to retrieve deliveries', 500);
   }
 };
@@ -492,23 +452,47 @@ exports.getDriverDeliveries = async (req, res) => {
   try {
     const { status } = req.query;
 
-    const driver = await Driver.findOne({ userId: req.user._id });
-    if (!driver) {
-      return errorResponse(res, 'Driver profile not found', 404);
+    const driver = req.user;
+
+    if (!driver || driver.role !== 'driver') {
+      return errorResponse(res, 'Driver profile not found or unauthorized', 404);
     }
 
     const query = { driverId: driver._id };
     if (status) query.status = status;
 
     const deliveries = await Delivery.find(query)
-      .populate('customerId', 'name phone')
-      .sort({ scheduledDeliveryTime: 1 });
+      .populate('customerId', 'name phone companyName')
+      .populate('createdBy', 'name')
+      .select('trackingNumber status priority pickupLocation deliveryLocation scheduledDeliveryTime actualDeliveryTime')
+      .sort({ scheduledDeliveryTime: 1 })
+      .lean();
 
-    return successResponse(res, 'Deliveries retrieved successfully', { deliveries });
+    // Clean & beautiful response
+    const formatted = deliveries.map(d => ({
+      id: d._id,
+      trackingNumber: d.trackingNumber,
+      status: d.status,
+      priority: d.priority,
+      customer: d.customerId ? {
+        name: d.customerId.name,
+        phone: d.customerId.phone,
+        company: d.customerId.companyName || null
+      } : null,
+      pickup: d.pickupLocation.address,
+      delivery: d.deliveryLocation.address,
+      scheduledTime: d.scheduledDeliveryTime,
+      actualTime: d.actualDeliveryTime || null
+    }));
+
+    return successResponse(res, 'Your deliveries retrieved successfully', {
+      total: formatted.length,
+      deliveries: formatted
+    });
 
   } catch (error) {
-    console.error('Get Driver Deliveries Error:', error);
-    return errorResponse(res, 'Failed to retrieve deliveries', 500);
+    console.error('Get Driver Deliveries Error:', error.message);
+    return errorResponse(res, 'Failed to retrieve your deliveries', 500);
   }
 };
 
@@ -592,5 +576,99 @@ exports.verifyOTPAndComplete = async (req, res) => {
   } catch (error) {
     console.error('Verify OTP Error:', error);
     return errorResponse(res, 'Failed to verify OTP', 500);
+  }
+};
+
+exports.listDeliveries = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.status) query.status = req.query.status;
+    if (req.query.driverId) query.driverId = req.query.driverId;
+    if (req.query.search) {
+      query.$or = [
+        { trackingNumber: { $regex: req.query.search, $options: 'i' } },
+        { orderId: { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+
+    const [deliveries, total, drivers] = await Promise.all([
+      Delivery.find(query)
+        .populate('customerId', 'name email phone')
+        .populate('driverId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Delivery.countDocuments(query),
+      Driver.find().populate('userId', 'name')
+    ]);
+
+    res.render('admin/deliveries/list', {
+      title: 'Deliveries',
+      user: req.user,
+      deliveries,
+      drivers,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      filters: req.query,
+      success: req.query.success,
+      error: req.query.error
+    });
+  } catch (error) {
+    console.error('List Deliveries Error:', error);
+    res.redirect('/admin/dashboard?error=Failed to load deliveries');
+  }
+};
+
+// Render create delivery page
+exports.renderCreateDelivery = async (req, res) => {
+  try {
+    const [customers, drivers] = await Promise.all([
+      User.find({ role: 'customer' }).select('name email phone').sort({ name: 1 }),
+      Driver.find({ profileStatus: 'approved' }).populate('userId', 'name phone')
+    ]);
+
+    res.render('admin/deliveries/create', {
+      title: 'Create Delivery',
+      user: req.user,
+      customers,
+      drivers
+    });
+  } catch (error) {
+    console.error('Render Create Delivery Error:', error);
+    res.redirect('/admin/deliveries?error=Failed to load create delivery page');
+  }
+};
+
+// View delivery details
+exports.viewDelivery = async (req, res) => {
+  try {
+    const delivery = await Delivery.findById(req.params.id)
+      .populate('customerId', 'name email phone')
+      .populate('driverId')
+      .populate('createdBy', 'name email');
+
+    if (!delivery) {
+      return res.redirect('/admin/deliveries?error=Delivery not found');
+    }
+
+    const trackingLogs = await TrackingLog.find({ deliveryId: delivery._id })
+      .sort({ timestamp: -1 })
+      .limit(50);
+
+    res.render('admin/deliveries/details', {
+      title: `Delivery ${delivery.trackingNumber}`,
+      user: req.user,
+      delivery,
+      trackingLogs,
+      success: req.query.success,
+      error: req.query.error
+    });
+  } catch (error) {
+    console.error('View Delivery Error:', error);
+    res.redirect('/admin/deliveries?error=Failed to load delivery details');
   }
 };

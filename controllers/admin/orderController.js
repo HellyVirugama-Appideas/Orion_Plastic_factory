@@ -6,107 +6,6 @@ const { successResponse, errorResponse } = require('../../utils/responseHelper')
 
 
 // Admin creates order
-// exports.createOrderByAdmin = async (req, res) => {
-//   try {
-//     const {
-//       customerId,
-//       items,
-//       deliveryLocation,
-//       pickupLocation,
-//       scheduledPickupDate,
-//       scheduledDeliveryDate,
-//       specialInstructions,
-//       packagingInstructions,
-//       paymentMethod,
-//       orderType,
-//       priority,
-//       taxPercentage,
-//       shippingCharges,
-//       discount,
-//       status
-//     } = req.body;
-
-//     // Validate customer
-//     const customer = await User.findById(customerId);
-//     if (!customer) {
-//       return errorResponse(res, 'Customer not found', 404);
-//     }
-
-//     // Validate items
-//     if (!items || items.length === 0) {
-//       return errorResponse(res, 'Order must have at least one item', 400);
-//     }
-
-//     // Calculate item totals
-//     const processedItems = items.map(item => ({
-//       ...item,
-//       totalPrice: item.quantity * item.unitPrice
-//     }));
-
-//     // Generate order number
-//     const orderNumber = await Order.generateOrderNumber();
-
-//     // Default pickup location
-//     const defaultPickupLocation = pickupLocation || {
-//       address: 'Orion Plastic Factory, Plot No. 45, GIDC Industrial Estate, Vatva, Ahmedabad, Gujarat 382445',
-//       coordinates: {
-//         latitude: 22.9871,
-//         longitude: 72.6369
-//       },
-//       contactPerson: 'Factory Manager',
-//       contactPhone: '9876543200'
-//     };
-
-//     // Create order
-//     const order = await Order.create({
-//       orderNumber,
-//       customerId,
-//       orderType: orderType || 'retail',
-//       items: processedItems,
-//       pickupLocation: defaultPickupLocation,
-//       deliveryLocation,
-//       scheduledPickupDate,
-//       scheduledDeliveryDate,
-//       specialInstructions,
-//       packagingInstructions,
-//       priority: priority || 'medium',
-//       taxPercentage: taxPercentage || 0,
-//       shippingCharges: shippingCharges || 0,
-//       discount: discount || { amount: 0, percentage: 0 },
-//       paymentDetails: {
-//         method: paymentMethod || 'cod',
-//         status: 'pending'
-//       },
-//       status: status || 'confirmed',
-//       createdBy: req.user._id,
-//       confirmedBy: status === 'confirmed' ? req.user._id : null,
-//       confirmedAt: status === 'confirmed' ? new Date() : null
-//     });
-
-//     // Create status history
-//     await OrderStatusHistory.create({
-//       orderId: order._id, 
-//       status: order.status,
-//       remarks: `Order created by admin`,
-//       updatedBy: {
-//         userId: req.user._id,
-//         userRole: req.user.role,
-//         userName: req.user.name
-//       }
-//     });
-
-//     // Populate customer details
-//     await order.populate('customerId', 'name email phone');
-
-//     return successResponse(res, 'Order created successfully', { order }, 201);
-
-//   } catch (error) {
-//     console.error('Create Order By Admin Error:', error);
-//     return errorResponse(res, error.message || 'Failed to create order', 500);
-//   }
-// };
-
-
 exports.createOrderByAdmin = async (req, res) => {
   try {
     const {
@@ -124,31 +23,24 @@ exports.createOrderByAdmin = async (req, res) => {
 
     // 1. Customer check
     if (!customerId) return errorResponse(res, 'customerId is required', 400);
-    
+
     const customer = await User.findById(customerId);
     if (!customer) return errorResponse(res, 'Customer not found', 404);
 
-    // 2. Items validation
+    // 2. Items validation — SIRF PRODUCTNAME & QUANTITY CHAHIYE
     if (!items || !Array.isArray(items) || items.length === 0) {
       return errorResponse(res, 'At least one item is required', 400);
     }
 
-    // 3. Process items
-    const processedItems = items.map(item => {
-      const qty = Number(item.quantity) || 0;
-      const price = Number(item.unitPrice) || 0;
-      if (!item.productName || qty <= 0 || price <= 0) {
-        throw new Error('Invalid item: productName, quantity & unitPrice required');
-      }
-      return {
-        ...item,
-        quantity: qty,
-        unitPrice: price,
-        totalPrice: qty * price
-      };
-    });
-
-    const totalAmount = processedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    // 3. Process items — NO PRICE, NO CALCULATION!
+    const processedItems = items.map(item => ({
+      productName: item.productName?.trim(),
+      productCode: item.productCode || null,
+      category: item.category || 'other',
+      quantity: Number(item.quantity) || 1,
+      description: item.description || '',
+      specifications: item.specifications || {}
+    }));
 
     // 4. Generate order number
     const orderNumber = await Order.generateOrderNumber();
@@ -157,33 +49,30 @@ exports.createOrderByAdmin = async (req, res) => {
     const finalPickupLocation = pickupLocation && pickupLocation.address
       ? pickupLocation
       : {
-          address: 'Orion Plastic Factory, Plot 45, GIDC Vatva, Ahmedabad',
-          coordinates: { latitude: 22.9871, longitude: 72.6369 },
-          contactPerson: 'Factory Manager',
-          contactPhone: '9876543200'
-        };
+        address: 'Orion Plastic Factory, Plot 45, GIDC Vatva, Ahmedabad',
+        coordinates: { latitude: 22.9871, longitude: 72.6369 },
+        contactPerson: 'Factory Manager',
+        contactPhone: '9876543200'
+      };
 
-    // 6. Admin info (SAFE — agar req.user nahi hai to bhi chalega)
+    // 6. Admin info (SAFE)
     const adminId = req.user?._id || null;
     const adminName = req.user?.name || 'System Admin';
-    const adminRole = req.user?.role || 'admin';
 
-    // 7. Create Order — SAB KUCH SAFE!
+    // 7. Create PURE LOGISTICS ORDER — NO PRICE ANYWHERE!
     const order = await Order.create({
       orderNumber,
       customerId,
+      orderType: 'retail',
       items: processedItems,
-      subtotal: totalAmount,
-      totalAmount,
       pickupLocation: finalPickupLocation,
       deliveryLocation,
       scheduledPickupDate: scheduledPickupDate ? new Date(scheduledPickupDate) : null,
       scheduledDeliveryDate: scheduledDeliveryDate ? new Date(scheduledDeliveryDate) : null,
-      specialInstructions,
+      specialInstructions: specialInstructions || '',
       packagingInstructions,
       priority,
       status,
-      paymentDetails: { method: 'cod', status: 'pending' },
       createdBy: adminId,
       confirmedBy: status === 'confirmed' ? adminId : null,
       confirmedAt: status === 'confirmed' ? new Date() : null
@@ -196,23 +85,23 @@ exports.createOrderByAdmin = async (req, res) => {
       remarks: `Order created by ${adminName}`,
       updatedBy: {
         userId: adminId,
-        userRole: adminRole,
+        userRole: 'admin',
         userName: adminName
       }
     });
 
-    // 9. Populate
-    await order.populate('customerId', 'name email phone');
+    // 9. Populate customer
+    await order.populate('customerId', 'name email phone companyName');
 
-    return successResponse(res, 'Order created successfully!', { order }, 201);
+    // return successResponse(res, 'Order created successfully!', { order }, 201);
+    res.redirect(`/admin/orders/${order._id}?success=Order created successfully`)
 
   } catch (error) {
     console.error('Create Order Error:', error.message);
-    return errorResponse(res, error.message || 'Failed to create order', 500);
+    // return errorResponse(res, error.message || 'Failed to create order', 500);
+    res.redirect('/admin/orders/create?error=Failed to create order');
   }
 };
-
-// ======================== GET ORDERS ========================
 
 // Get all orders (Admin)
 exports.getAllOrders = async (req, res) => {
@@ -284,7 +173,6 @@ exports.getAllOrders = async (req, res) => {
   }
 };
 
-
 // Get single order details
 exports.getOrderDetails = async (req, res) => {
   try {
@@ -320,7 +208,31 @@ exports.getOrderDetails = async (req, res) => {
     return errorResponse(res, error.message || 'Failed to retrieve order details', 500);
   }
 };
+// Render edit order page
+exports.renderEditOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('customerId', 'name email phone');
 
+    if (!order) {
+      return res.redirect('/admin/orders?error=Order not found');
+    }
+
+    const customers = await User.find({ role: 'customer' })
+      .select('name email phone')
+      .sort({ name: 1 });
+
+    res.render('admin/orders/edit', {
+      title: 'Edit Order',
+      user: req.user,
+      order,
+      customers
+    });
+  } catch (error) {
+    console.error('Render Edit Order Error:', error);
+    res.redirect('/admin/orders?error=Failed to load edit order page');
+  }
+};
 // Update order (Admin or Customer if pending)
 exports.updateOrder = async (req, res) => {
   try {
@@ -354,11 +266,14 @@ exports.updateOrder = async (req, res) => {
     Object.assign(order, updates);
     await order.save();
 
-    return successResponse(res, 'Order updated successfully', { order });
+    // return successResponse(res, 'Order updated successfully', { order });
+    res.redirect(`/admin/orders/${order._id}?success=Order updated successfully`);
 
   } catch (error) {
     console.error('Update Order Error:', error);
-    return errorResponse(res, error.message || 'Failed to update order', 500);
+    // return errorResponse(res, error.message || 'Failed to update order', 500);
+    res.redirect(`/admin/orders/${req.params.id}/edit?error=Failed to update order`);
+
   }
 };
 
@@ -380,10 +295,10 @@ exports.confirmOrder = async (req, res) => {
     order.status = 'confirmed';
     order.confirmedBy = req.user._id;
     order.confirmedAt = new Date();
-    
+
     if (scheduledPickupDate) order.scheduledPickupDate = scheduledPickupDate;
     if (scheduledDeliveryDate) order.scheduledDeliveryDate = scheduledDeliveryDate;
-    
+
     await order.save();
 
     // Create status history
@@ -421,7 +336,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     const previousStatus = order.status;
-    order.status = status;
+    order.status = status;  
 
     // Update specific fields based on status
     if (status === 'confirmed' && !order.confirmedBy) {
@@ -452,4 +367,93 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
+// List all orders
+exports.listOrders = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.status) query.status = req.query.status;
+    if (req.query.search) {
+      query.$or = [
+        { orderNumber: { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .populate('customerId', 'name email phone')
+        .populate('deliveryId', 'trackingNumber status')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Order.countDocuments(query)
+    ]);
+
+    res.render('admin/orders/list', {
+      title: 'Orders',
+      user: req.user,
+      orders,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      filters: req.query,
+      success: req.query.success,
+      error: req.query.error
+    });
+  } catch (error) {
+    console.error('List Orders Error:', error);
+    res.redirect('/admin/dashboard?error=Failed to load orders');
+  }
+};
+
+// Render create order page
+exports.renderCreateOrder = async (req, res) => {
+  try {
+    const customers = await User.find({ role: 'customer' })
+      .select('name email phone')
+      .sort({ name: 1 });
+
+    res.render('admin/orders/create', {
+      title: 'Create Order',
+      user: req.user,
+      customers
+    });
+  } catch (error) {
+    console.error('Render Create Order Error:', error);
+    res.redirect('/admin/orders?error=Failed to load create order page');
+  }
+};
+
+// View order details
+exports.viewOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('customerId', 'name email phone')
+      .populate('deliveryId')
+      .populate('createdBy', 'name email')
+      .populate('confirmedBy', 'name email');
+
+    if (!order) {
+      return res.redirect('/admin/orders?error=Order not found');
+    }
+
+    const statusHistory = await OrderStatusHistory.find({ orderId: order._id })
+      .sort({ timestamp: 1 })
+      .populate('updatedBy.userId', 'name email');
+
+    res.render('admin/orders/details', {
+      title: `Order ${order.orderNumber}`,
+      user: req.user,
+      order,
+      statusHistory,
+      success: req.query.success,
+      error: req.query.error
+    });
+  } catch (error) {
+    console.error('View Order Error:', error);
+    res.redirect('/admin/orders?error=Failed to load order details');
+  }
+};
 module.exports = exports;

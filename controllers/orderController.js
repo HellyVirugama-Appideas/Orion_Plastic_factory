@@ -35,7 +35,6 @@ exports.createOrder = async (req, res) => {
     // Calculate item totals
     const processedItems = items.map(item => ({
       ...item,
-      totalPrice: item.quantity * item.unitPrice
     }));
 
     // Generate order number
@@ -100,6 +99,106 @@ exports.createOrder = async (req, res) => {
 };
 
 // Admin creates order
+// exports.createOrderByAdmin = async (req, res) => {
+//   try {
+//     const {
+//       customerId,
+//       items,
+//       deliveryLocation,
+//       pickupLocation,
+//       scheduledPickupDate,
+//       scheduledDeliveryDate,
+//       specialInstructions,
+//       packagingInstructions,
+//       paymentMethod,
+//       orderType,
+//       priority,
+//       taxPercentage,
+//       shippingCharges,
+//       discount,
+//       status
+//     } = req.body;
+
+//     // Validate customer
+//     const customer = await User.findById(customerId);
+//     if (!customer) {
+//       return errorResponse(res, 'Customer not found', 404);
+//     }
+
+//     // Validate items
+//     if (!items || items.length === 0) {
+//       return errorResponse(res, 'Order must have at least one item', 400);
+//     }
+
+//     // Calculate item totals
+//     const processedItems = items.map(item => ({
+//       ...item
+//     }));
+
+//     // Generate order number
+//     const orderNumber = await Order.generateOrderNumber();
+
+//     // Default pickup location
+//     const defaultPickupLocation = pickupLocation || {
+//       address: 'Orion Plastic Factory, Plot No. 45, GIDC Industrial Estate, Vatva, Ahmedabad, Gujarat 382445',
+//       coordinates: {
+//         latitude: 22.9871,
+//         longitude: 72.6369
+//       },
+//       contactPerson: 'Factory Manager',
+//       contactPhone: '9876543200'
+//     };
+
+//     // Create order
+//     const order = await Order.create({
+//       orderNumber,
+//       customerId,
+//       orderType: orderType || 'retail',
+//       items: processedItems,
+//       pickupLocation: defaultPickupLocation,
+//       deliveryLocation,
+//       scheduledPickupDate,
+//       scheduledDeliveryDate,
+//       specialInstructions,
+//       packagingInstructions,
+//       priority: priority || 'medium',
+//       taxPercentage: taxPercentage || 0,
+//       shippingCharges: shippingCharges || 0,
+//       discount: discount || { amount: 0, percentage: 0 },
+//       paymentDetails: {
+//         method: paymentMethod || 'cod',
+//         status: 'pending'
+//       },
+//       status: status || 'confirmed',
+//       createdBy: req.user._id,
+//       confirmedBy: status === 'confirmed' ? req.user._id : null,
+//       confirmedAt: status === 'confirmed' ? new Date() : null
+//     });
+
+//     // Create status history
+//     await OrderStatusHistory.create({
+//       orderId: order._id,
+//       status: order.status,
+//       remarks: `Order created by admin`,
+//       updatedBy: {
+//         userId: req.user._id,
+//         userRole: req.user.role,
+//         userName: req.user.name
+//       }
+//     });
+
+//     // Populate customer details
+//     await order.populate('customerId', 'name email phone');
+
+//     return successResponse(res, 'Order created successfully', { order }, 201);
+
+//   } catch (error) {
+//     console.error('Create Order By Admin Error:', error);
+//     return errorResponse(res, error.message || 'Failed to create order', 500);
+//   }
+// };
+
+// Admin creates order
 exports.createOrderByAdmin = async (req, res) => {
   try {
     const {
@@ -111,13 +210,8 @@ exports.createOrderByAdmin = async (req, res) => {
       scheduledDeliveryDate,
       specialInstructions,
       packagingInstructions,
-      paymentMethod,
-      orderType,
       priority,
-      taxPercentage,
-      shippingCharges,
-      discount,
-      status
+      orderType = 'retail'
     } = req.body;
 
     // Validate customer
@@ -127,61 +221,52 @@ exports.createOrderByAdmin = async (req, res) => {
     }
 
     // Validate items
-    if (!items || items.length === 0) {
-      return errorResponse(res, 'Order must have at least one item', 400);
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return errorResponse(res, 'At least one item is required', 400);
     }
-
-    // Calculate item totals
-    const processedItems = items.map(item => ({
-      ...item,
-      totalPrice: item.quantity * item.unitPrice
-    }));
 
     // Generate order number
     const orderNumber = await Order.generateOrderNumber();
 
     // Default pickup location
-    const defaultPickupLocation = pickupLocation || {
-      address: 'Orion Plastic Factory, Plot No. 45, GIDC Industrial Estate, Vatva, Ahmedabad, Gujarat 382445',
-      coordinates: {
-        latitude: 22.9871,
-        longitude: 72.6369
-      },
-      contactPerson: 'Factory Manager',
-      contactPhone: '9876543200'
+    const defaultPickup = pickupLocation || {
+      address: 'Orion Plastic Factory, Plot No. 45, GIDC Vatva, Ahmedabad',
+      coordinates: { latitude: 22.9871, longitude: 72.6369 },
+      contactPerson: 'Factory Incharge',
+      contactPhone: '9876543210'
     };
 
-    // Create order
+    // Create clean logistics order
     const order = await Order.create({
       orderNumber,
       customerId,
-      orderType: orderType || 'retail',
-      items: processedItems,
-      pickupLocation: defaultPickupLocation,
+      orderType,
+      items: items.map(item => ({ 
+        productName: item.productName,
+        productCode: item.productCode || null,
+        category: item.category || 'other',
+        quantity: item.quantity,
+        description: item.description || '',
+        specifications: item.specifications || {}
+      })),
+      pickupLocation: defaultPickup,
       deliveryLocation,
-      scheduledPickupDate,
-      scheduledDeliveryDate,
-      specialInstructions,
-      packagingInstructions,
+      scheduledPickupDate: scheduledPickupDate ? new Date(scheduledPickupDate) : null,
+      scheduledDeliveryDate: scheduledDeliveryDate ? new Date(scheduledDeliveryDate) : null,
+      specialInstructions: specialInstructions || '',
+      packagingInstructions: packagingInstructions || '',
       priority: priority || 'medium',
-      taxPercentage: taxPercentage || 0,
-      shippingCharges: shippingCharges || 0,
-      discount: discount || { amount: 0, percentage: 0 },
-      paymentDetails: {
-        method: paymentMethod || 'cod',
-        status: 'pending'
-      },
-      status: status || 'confirmed',
+      status: 'confirmed', 
       createdBy: req.user._id,
-      confirmedBy: status === 'confirmed' ? req.user._id : null,
-      confirmedAt: status === 'confirmed' ? new Date() : null
+      confirmedBy: req.user._id,
+      confirmedAt: new Date()
     });
 
     // Create status history
     await OrderStatusHistory.create({
       orderId: order._id,
-      status: order.status,
-      remarks: `Order created by admin`,
+      status: 'confirmed',
+      remarks: 'Order created and confirmed by admin',
       updatedBy: {
         userId: req.user._id,
         userRole: req.user.role,
@@ -189,13 +274,13 @@ exports.createOrderByAdmin = async (req, res) => {
       }
     });
 
-    // Populate customer details
-    await order.populate('customerId', 'name email phone');
+    // Populate customer
+    await order.populate('customerId', 'name email phone companyName');
 
-    return successResponse(res, 'Order created successfully', { order }, 201);
+    return successResponse(res, 'Order created successfully!', { order }, 201);
 
   } catch (error) {
-    console.error('Create Order By Admin Error:', error);
+    console.error('Create Order Error:', error.message);
     return errorResponse(res, error.message || 'Failed to create order', 500);
   }
 };

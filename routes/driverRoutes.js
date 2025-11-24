@@ -2,7 +2,15 @@
 // const router = express.Router();
 // const driverController = require('../controllers/driverController');
 // const { authenticateDriver, isDriver } = require('../middleware/authMiddleware');
-// const { validateEmail, validatePhone, validatePassword, validatePin, validateRequiredFields } = require('../middleware/validator');
+// const { 
+//   validateEmail, 
+//   validatePhone, 
+//   validatePassword, 
+//   validatePin,
+//   validateChangePin,  
+//   validateResetPin,   
+//   validateRequiredFields 
+// } = require('../middleware/validator');
 
 // // Driver Signup/Signin
 // router.post(
@@ -36,8 +44,7 @@
 //   '/change-pin',
 //   authenticateDriver,
 //   isDriver,
-//   validateRequiredFields(['currentPin', 'newPin']),
-//   validatePin,
+//   validateChangePin,  // CHANGED: Use validateChangePin instead of validatePin
 //   driverController.changePin
 // );
 
@@ -50,9 +57,7 @@
 
 // router.post(
 //   '/reset-pin',
-//   validateRequiredFields(['phone', 'resetToken', 'newPin']),
-//   validatePhone,
-//   validatePin,
+//   validateResetPin,  // CHANGED: Use validateResetPin
 //   driverController.resetPin
 // );
 
@@ -74,15 +79,16 @@ const {
   validatePhone, 
   validatePassword, 
   validatePin,
-  validateChangePin,  // NEW
-  validateResetPin,   // NEW
+  validateChangePin,
+  validateResetPin,
   validateRequiredFields 
 } = require('../middleware/validator');
 
-// Driver Signup/Signin
+
+// Driver Signup (WITHOUT vehicle details)
 router.post(
   '/signup',
-  validateRequiredFields(['name', 'email', 'phone', 'password', 'licenseNumber', 'vehicleType', 'vehicleNumber', 'pin']),
+  validateRequiredFields(['name', 'email', 'phone', 'password', 'licenseNumber', 'pin']),
   validateEmail,
   validatePhone,
   validatePassword,
@@ -90,6 +96,7 @@ router.post(
   driverController.driverSignup
 );
 
+// Driver Signin
 router.post(
   '/signin',
   validateRequiredFields(['email', 'password']),
@@ -97,7 +104,7 @@ router.post(
   driverController.driverSignin
 );
 
-// PIN Management (Protected Routes)
+// Validate PIN (Protected)
 router.post(
   '/validate-pin',
   authenticateDriver,
@@ -107,14 +114,16 @@ router.post(
   driverController.validatePin
 );
 
+// Change PIN (Protected)
 router.post(
   '/change-pin',
   authenticateDriver,
   isDriver,
-  validateChangePin,  // CHANGED: Use validateChangePin instead of validatePin
+  validateChangePin,
   driverController.changePin
 );
 
+// Forgot PIN (Public)
 router.post(
   '/forgot-pin',
   validateRequiredFields(['phone']),
@@ -122,18 +131,27 @@ router.post(
   driverController.forgotPin
 );
 
+// Reset PIN (Public)
 router.post(
   '/reset-pin',
-  validateResetPin,  // CHANGED: Use validateResetPin
+  validateResetPin,
   driverController.resetPin
 );
 
-// Driver Profile
-router.get('/profile', authenticateDriver, isDriver, driverController.getDriverProfile);
+// Get Driver Profile (Protected)
+router.get(
+  '/profile', 
+  authenticateDriver, 
+  isDriver, 
+  driverController.getDriverProfile
+);
 
-// Availability Toggle
-router.patch('/toggle-availability', authenticateDriver, isDriver, driverController.toggleAvailability);
+// Toggle Availability (Protected)
+router.patch(
+  '/toggle-availability', 
+  authenticateDriver, 
+  isDriver, 
+  driverController.toggleAvailability
+);
 
 module.exports = router;
-
-
