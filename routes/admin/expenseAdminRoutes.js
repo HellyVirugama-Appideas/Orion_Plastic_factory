@@ -6,7 +6,7 @@ const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 //  ADMIN EXPENSE ROUTES 
 
 // Get all expenses with filters
-router.get(
+router.get( 
   '/',
   protectAdmin,
   isAdmin,

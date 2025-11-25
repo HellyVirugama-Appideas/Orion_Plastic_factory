@@ -27,12 +27,12 @@ exports.createOrderByAdmin = async (req, res) => {
     const customer = await User.findById(customerId);
     if (!customer) return errorResponse(res, 'Customer not found', 404);
 
-    // 2. Items validation — SIRF PRODUCTNAME & QUANTITY CHAHIYE
+    // 2. Items validation 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return errorResponse(res, 'At least one item is required', 400);
     }
 
-    // 3. Process items — NO PRICE, NO CALCULATION!
+    // 3. Process items — 
     const processedItems = items.map(item => ({
       productName: item.productName?.trim(),
       productCode: item.productCode || null,
@@ -59,7 +59,6 @@ exports.createOrderByAdmin = async (req, res) => {
     const adminId = req.user?._id || null;
     const adminName = req.user?.name || 'System Admin';
 
-    // 7. Create PURE LOGISTICS ORDER — NO PRICE ANYWHERE!
     const order = await Order.create({
       orderNumber,
       customerId,
@@ -93,13 +92,13 @@ exports.createOrderByAdmin = async (req, res) => {
     // 9. Populate customer
     await order.populate('customerId', 'name email phone companyName');
 
-    // return successResponse(res, 'Order created successfully!', { order }, 201);
-    res.redirect(`/admin/orders/${order._id}?success=Order created successfully`)
+    return successResponse(res, 'Order created successfully!', { order }, 201);
+    // res.redirect(`/admin/orders/${order._id}?success=Order created successfully`)
 
   } catch (error) {
     console.error('Create Order Error:', error.message);
-    // return errorResponse(res, error.message || 'Failed to create order', 500);
-    res.redirect('/admin/orders/create?error=Failed to create order');
+    return errorResponse(res, error.message || 'Failed to create order', 500);
+    // res.redirect('/admin/orders/create?error=Failed to create order');
   }
 };
 

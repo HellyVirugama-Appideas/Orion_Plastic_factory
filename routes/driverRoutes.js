@@ -154,4 +154,19 @@ router.patch(
   driverController.toggleAvailability
 );
 
+router.post(
+  "/logout",
+  authenticateDriver,
+  isDriver,
+  driverController.driverLogout
+)
+
+router.post(
+  "/logout-all",
+  authenticateDriver,
+  isDriver,
+  driverController.driverLogoutAll
+)
+
+
 module.exports = router;

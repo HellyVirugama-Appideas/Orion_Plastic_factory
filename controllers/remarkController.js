@@ -608,9 +608,9 @@
 // module.exports = exports;
 
 
-// controllers/driver/remarkDriverController.js
 const Remark = require('../models/Remark');
-const Delivery = require('../models/Delivery');
+const Delivery = require("../models/Delivery")
+const Driver = require("../models/Driver")
 
 //  DRIVER REMARKS ONLY 
 
@@ -675,10 +675,49 @@ exports.addCustomRemark = async (req, res) => {
   }
 };
 
-// 2. Get My Custom Remarks (Driver Dashboard)
+// // 2. Get My Custom Remarks (Driver Dashboard)
+// exports.getMyCustomRemarks = async (req, res) => {
+//   try {
+//     const driverId = req.user._id;
+//     const { status = 'all' } = req.query;
+
+//     const query = {
+//       createdBy: driverId,
+//       isPredefined: false
+//     };
+
+//     if (status !== 'all') {
+//       query.approvalStatus = status;
+//     }
+
+//     const remarks = await Remark.find(query)
+//       .sort({ createdAt: -1 })
+//       .select('remarkText category approvalStatus createdAt associatedDeliveries');
+
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         remarks,
+//         total: remarks.length,
+//         pending: remarks.filter(r => r.approvalStatus === 'pending').length,
+//         approved: remarks.filter(r => r.approvalStatus === 'approved').length,
+//         rejected: remarks.filter(r => r.approvalStatus === 'rejected').length
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Get My Remarks Error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch your remarks'
+//     });
+//   }
+// };
+
 exports.getMyCustomRemarks = async (req, res) => {
   try {
-    const driverId = req.user._id;
+    const driverId = req.user?._id || req.driver?._id;
+
     const { status = 'all' } = req.query;
 
     const query = {
@@ -709,11 +748,10 @@ exports.getMyCustomRemarks = async (req, res) => {
     console.error('Get My Remarks Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch your remarks'
+      message: 'Failed to fetch remarks'
     });
   }
 };
-
 // 3. Associate Remark with Delivery (Driver)
 exports.associateRemarkWithDelivery = async (req, res) => {
   try {

@@ -238,7 +238,7 @@ const driverSchema = new mongoose.Schema({
   vehicleColor: { type: String, default: null },
   vehicleAssignedBy: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User',
+    ref: 'admin',
     default: null 
   },
   vehicleAssignedAt: { type: Date, default: null },

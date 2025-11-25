@@ -23,8 +23,8 @@ exports.createFuelExpense = async (req, res) => {
       deliveryId
     } = req.body;
 
-    // Get driver from token
-    const driver = await Driver.findOne({ userId: req.user._id });
+    const driver = await Driver.findById(req.user._id);
+
     if (!driver) {
       return res.status(404).json({
         success: false,
@@ -32,7 +32,6 @@ exports.createFuelExpense = async (req, res) => {
       });
     }
 
-    // Get previous meter reading for mileage calculation
     const lastExpense = await Expense.findOne({
       driver: driver._id,
       'vehicle.vehicleNumber': vehicleNumber,
@@ -49,7 +48,7 @@ exports.createFuelExpense = async (req, res) => {
       vehicle: {
         vehicleNumber,
         vehicleType,
-        model: driver.vehicleModel
+        model: driver.vehicleModel || 'N/A'
       },
       journey: journeyId || null,
       delivery: deliveryId || null,
@@ -77,23 +76,19 @@ exports.createFuelExpense = async (req, res) => {
       approvalWorkflow: {
         submittedBy: driver._id,
         submittedAt: Date.now()
-      }
+      },
+      expenseDate: Date.now()
     });
-
-    // Auto-fetch date/time
-    expense.expenseDate = Date.now();
 
     await expense.save();
 
     // Populate driver details
-    await expense.populate('driver', 'name email phone vehicleNumber');
+    await expense.populate('driver', 'name email phone vehicleNumber vehicleType');
 
     res.status(201).json({
       success: true,
       message: 'Fuel expense recorded successfully. Awaiting admin approval.',
-      data: {
-        expense
-      }
+      data: { expense }
     });
 
   } catch (error) {
@@ -110,8 +105,16 @@ exports.createFuelExpense = async (req, res) => {
 exports.uploadReceipts = async (req, res) => {
   try {
     const { expenseId } = req.params;
-    const files = req.files; // Using multer
+    const files = req.files;
 
+    if (!files || Object.keys(files).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No files uploaded'
+      });
+    }
+
+    // Expense dhundo
     const expense = await Expense.findById(expenseId);
     if (!expense) {
       return res.status(404).json({
@@ -120,62 +123,74 @@ exports.uploadReceipts = async (req, res) => {
       });
     }
 
-    // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
-    
-    // Verify ownership
-    if (expense.driver.toString() !== driver._id.toString()) {
-      return res.status(403).json({
+    const driver = await Driver.findById(req.user._id);
+
+    if (!driver) {
+      return res.status(404).json({
         success: false,
-        message: 'Unauthorized access'
+        message: 'Driver profile not found'
       });
     }
 
-    // Process uploaded files
-    const receipts = [];
-    
-    if (files.fuel_receipt) {
-      receipts.push({
+    if (expense.driver.toString() !== driver._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: You can only upload receipts for your own expenses'
+      });
+    }
+
+    const uploadedReceipts = [];
+
+    // Fuel Receipt
+    if (files.fuel_receipt && files.fuel_receipt[0]) {
+      uploadedReceipts.push({
         type: 'fuel_receipt',
-        url: `/uploads/receipts/${files.fuel_receipt[0].filename}`,
+        url: `/uploads/expenses/${files.fuel_receipt[0].filename}`,
         filename: files.fuel_receipt[0].filename
       });
     }
 
-    if (files.meter_photo) {
-      receipts.push({
+    // Meter Photo
+    if (files.meter_photo && files.meter_photo[0]) {
+      uploadedReceipts.push({
         type: 'meter_photo',
-        url: `/uploads/receipts/${files.meter_photo[0].filename}`,
+        url: `/uploads/expenses/${files.meter_photo[0].filename}`,
         filename: files.meter_photo[0].filename
       });
     }
 
-    if (files.vehicle_photo) {
-      receipts.push({
+    // Vehicle Photo
+    if (files.vehicle_photo && files.vehicle_photo[0]) {
+      uploadedReceipts.push({
         type: 'vehicle_photo',
-        url: `/uploads/receipts/${files.vehicle_photo[0].filename}`,
+        url: `/uploads/expenses/${files.vehicle_photo[0].filename}`,
         filename: files.vehicle_photo[0].filename
       });
     }
 
-    // Add receipts to expense
-    expense.receipts.push(...receipts);
+    // Save to expense
+    expense.receipts = [...expense.receipts, ...uploadedReceipts];
+    expense.receiptUploaded = true;
+    expense.receiptUploadedAt = new Date();
+
     await expense.save();
 
-    await expense.populate('driver', 'name email phone');
+    // Populate driver info
+    await expense.populate('driver', 'name phone vehicleNumber');
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Receipts uploaded successfully',
+      message: 'Receipts uploaded successfully!',
       data: {
-        expense,
-        uploadedReceipts: receipts
+        expenseId: expense._id,
+        uploadedReceipts,
+        totalReceipts: expense.receipts.length
       }
     });
 
   } catch (error) {
     console.error('Upload receipts error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Failed to upload receipts',
       error: error.message
@@ -188,8 +203,7 @@ exports.getMyExpenses = async (req, res) => {
   try {
     const { page = 1, limit = 20, approvalStatus, startDate, endDate } = req.query;
 
-    // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
+    const driver = await Driver.findById(req.user._id);
     if (!driver) {
       return res.status(404).json({
         success: false,
@@ -199,7 +213,7 @@ exports.getMyExpenses = async (req, res) => {
 
     const query = { driver: driver._id };
     if (approvalStatus) query.approvalStatus = approvalStatus;
-    
+
     if (startDate || endDate) {
       query.expenseDate = {};
       if (startDate) query.expenseDate.$gte = new Date(startDate);
@@ -217,7 +231,6 @@ exports.getMyExpenses = async (req, res) => {
 
     const total = await Expense.countDocuments(query);
 
-    // Calculate statistics
     const stats = await Expense.aggregate([
       { $match: { driver: driver._id } },
       {
@@ -264,14 +277,13 @@ exports.getMyExpenses = async (req, res) => {
     });
   }
 };
-
-//  GET EXPENSE BY ID (DRIVER) 
+ 
+//  GET EXPENSE BY ID (DRIVER)  
 exports.getExpenseById = async (req, res) => {
   try {
     const { expenseId } = req.params;
 
-    // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
+    const driver = await Driver.findById(req.user._id); 
     if (!driver) {
       return res.status(404).json({
         success: false,
@@ -310,13 +322,15 @@ exports.getExpenseById = async (req, res) => {
   }
 };
 
+
 //  CALCULATE MY MILEAGE (DRIVER) 
 exports.calculateMyMileage = async (req, res) => {
   try {
     const { vehicleNumber, startDate, endDate } = req.query;
 
     // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
+    // const driver = await Driver.findOne({ userId: req.user._id });
+     const driver = await Driver.findById(req.user._id);
     if (!driver) {
       return res.status(404).json({
         success: false,
@@ -405,7 +419,7 @@ exports.getMyExpenseSummary = async (req, res) => {
     const { period = 'month' } = req.query;
 
     // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
+    const driver = await Driver.findById(req.user._id);
     if (!driver) {
       return res.status(404).json({
         success: false,
@@ -416,7 +430,7 @@ exports.getMyExpenseSummary = async (req, res) => {
     // Calculate date range based on period
     const now = new Date();
     let startDate;
-    
+
     switch (period) {
       case 'today':
         startDate = new Date(now.setHours(0, 0, 0, 0));
@@ -512,18 +526,87 @@ exports.getMyExpenseSummary = async (req, res) => {
 };
 
 //  UPDATE EXPENSE (DRIVER - Only if pending) 
+// exports.updateExpense = async (req, res) => {
+//   try {
+//     const { expenseId } = req.params;
+//     const updates = req.body;
+
+//     // Get driver
+//     const driver = await Driver.findById(req.user._id);
+//     if (!driver) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Driver profile not found'
+//       });
+//     }
+
+//     const expense = await Expense.findOne({
+//       _id: expenseId,
+//       driver: driver._id
+//     });
+
+//     if (!expense) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Expense not found'
+//       });
+//     }
+
+//     // Only allow updates if status is pending or rejected
+//     if (expense.approvalStatus !== 'pending' && expense.approvalStatus !== 'rejected') {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Cannot update expense that is already approved or in approval process'
+//       });
+//     }
+
+//     // Update allowed fields
+//     if (updates.description) expense.description = updates.description;
+//     if (updates.remarks) expense.remarks = updates.remarks;
+//     if (updates.category) expense.category = updates.category;
+
+//     // If updating fuel details, recalculate mileage
+//     if (updates.fuelDetails) {
+//       if (updates.fuelDetails.quantity) expense.fuelDetails.quantity = updates.fuelDetails.quantity;
+//       if (updates.fuelDetails.pricePerUnit) expense.fuelDetails.pricePerUnit = updates.fuelDetails.pricePerUnit;
+//       if (updates.fuelDetails.quantity && updates.fuelDetails.pricePerUnit) {
+//         expense.fuelDetails.totalAmount = updates.fuelDetails.quantity * updates.fuelDetails.pricePerUnit;
+//       }
+//     }
+
+//     // If resubmitting after rejection
+//     if (expense.approvalStatus === 'rejected' && updates.resubmit) {
+//       expense.approvalStatus = 'resubmitted';
+//       expense.rejectionReason = null;
+//       expense.rejectedBy = null;
+//       expense.rejectedAt = null;
+//     }
+
+//     await expense.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Expense updated successfully',
+//       data: { expense }
+//     });
+
+//   } catch (error) {
+//     console.error('Update expense error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to update expense',
+//       error: error.message
+//     });
+//   }
+// };
 exports.updateExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
     const updates = req.body;
 
-    // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
+    const driver = await Driver.findById(req.user._id);
     if (!driver) {
-      return res.status(404).json({
-        success: false,
-        message: 'Driver profile not found'
-      });
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
     }
 
     const expense = await Expense.findOne({
@@ -532,56 +615,51 @@ exports.updateExpense = async (req, res) => {
     });
 
     if (!expense) {
-      return res.status(404).json({
-        success: false,
-        message: 'Expense not found'
-      });
+      return res.status(404).json({ success: false, message: 'Expense not found' });
     }
 
-    // Only allow updates if status is pending or rejected
-    if (expense.approvalStatus !== 'pending' && expense.approvalStatus !== 'rejected') {
+    if (!['pending', 'rejected'].includes(expense.approvalStatus)) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot update expense that is already approved or in approval process'
+        message: 'Cannot update expense that is already approved'
       });
     }
 
-    // Update allowed fields
+    if (updates.quantity !== undefined) expense.fuelDetails.quantity = updates.quantity;
+    if (updates.pricePerUnit !== undefined) expense.fuelDetails.pricePerUnit = updates.pricePerUnit;
+    if (updates.currentMeterReading !== undefined) expense.meterReading.current = updates.currentMeterReading;
     if (updates.description) expense.description = updates.description;
-    if (updates.remarks) expense.remarks = updates.remarks;
-    if (updates.category) expense.category = updates.category;
+    if (updates.stationName) expense.fuelDetails.stationName = updates.stationName;
 
-    // If updating fuel details, recalculate mileage
-    if (updates.fuelDetails) {
-      if (updates.fuelDetails.quantity) expense.fuelDetails.quantity = updates.fuelDetails.quantity;
-      if (updates.fuelDetails.pricePerUnit) expense.fuelDetails.pricePerUnit = updates.fuelDetails.pricePerUnit;
-      if (updates.fuelDetails.quantity && updates.fuelDetails.pricePerUnit) {
-        expense.fuelDetails.totalAmount = updates.fuelDetails.quantity * updates.fuelDetails.pricePerUnit;
-      }
+    if (updates.quantity || updates.pricePerUnit) {
+      expense.fuelDetails.totalAmount = expense.fuelDetails.quantity * expense.fuelDetails.pricePerUnit;
     }
 
-    // If resubmitting after rejection
-    if (expense.approvalStatus === 'rejected' && updates.resubmit) {
-      expense.approvalStatus = 'resubmitted';
-      expense.rejectionReason = null;
+    if (expense.approvalStatus === 'rejected') {
+      expense.approvalStatus = 'pending';           
+      expense.rejectionReason = null;             
       expense.rejectedBy = null;
       expense.rejectedAt = null;
+      expense.resubmittedAt = new Date();         
+      expense.resubmittedCount = (expense.resubmittedCount || 0) + 1;
     }
 
     await expense.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Expense updated successfully',
+      note: expense.approvalStatus === 'pending' && expense.resubmittedCount > 0
+        ? 'Your expense has been resubmitted for approval'
+        : 'Expense updated',
       data: { expense }
     });
 
   } catch (error) {
     console.error('Update expense error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'Failed to update expense',
-      error: error.message
+      message: 'Failed to update expense'
     });
   }
 };
@@ -592,7 +670,7 @@ exports.deleteExpense = async (req, res) => {
     const { expenseId } = req.params;
 
     // Get driver
-    const driver = await Driver.findOne({ userId: req.user._id });
+     const driver = await Driver.findById(req.user._id);
     if (!driver) {
       return res.status(404).json({
         success: false,

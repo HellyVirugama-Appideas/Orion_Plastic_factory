@@ -29,6 +29,8 @@ const remarkAdminRoutes = require("./routes/admin/remarkAdminRoutes")
 const remarkRoutes = require("./routes/remarkRoutes")
 const maintenanceRoutes = require("./routes/maintenanceRoutes")
 const maintenanceAdminRoutes = require("./routes/admin/maintenanceAdminRoutes")
+const expenseAdminRoutes = require("./routes/admin/expenseAdminRoutes")
+const expenseRoutes = require("./routes/expenseRoutes")
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -125,7 +127,7 @@ app.use("/api/routes", routeRoutes)
 app.use("/api/remark",remarkRoutes)
 
 app.use("/api/maintenance",maintenanceRoutes)
-
+app.use("/api/expenses",expenseRoutes)
 
 /////admin
 
@@ -138,6 +140,7 @@ app.use("/admin/driver",driverManagementRoutes)
 app.use("/admin/customers",customerRoutes)
 app.use("/admin/remark",remarkAdminRoutes)
 app.use("/admin/maintenance",maintenanceAdminRoutes)
+app.use("/admin/expenses",expenseAdminRoutes)
 
 // Root route
 app.get('/', (req, res) => {

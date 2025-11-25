@@ -130,7 +130,7 @@ exports.getExpenseById = async (req, res) => {
           _id: null,
           totalExpenses: { $sum: '$fuelDetails.totalAmount' },
           totalRecords: { $sum: 1 },
-          avgExpense: { $avg: '$fuelDetails.totalAmount' },
+          avgExpense: { $avg: '$fuelDetails.totalAmount' }, 
           avgMileage: { $avg: '$mileageData.averageMileage' }
         }
       }
@@ -634,5 +634,6 @@ exports.exportExpenses = async (req, res) => {
     });
   }
 };
+
 
 module.exports = exports;

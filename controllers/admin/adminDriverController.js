@@ -1,69 +1,128 @@
 const Driver = require('../../models/Driver');
+const Vehicle = require("../../models/Vehicle")
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
 
 //ASSIGN VEHICLE TO DRIVER
+// exports.assignVehicle = async (req, res) => {
+//   try {
+//     console.log("req.user:", req.user); 
+
+//     if (!req.user) {
+//       return errorResponse(res, 'Unauthorized: Admin not logged in', 401);
+//     } 
+
+//     const { driverId } = req.params;
+//     const { vehicleType, vehicleNumber, vehicleModel, vehicleColor } = req.body;
+
+//     if (!vehicleType || !vehicleNumber) {
+//       return errorResponse(res, 'Vehicle type and vehicle number are required', 400);
+//     }
+
+//     const validVehicleTypes = ['car', 'bike', 'auto', 'truck', 'van'];
+//     if (!validVehicleTypes.includes(vehicleType)) {
+//       return errorResponse(res, 'Invalid vehicle type', 400);
+//     }
+
+//     const driver = await Driver.findById(driverId);
+//     if (!driver) {
+//       return errorResponse(res, 'Driver not found', 404);
+//     }
+
+//     const existingVehicle = await Driver.findOne({
+//       vehicleNumber: vehicleNumber.toUpperCase().trim(),
+//       _id: { $ne: driverId }
+//     });
+
+//     if (existingVehicle) {
+//       return errorResponse(res, 'Vehicle number already assigned to another driver', 400);
+//     }
+
+//     driver.vehicleType = vehicleType;
+//     driver.vehicleNumber = vehicleNumber.toUpperCase().trim();
+//     driver.vehicleModel = vehicleModel || null;
+//     driver.vehicleColor = vehicleColor || null;
+//     driver.vehicleAssignedBy = req.user._id;
+//     driver.vehicleAssignedAt = new Date();
+
+//     if (driver.profileStatus === 'incomplete') {
+//       driver.profileStatus = 'pending_verification';
+//     }
+
+//     await driver.save(); 
+
+//     return successResponse(res, 'Vehicle assigned successfully!', {
+//       driver: {
+//         id: driver._id,
+//         name: driver.name,
+//         phone: driver.phone,
+//         vehicleNumber: driver.vehicleNumber,
+//         vehicleType: driver.vehicleType,
+//         profileStatus: driver.profileStatus
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Assign Vehicle Error:', error.message);
+//     console.error('Full Error:', error); 
+//     return errorResponse(res, 'Failed to assign vehicle: ' + error.message, 500);
+//   }
+// };
+
 exports.assignVehicle = async (req, res) => {
   try {
-    console.log("req.user:", req.user); 
+    const { vehicleId } = req.params;
+    const { driverId } = req.body;
 
-    if (!req.user) {
-      return errorResponse(res, 'Unauthorized: Admin not logged in', 401);
+    if (!driverId) {
+      return errorResponse(res, 'driverId is required', 400);
     }
 
-    const { driverId } = req.params;
-    const { vehicleType, vehicleNumber, vehicleModel, vehicleColor } = req.body;
-
-    if (!vehicleType || !vehicleNumber) {
-      return errorResponse(res, 'Vehicle type and vehicle number are required', 400);
-    }
-
-    const validVehicleTypes = ['car', 'bike', 'auto', 'truck', 'van'];
-    if (!validVehicleTypes.includes(vehicleType)) {
-      return errorResponse(res, 'Invalid vehicle type', 400);
-    }
-
+    const vehicle = await Vehicle.findById(vehicleId);
     const driver = await Driver.findById(driverId);
-    if (!driver) {
-      return errorResponse(res, 'Driver not found', 404);
+
+    if (!vehicle) return errorResponse(res, 'Vehicle not found', 404);
+    if (!driver) return errorResponse(res, 'Driver not found', 404);
+
+    // Vehicle already assigned?
+    if (vehicle.assignedTo) {
+      return errorResponse(res, `Vehicle already assigned to ${vehicle.assignedTo.name || 'another driver'}`, 400);
     }
 
-    const existingVehicle = await Driver.findOne({
-      vehicleNumber: vehicleNumber.toUpperCase().trim(),
-      _id: { $ne: driverId }
-    });
-
-    if (existingVehicle) {
-      return errorResponse(res, 'Vehicle number already assigned to another driver', 400);
+    // Driver already has vehicle?
+    if (driver.vehicle) {
+      return errorResponse(res, 'Driver already has a vehicle assigned', 400);
     }
 
-    driver.vehicleType = vehicleType;
-    driver.vehicleNumber = vehicleNumber.toUpperCase().trim();
-    driver.vehicleModel = vehicleModel || null;
-    driver.vehicleColor = vehicleColor || null;
-    driver.vehicleAssignedBy = req.user._id;
-    driver.vehicleAssignedAt = new Date();
 
-    if (driver.profileStatus === 'incomplete') {
-      driver.profileStatus = 'pending_verification';
-    }
+    vehicle.assignedTo = driver._id;
+    vehicle.assignedBy = req.user._id;
+    vehicle.assignedAt = new Date();
+    vehicle.status = 'assigned';
 
-    await driver.save(); 
+    driver.vehicle = vehicle._id;  
 
-    return successResponse(res, 'Vehicle assigned successfully!', {
+    await Promise.all([vehicle.save(), driver.save()]);
+
+    await vehicle.populate('assignedTo', 'name phone');
+
+    return successResponse(res, 'Vehicle assigned to driver successfully!', {
+      vehicle: {
+        _id: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        status: vehicle.status,
+        assignedTo: vehicle.assignedTo.name
+      },
       driver: {
-        id: driver._id,
+        _id: driver._id,
         name: driver.name,
         phone: driver.phone,
-        vehicleNumber: driver.vehicleNumber,
-        vehicleType: driver.vehicleType,
-        profileStatus: driver.profileStatus
+        assignedVehicle: vehicle.vehicleNumber
       }
     });
 
   } catch (error) {
-    console.error('Assign Vehicle Error:', error.message);
-    console.error('Full Error:', error); 
-    return errorResponse(res, 'Failed to assign vehicle: ' + error.message, 500);
+    console.error('Assign Vehicle Error:', error);
+    return errorResponse(res, 'Failed to assign vehicle', 500);
   }
 };
 

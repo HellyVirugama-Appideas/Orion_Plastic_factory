@@ -904,4 +904,54 @@ exports.toggleAvailability = async (req, res) => {
   }
 };
 
+exports.driverLogout = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return errorResponse(res, 'No token provided', 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    await Session.deleteOne({
+      token,
+      userId: req.user._id
+    });
+
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await RefreshToken.deleteOne({
+        token: refreshToken,
+        userId: req.user._id
+      });
+    }
+
+    return successResponse(res, 'Logged out successfully', {
+      message: 'You have been logged out from this device'
+    });
+
+  } catch (error) {
+    console.error('Driver Logout Error:', error);
+    return errorResponse(res, 'Logout failed', 500);
+  }
+};
+
+exports.driverLogoutAll = async (req, res) => {
+  try {
+    const driverId = req.user._id;
+
+    await Session.deleteMany({ userId: driverId });
+
+    await RefreshToken.deleteMany({ userId: driverId });
+
+    return successResponse(res, 'Logged out from all devices successfully', {
+      message: 'All sessions terminated'
+    });
+
+  } catch (error) {
+    console.error('Logout All Error:', error);
+    return errorResponse(res, 'Failed to logout from all devices', 500);
+  }
+};
+
 module.exports = exports;

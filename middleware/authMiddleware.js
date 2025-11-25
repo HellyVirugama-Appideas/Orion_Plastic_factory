@@ -130,6 +130,50 @@ exports.isCustomer = async (req, res, next) => {
   next();
 };
 
+exports.authenticateAny = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ success: false, message: 'Invalid token' });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ success: false, message: 'Token expired or invalid' });
+    }
+
+    if (!decoded.userId) {
+      return res.status(401).json({ success: false, message: 'Invalid token payload' });
+    }
+
+    let driver = await Driver.findById(decoded.userId).select('-password -pin');
+    if (driver && driver.isActive) {
+      req.user = driver;
+      req.user.role = 'driver';  
+      req.token = token;
+      return next();
+    }
+
+    let customer = await User.findById(decoded.userId).select('-password');
+    if (customer && customer.isActive) {
+      req.user = customer;
+      req.user.role = customer.role || 'customer'; 
+      req.token = token;
+      return next();
+    }
+
+    return res.status(401).json({ success: false, message: 'User not found or inactive' });
+
+  } catch (error) {
+    console.error('authenticateAny Error:', error);
+    return res.status(401).json({ success: false, message: 'Authentication failed' });
+  }
+};
 // // Check if user is admin
 // exports.isAdmin = async (req, res, next) => {
 //   if (req.user.role !== 'admin') {

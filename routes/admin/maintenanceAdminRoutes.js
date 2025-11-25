@@ -24,6 +24,12 @@ router.post('/:scheduleId/record-service', protectAdmin, recordServiceDetails);
 //   { name: 'warranty', maxCount: 5 }
 // ]), uploadServiceDocuments);
 
+router.post("/:scheduleId/documents",
+  protectAdmin,
+  uploadMaintenanceDocuments,
+  uploadServiceDocuments
+)
+
 router.post('/:scheduleId/documents',
   protectAdmin,
   uploadMaintenanceDocuments,     
