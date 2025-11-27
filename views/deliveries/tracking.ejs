@@ -1,539 +1,543 @@
-<%- include('../layouts/header') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking - Admin Panel</title>
+    
+    <!-- Google Maps API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=geometry,places"></script>
+    
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            padding: 0;
+        }
 
-<style>
-    #map {
-        height: 600px;
-        width: 100%;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    
-    .tracking-info-card {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .status-badge {
-        font-size: 14px;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-weight: 600;
-    }
-    
-    .live-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        background-color: #28a745;
-        border-radius: 50%;
-        animation: pulse 2s infinite;
-        margin-right: 8px;
-    }
-    
-    @keyframes pulse {
-        0% {
-            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        70% {
-            box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
-        }
-        100% {
-            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
-        }
-    }
-    
-    .info-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #f0f0f0;
-    }
-    
-    .info-row:last-child {
-        border-bottom: none;
-    }
-    
-    .info-label {
-        font-weight: 600;
-        color: #666;
-    }
-    
-    .info-value {
-        color: #333;
-    }
-</style>
 
-<div class="wrapper d-flex">
-    <%- include('../layouts/sidebar') %>
-    
-    <div class="content-wrapper flex-grow-1">
-        <div class="container-fluid p-4">
-            <!-- Page Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h2><i class="fas fa-map-marked-alt"></i> Live Tracking</h2>
-                    <p class="text-muted mb-0">
-                        <span class="live-indicator"></span>
-                        Real-time location tracking
-                    </p>
-                </div>
-                <div>
-                    <a href="/admin/deliveries/<%= delivery._id %>" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Delivery
-                    </a>
-                    <button class="btn btn-primary" onclick="centerMap()">
-                        <i class="fas fa-crosshairs"></i> Center Map
-                    </button>
-                </div>
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .container-fluid {
+            padding: 0;
+            height: calc(100vh - 56px);
+        }
+
+        .row {
+            height: 100%;
+            margin: 0;
+        }
+
+        #sidebar {
+            background: white;
+            height: 100%;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .driver-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-left: 4px solid #28a745;
+        }
+
+        .driver-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .driver-card.offline {
+            border-left-color: #dc3545;
+            opacity: 0.6;
+        }
+
+        .driver-card.inactive {
+            border-left-color: #ffc107;
+        }
+
+        .driver-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-badge.online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .stats-card h3 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .stats-card p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            border-radius: 25px;
+            padding: 12px 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .filter-buttons {
+            margin-bottom: 20px;
+        }
+
+        .filter-btn {
+            border-radius: 20px;
+            padding: 8px 16px;
+            margin-right: 8px;
+            font-size: 0.85rem;
+            border: 1px solid #e0e0e0;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .info-window {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .info-window h6 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .info-window p {
+            margin: 5px 0;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .speed-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: #e3f2fd;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #1976d2;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            #sidebar {
+                position: absolute;
+                z-index: 1000;
+                width: 100%;
+                height: 50%;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand">
+                <i class="fas fa-map-marked-alt me-2"></i>
+                Live Tracking Dashboard
+            </a>
+            <div class="d-flex align-items-center text-white">
+                <i class="fas fa-circle text-success me-2 pulse"></i>
+                <span class="me-3">Live</span>
+                <i class="fas fa-user-circle fs-4"></i>
             </div>
-            
-            <!-- Tracking Info -->
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <div class="tracking-info-card">
-                        <h5 class="mb-3"><i class="fas fa-truck"></i> Delivery Information</h5>
-                        <div class="info-row">
-                            <span class="info-label">Tracking Number:</span>
-                            <span class="info-value"><strong><%= delivery.trackingNumber %></strong></span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Status:</span>
-                            <span class="info-value">
-                                <span class="status-badge bg-<%= delivery.status === 'in_transit' ? 'primary' : delivery.status === 'out_for_delivery' ? 'warning' : 'info' %>">
-                                    <%= delivery.status %>
-                                </span>
-                            </span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Priority:</span>
-                            <span class="info-value">
-                                <span class="badge bg-<%= delivery.priority === 'urgent' ? 'danger' : delivery.priority === 'high' ? 'warning' : 'info' %>">
-                                    <%= delivery.priority %>
-                                </span>
-                            </span>
-                        </div>
-                    </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-3" id="sidebar">
+                <!-- Stats -->
+                <div class="stats-card">
+                    <h3 id="activeCount">0</h3>
+                    <p><i class="fas fa-truck me-2"></i>Active Drivers</p>
                 </div>
-                
-                <div class="col-md-4">
-                    <div class="tracking-info-card">
-                        <h5 class="mb-3"><i class="fas fa-user-circle"></i> Driver Information</h5>
-                        <% if (delivery.driverId) { %>
-                            <div class="info-row">
-                                <span class="info-label">Name:</span>
-                                <span class="info-value"><%= delivery.driverId.userId.name %></span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Phone:</span>
-                                <span class="info-value">
-                                    <a href="tel:<%= delivery.driverId.userId.phone %>">
-                                        <i class="fas fa-phone"></i> <%= delivery.driverId.userId.phone %>
-                                    </a>
-                                </span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Vehicle:</span>
-                                <span class="info-value"><%= delivery.vehicleNumber %></span>
-                            </div>
-                        <% } else { %>
-                            <p class="text-muted text-center py-3">No driver assigned</p>
-                        <% } %>
-                    </div>
+
+                <!-- Search -->
+                <div class="search-box">
+                    <input type="text" class="form-control" id="searchDriver" placeholder="🔍 Search driver...">
                 </div>
-                
-                <div class="col-md-4">
-                    <div class="tracking-info-card">
-                        <h5 class="mb-3"><i class="fas fa-location-arrow"></i> Live Status</h5>
-                        <div class="info-row">
-                            <span class="info-label">Current Speed:</span>
-                            <span class="info-value" id="current-speed">-- km/h</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Distance Remaining:</span>
-                            <span class="info-value" id="distance-remaining">Calculating...</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">ETA:</span>
-                            <span class="info-value" id="eta">Calculating...</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Last Update:</span>
-                            <span class="info-value" id="last-update">--</span>
-                        </div>
-                    </div>
+
+                <!-- Filters -->
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="online">Online</button>
+                    <button class="filter-btn" data-filter="offline">Offline</button>
                 </div>
+
+                <!-- Driver List -->
+                <div id="driversList"></div>
             </div>
-            
-            <!-- Map Container -->
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-map"></i> Live Location Map
-                        <span class="float-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick="toggleTrafficLayer()">
-                                <i class="fas fa-traffic-light"></i> Traffic
-                            </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="fitBounds()">
-                                <i class="fas fa-expand-arrows-alt"></i> Fit All
-                            </button>
-                        </span>
-                    </h5>
-                </div>
-                <div class="card-body p-0">
-                    <div id="map"></div>
-                </div>
-            </div>
-            
-            <!-- Location History Timeline -->
-            <div class="card mt-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="fas fa-history"></i> Recent Location Updates</h5>
-                </div>
-                <div class="card-body">
-                    <div id="location-history" class="timeline">
-                        <p class="text-muted text-center">Loading location history...</p>
-                    </div>
-                </div>
+
+            <!-- Map -->
+            <div class="col-md-9 col-lg-9 p-0">
+                <div id="map"></div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Socket.IO Client -->
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // ==================== CONFIGURATION ====================
+        const SOCKET_URL = 'http://localhost:5000';
+        const socket = io(SOCKET_URL);
 
-<!-- Google Maps API -->
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=<%= googleMapsApiKey %>&callback=initMap"></script>
+        // ==================== GOOGLE MAPS ====================
+        let map;
+        let markers = {};
+        let infoWindows = {};
 
-<script>
-let map;
-let driverMarker;
-let pickupMarker;
-let deliveryMarker;
-let routePath;
-let trafficLayer;
-let socket;
-const deliveryId = '<%= delivery._id %>';
+        // Initialize map
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 23.0225, lng: 72.5714 }, // Ahmedabad
+                zoom: 12,
+                styles: [
+                    {
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                    }
+                ],
+                mapTypeControl: true,
+                streetViewControl: true,
+                fullscreenControl: true
+            });
+        }
 
-// Initialize Socket.IO
-socket = io('<%= process.env.BACKEND_URL || "http://localhost:5000" %>', {
-    transports: ['websocket', 'polling']
-});
+        // ==================== DRIVER TRACKING ====================
+        const drivers = new Map();
 
-socket.on('connect', () => {
-    console.log('Connected to server');
-    socket.emit('join-delivery', deliveryId);
-});
+        // Create or update driver marker
+        function updateDriverMarker(driverId, data) {
+            const { location, speed, heading, driverName, vehicleNumber } = data;
 
-socket.on('location-update', (data) => {
-    console.log('Location update received:', data);
-    updateDriverLocation(data);
-    updateLiveStatus(data);
-    addLocationToHistory(data);
-});
+            // Create custom marker icon (car)
+            const icon = {
+                path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                scale: 5,
+                fillColor: '#4285F4',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+                rotation: heading || 0
+            };
 
-// Initialize Google Map
-function initMap() {
-    const pickupLocation = {
-        lat: <%= delivery.pickupLocation.coordinates.latitude %>,
-        lng: <%= delivery.pickupLocation.coordinates.longitude %>
-    };
-    
-    const deliveryLocation = {
-        lat: <%= delivery.deliveryLocation.coordinates.latitude %>,
-        lng: <%= delivery.deliveryLocation.coordinates.longitude %>
-    };
-    
-    <% if (currentLocation) { %>
-    const currentDriverLocation = {
-        lat: <%= currentLocation.location.coordinates.latitude %>,
-        lng: <%= currentLocation.location.coordinates.longitude %>
-    };
-    <% } %>
+            // Create or update marker
+            if (!markers[driverId]) {
+                markers[driverId] = new google.maps.Marker({
+                    position: { lat: location.latitude, lng: location.longitude },
+                    map: map,
+                    icon: icon,
+                    title: driverName || 'Driver',
+                    animation: google.maps.Animation.DROP
+                });
 
-    // Create map
-    map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 12,
-        center: <% if (currentLocation) { %>currentDriverLocation<% } else { %>pickupLocation<% } %>,
-        mapTypeControl: true,
-        streetViewControl: true,
-        fullscreenControl: true,
-        zoomControl: true,
-        styles: [
-            {
-                featureType: 'poi',
-                elementType: 'labels',
-                stylers: [{ visibility: 'on' }]
+                // Info window
+                const infoContent = `
+                    <div class="info-window">
+                        <h6><i class="fas fa-car"></i> ${driverName || 'Driver'}</h6>
+                        <p><strong>Vehicle:</strong> ${vehicleNumber || 'N/A'}</p>
+                        <p><strong>Speed:</strong> <span class="speed-indicator">
+                            <i class="fas fa-tachometer-alt"></i> ${speed || 0} km/h
+                        </span></p>
+                        <p><strong>Last Update:</strong> ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                `;
+
+                infoWindows[driverId] = new google.maps.InfoWindow({
+                    content: infoContent
+                });
+
+                markers[driverId].addListener('click', () => {
+                    // Close all other info windows
+                    Object.values(infoWindows).forEach(iw => iw.close());
+                    infoWindows[driverId].open(map, markers[driverId]);
+                });
+            } else {
+                // Update existing marker
+                markers[driverId].setPosition({ 
+                    lat: location.latitude, 
+                    lng: location.longitude 
+                });
+                markers[driverId].setIcon({ ...icon, rotation: heading || 0 });
+
+                // Update info window
+                const infoContent = `
+                    <div class="info-window">
+                        <h6><i class="fas fa-car"></i> ${driverName || 'Driver'}</h6>
+                        <p><strong>Vehicle:</strong> ${vehicleNumber || 'N/A'}</p>
+                        <p><strong>Speed:</strong> <span class="speed-indicator">
+                            <i class="fas fa-tachometer-alt"></i> ${speed || 0} km/h
+                        </span></p>
+                        <p><strong>Last Update:</strong> ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                `;
+                infoWindows[driverId].setContent(infoContent);
             }
-        ]
-    });
-
-    // Create traffic layer
-    trafficLayer = new google.maps.TrafficLayer();
-
-    // Pickup marker (Green)
-    pickupMarker = new google.maps.Marker({
-        position: pickupLocation,
-        map: map,
-        title: 'Pickup Location',
-        icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
         }
-    });
 
-    const pickupInfoWindow = new google.maps.InfoWindow({
-        content: `
-            <div style="padding: 10px;">
-                <h6><i class="fas fa-map-marker-alt"></i> Pickup Location</h6>
-                <p class="mb-0"><%= delivery.pickupLocation.address %></p>
-            </div>
-        `
-    });
-
-    pickupMarker.addListener('click', () => {
-        pickupInfoWindow.open(map, pickupMarker);
-    });
-
-    // Delivery marker (Red)
-    deliveryMarker = new google.maps.Marker({
-        position: deliveryLocation,
-        map: map,
-        title: 'Delivery Location',
-        icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+        // Remove driver marker
+        function removeDriverMarker(driverId) {
+            if (markers[driverId]) {
+                markers[driverId].setMap(null);
+                delete markers[driverId];
+            }
+            if (infoWindows[driverId]) {
+                infoWindows[driverId].close();
+                delete infoWindows[driverId];
+            }
         }
-    });
 
-    const deliveryInfoWindow = new google.maps.InfoWindow({
-        content: `
-            <div style="padding: 10px;">
-                <h6><i class="fas fa-map-pin"></i> Delivery Location</h6>
-                <p class="mb-1"><strong><%= delivery.deliveryLocation.contactPerson %></strong></p>
-                <p class="mb-0"><%= delivery.deliveryLocation.address %></p>
-            </div>
-        `
-    });
+        // ==================== DRIVER LIST UI ====================
+        function updateDriversList() {
+            const container = document.getElementById('driversList');
+            container.innerHTML = '';
 
-    deliveryMarker.addListener('click', () => {
-        deliveryInfoWindow.open(map, deliveryMarker);
-    });
+            drivers.forEach((driver, driverId) => {
+                const card = document.createElement('div');
+                card.className = `driver-card ${driver.status || 'offline'}`;
+                card.onclick = () => focusOnDriver(driverId);
 
-    // Driver marker (Blue - Moving)
-    <% if (currentLocation) { %>
-    driverMarker = new google.maps.Marker({
-        position: currentDriverLocation,
-        map: map,
-        title: 'Driver Current Location',
-        icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-            scaledSize: new google.maps.Size(50, 50)
-        },
-        animation: google.maps.Animation.DROP
-    });
+                const location = driver.location || {};
+                const speed = location.speed || 0;
+                const lastUpdate = location.timestamp ? new Date(location.timestamp).toLocaleTimeString() : 'N/A';
 
-    const driverInfoWindow = new google.maps.InfoWindow({
-        content: `
-            <div style="padding: 10px;">
-                <h6><i class="fas fa-truck"></i> Driver Location</h6>
-                <p class="mb-1"><strong><%= delivery.driverId.userId.name %></strong></p>
-                <p class="mb-0">Vehicle: <%= delivery.vehicleNumber %></p>
-                <p class="mb-0">Speed: <span id="info-speed"><%= currentLocation.speed || 0 %></span> km/h</p>
-            </div>
-        `
-    });
+                card.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <div class="driver-avatar me-3">
+                            ${(driver.driverName || 'D').charAt(0).toUpperCase()}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${driver.driverName || 'Driver'}</h6>
+                            <p class="mb-0 text-muted small">${driver.vehicleNumber || 'N/A'}</p>
+                        </div>
+                        <span class="status-badge ${driver.status}">${driver.status}</span>
+                    </div>
+                    ${driver.status === 'online' ? `
+                    <div class="mt-2 pt-2 border-top">
+                        <small class="text-muted">
+                            <i class="fas fa-tachometer-alt"></i> ${speed} km/h
+                            <span class="ms-3"><i class="fas fa-clock"></i> ${lastUpdate}</span>
+                        </small>
+                    </div>
+                    ` : ''}
+                `;
 
-    driverMarker.addListener('click', () => {
-        driverInfoWindow.open(map, driverMarker);
-    });
-    <% } %>
+                container.appendChild(card);
+            });
 
-    // Draw route path
-    routePath = new google.maps.Polyline({
-        path: [],
-        geodesic: true,
-        strokeColor: '#4285F4',
-        strokeOpacity: 0.8,
-        strokeWeight: 4,
-        map: map
-    });
+            // Update count
+            document.getElementById('activeCount').textContent = 
+                Array.from(drivers.values()).filter(d => d.status === 'online').length;
+        }
 
-    // Load route history
-    loadRouteHistory();
+        // Focus on specific driver
+        function focusOnDriver(driverId) {
+            const driver = drivers.get(driverId);
+            if (driver && driver.location) {
+                map.setCenter({
+                    lat: driver.location.latitude,
+                    lng: driver.location.longitude
+                });
+                map.setZoom(16);
 
-    // Fit map to show all markers
-    fitBounds();
-}
+                if (infoWindows[driverId]) {
+                    Object.values(infoWindows).forEach(iw => iw.close());
+                    infoWindows[driverId].open(map, markers[driverId]);
+                }
+            }
+        }
 
-// Update driver location on map
-function updateDriverLocation(data) {
-    const newPosition = {
-        lat: data.location.latitude,
-        lng: data.location.longitude
-    };
+        // ==================== SOCKET.IO EVENTS ====================
 
-    if (!driverMarker) {
-        // Create driver marker if doesn't exist
-        driverMarker = new google.maps.Marker({
-            position: newPosition,
-            map: map,
-            title: 'Driver Current Location',
-            icon: {
-                url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                scaledSize: new google.maps.Size(50, 50)
+        socket.on('connect', () => {
+            console.log('✅ Connected to server');
+            socket.emit('admin:join', { role: 'admin' });
+        });
+
+        // Receive initial drivers list
+        socket.on('admin:drivers:list', (driversList) => {
+            console.log('📋 Received drivers list:', driversList);
+            driversList.forEach(driver => {
+                drivers.set(driver.driverId, {
+                    ...driver,
+                    status: 'online'
+                });
+
+                if (driver.location) {
+                    updateDriverMarker(driver.driverId, {
+                        ...driver,
+                        ...driver.location
+                    });
+                }
+            });
+            updateDriversList();
+        });
+
+        // Driver comes online
+        socket.on('driver:online', (data) => {
+            console.log('🚗 Driver online:', data);
+            drivers.set(data.driverId, {
+                ...data,
+                status: 'online'
+            });
+            updateDriversList();
+        });
+
+        // Driver location update (REAL-TIME)
+        socket.on('driver:location:update', (data) => {
+            console.log('📍 Location update:', data);
+            
+            const driver = drivers.get(data.driverId) || {};
+            drivers.set(data.driverId, {
+                ...driver,
+                driverId: data.driverId,
+                location: data.location,
+                speed: data.speed,
+                heading: data.heading,
+                status: 'online'
+            });
+
+            updateDriverMarker(data.driverId, {
+                location: data.location,
+                speed: data.speed,
+                heading: data.heading,
+                driverName: driver.driverName,
+                vehicleNumber: driver.vehicleNumber
+            });
+
+            updateDriversList();
+        });
+
+        // Driver goes offline
+        socket.on('driver:offline', (data) => {
+            console.log('🚗 Driver offline:', data);
+            const driver = drivers.get(data.driverId);
+            if (driver) {
+                driver.status = 'offline';
+                drivers.set(data.driverId, driver);
+                removeDriverMarker(data.driverId);
+                updateDriversList();
             }
         });
-    } else {
-        // Animate marker movement
-        animateMarker(driverMarker, newPosition);
-    }
 
-    // Add point to route path
-    const path = routePath.getPath();
-    path.push(newPosition);
+        // ==================== SEARCH & FILTER ====================
 
-    // Pan map to new location (optional)
-    // map.panTo(newPosition);
-}
+        document.getElementById('searchDriver').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.driver-card').forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        });
 
-// Animate marker movement
-function animateMarker(marker, newPosition) {
-    const startPosition = marker.getPosition();
-    let progress = 0;
-    const duration = 1000; // 1 second animation
-    const steps = 60;
-    const stepDuration = duration / steps;
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
 
-    const animate = setInterval(() => {
-        progress += 1 / steps;
-        if (progress >= 1) {
-            clearInterval(animate);
-            marker.setPosition(newPosition);
-            return;
-        }
+                const filter = btn.dataset.filter;
+                document.querySelectorAll('.driver-card').forEach(card => {
+                    if (filter === 'all') {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = card.classList.contains(filter) ? 'block' : 'none';
+                    }
+                });
+            });
+        });
 
-        const lat = startPosition.lat() + (newPosition.lat - startPosition.lat()) * progress;
-        const lng = startPosition.lng() + (newPosition.lng - startPosition.lng()) * progress;
-        
-        marker.setPosition(new google.maps.LatLng(lat, lng));
-    }, stepDuration);
-}
-
-// Update live status panel
-function updateLiveStatus(data) {
-    document.getElementById('current-speed').textContent = (data.speed || 0) + ' km/h';
-    document.getElementById('distance-remaining').textContent = data.distanceFromDestination + ' km';
-    
-    if (data.estimatedArrival) {
-        const eta = new Date(data.estimatedArrival);
-        document.getElementById('eta').textContent = eta.toLocaleTimeString();
-    }
-    
-    const lastUpdate = new Date(data.timestamp);
-    document.getElementById('last-update').textContent = lastUpdate.toLocaleTimeString();
-}
-
-// Load route history from API
-async function loadRouteHistory() {
-    try {
-        const response = await fetch(`/api/tracking/route/<%= delivery._id %>`);
-        const result = await response.json();
-        
-        if (result.success && result.data.route) {
-            const path = result.data.route.map(point => ({
-                lat: point.latitude,
-                lng: point.longitude
-            }));
-            
-            routePath.setPath(path);
-        }
-    } catch (error) {
-        console.error('Error loading route history:', error);
-    }
-}
-
-// Add location to history timeline
-function addLocationToHistory(data) {
-    const historyContainer = document.getElementById('location-history');
-    const timestamp = new Date(data.timestamp).toLocaleTimeString();
-    
-    const historyItem = `
-        <div class="timeline-item mb-3">
-            <div class="d-flex align-items-start">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-map-marker-alt text-primary"></i>
-                </div>
-                <div class="flex-grow-1 ms-3">
-                    <div class="d-flex justify-content-between">
-                        <strong>${timestamp}</strong>
-                        <span class="badge bg-primary">${data.speed || 0} km/h</span>
-                    </div>
-                    <p class="mb-0 text-muted">${data.location.address || 'Location updated'}</p>
-                    <small class="text-muted">Distance remaining: ${data.distanceFromDestination}</small>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    historyContainer.insertAdjacentHTML('afterbegin', historyItem);
-    
-    // Keep only last 10 items
-    const items = historyContainer.querySelectorAll('.timeline-item');
-    if (items.length > 10) {
-        items[items.length - 1].remove();
-    }
-}
-
-// Center map on driver
-function centerMap() {
-    if (driverMarker) {
-        map.setCenter(driverMarker.getPosition());
-        map.setZoom(15);
-    }
-}
-
-// Toggle traffic layer
-function toggleTrafficLayer() {
-    if (trafficLayer.getMap()) {
-        trafficLayer.setMap(null);
-    } else {
-        trafficLayer.setMap(map);
-    }
-}
-
-// Fit map to show all markers
-function fitBounds() {
-    const bounds = new google.maps.LatLngBounds();
-    
-    if (pickupMarker) bounds.extend(pickupMarker.getPosition());
-    if (deliveryMarker) bounds.extend(deliveryMarker.getPosition());
-    if (driverMarker) bounds.extend(driverMarker.getPosition());
-    
-    map.fitBounds(bounds);
-}
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    socket.emit('leave-delivery', deliveryId);
-    socket.disconnect();
-});
-
-// Auto-refresh current location every 30 seconds (fallback)
-setInterval(async () => {
-    try {
-        const response = await fetch(`/api/tracking/current/<%= delivery._id %>`);
-        const result = await response.json();
-        
-        if (result.success && result.data.currentLocation) {
-            updateDriverLocation(result.data.currentLocation);
-            updateLiveStatus(result.data);
-        }
-    } catch (error) {
-        console.error('Error fetching current location:', error);
-    }
-}, 30000);
-</script>
-
-<%- include('../layouts/footer') %>
+        // ==================== INITIALIZE ====================
+        window.onload = () => {
+            initMap();
+        };
+    </script>
+</body>
+</html>

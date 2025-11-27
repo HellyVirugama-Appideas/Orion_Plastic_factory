@@ -112,7 +112,7 @@
 
 //     const skip = (parseInt(page) - 1) * parseInt(limit);
 //     const sort = {};
-    
+
 //     if (sortBy === 'nextServiceDate') {
 //       sort['timeSchedule.nextServiceDate'] = sortOrder === 'desc' ? -1 : 1;
 //     } else if (sortBy === 'nextServiceKm') {
@@ -330,7 +330,7 @@
 
 //     // Process different document types
 //     const documentTypes = ['invoice', 'receipt', 'before_photo', 'after_photo', 'report', 'warranty'];
-    
+
 //     documentTypes.forEach(type => {
 //       if (files[type]) {
 //         files[type].forEach(file => {
@@ -410,7 +410,7 @@
 //         const daysSinceLastService = (Date.now() - lastMaintenance.completedAt) / (1000 * 60 * 60 * 24);
 //         const kmCovered = currentKm - lastMaintenance.distanceSchedule.lastServiceKm;
 //         const avgKmPerDay = kmCovered / daysSinceLastService;
-        
+
 //         if (avgKmPerDay > 0) {
 //           const daysToNextService = remainingKm / avgKmPerDay;
 //           nextServiceDate = new Date(Date.now() + (daysToNextService * 24 * 60 * 60 * 1000));
@@ -456,10 +456,10 @@
 //     const { vehicleId, startDate, endDate, maintenanceType } = req.query;
 
 //     const matchStage = { status: 'completed' };
-    
+
 //     if (vehicleId) matchStage.vehicle = mongoose.Types.ObjectId(vehicleId);
 //     if (maintenanceType) matchStage.maintenanceType = maintenanceType;
-    
+
 //     if (startDate || endDate) {
 //       matchStage.completedAt = {};
 //       if (startDate) matchStage.completedAt.$gte = new Date(startDate);
@@ -781,3 +781,167 @@ exports.getServiceHistory = async (req, res) => {
   }
 };
 
+// exports.completeServiceByDriver = async (req, res) => {
+//   try {
+//     const { scheduleId } = req.body;
+//     const driverId = req.driver._id;
+
+//     if (!scheduleId) {
+//       return res.status(400).json({ success: false, message: 'scheduleId required' });
+//     }
+
+//     const maintenance = await MaintenanceSchedule.findById(scheduleId)
+//       .populate('vehicle');
+
+//     if (!maintenance) {
+//       return res.status(404).json({ success: false, message: 'Schedule not found' });
+//     }
+
+//     const vehicle = maintenance.vehicle;
+//     if (!vehicle || vehicle.assignedDriver?.toString() !== driverId.toString()) {
+//       return res.status(403).json({ success: false, message: 'This is not your vehicle!' });
+//     }
+
+//     if (maintenance.status === 'completed') {
+//       return res.status(400).json({ success: false, message: 'Already marked as completed' });
+//     }
+//     if (maintenance.status === 'cancelled') {
+//       return res.status(400).json({ success: false, message: 'This schedule was cancelled' });
+//     }
+
+//     maintenance.status = 'pending_approval'; 
+//     maintenance.driverMarkedComplete = true;
+//     maintenance.driverCompletedAt = new Date();
+//     maintenance.driverNotes = req.body.notes || 'Driver ne service complete mark kiya';
+
+//     await maintenance.save();
+
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Service completion request sent to admin!',
+//       data: {
+//         scheduleId: maintenance._id,
+//         status: maintenance.status,
+//         message: 'Admin will verify and record the service soon'
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Driver complete service error:', error);
+//     return res.status(500).json({ success: false, message: 'Failed', error: error.message });
+//   }
+// };
+
+// controllers/maintenanceDriverController.js
+
+exports.completeServiceByDriver = async (req, res) => {
+  try {
+    const { scheduleId, notes } = req.body;
+
+    if (!req.driver) {
+      return res.status(401).json({
+        success: false,
+        message: 'Driver not authenticated. Please login again.'
+      });
+    }
+
+    const driverId = req.driver._id;
+    const driverName = req.driver.name || req.driver.phone;
+
+    if (!scheduleId) {
+      return res.status(400).json({ success: false, message: 'scheduleId required' });
+    }
+
+    const maintenance = await MaintenanceSchedule.findById(scheduleId)
+      .populate('vehicle');
+
+    if (!maintenance) {
+      return res.status(404).json({ success: false, message: 'Schedule not found' });
+    }
+
+    const vehicle = maintenance.vehicle;
+    if (!vehicle) {
+      return res.status(400).json({ success: false, message: 'Vehicle not found' });
+    }
+
+    if (!vehicle.assignedDriver ||
+      vehicle.assignedDriver.toString() !== driverId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'This is not your vehicle!'
+      });
+    }
+
+    if (['completed', 'cancelled'].includes(maintenance.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot mark as complete. Status: ${maintenance.status}`
+      });
+    }
+
+    // Update status
+    maintenance.status = 'pending_approval';
+    maintenance.driverMarkedComplete = true;
+    maintenance.driverCompletedAt = new Date();
+    maintenance.driverNotes = notes || 'Service completed by driver';
+
+    // RECEIPT UPLOAD
+    const uploadedDocs = [];
+
+    if (req.files) {
+      Object.keys(req.files).forEach(field => {
+        req.files[field].forEach(file => {
+          uploadedDocs.push({
+            type: field === 'receipt' ? 'receipt' :
+              field === 'invoice' ? 'invoice' :
+                field.includes('before') ? 'before_photo' :
+                  field.includes('after') ? 'after_photo' : 'other',
+            url: `/uploads/maintenance/${file.filename}`,
+            filename: file.filename,
+            uploadedAt: new Date(),
+            uploadedBy: driverId,
+            uploadedByType: 'driver'
+          });
+        });
+      });
+    }
+
+    if (uploadedDocs.length > 0) {
+      maintenance.documents = maintenance.documents || [];
+      maintenance.documents.push(...uploadedDocs);
+    }
+
+    await maintenance.save();
+
+    // Notification to Admin
+    if (global.io) {
+      global.io.emit("driver-completed-service", {
+        scheduleId: maintenance._id,
+        driverName,
+        vehicleNumber: vehicle.vehicleNumber,
+        receiptUploaded: uploadedDocs.length > 0,
+        totalFiles: uploadedDocs.length
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service completion request sent with receipt!',
+      data: {
+        scheduleId: maintenance._id,
+        status: 'pending_approval',
+        uploadedFiles: uploadedDocs.length,
+        message: 'Admin will verify your receipt & approve soon'
+      }
+    });
+
+  } catch (error) {
+    console.error('Driver complete service error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit',
+      error: error.message
+    });
+  }
+};

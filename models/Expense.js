@@ -14,7 +14,7 @@ const expenseSchema = new mongoose.Schema({
   driver: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Driver',
-    required: true,
+    required: false,
     index: true
   },
   

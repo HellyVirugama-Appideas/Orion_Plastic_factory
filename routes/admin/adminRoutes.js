@@ -6,7 +6,6 @@ const documentVerificationController = require('../../controllers/admin/document
 const { protectAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/roleMiddleware');
 const { validateEmail, validatePassword, validateRequiredFields } = require('../../middleware/validator');
-const { getDriversWithoutVehicle, assignVehicle, updateVehicle, removeVehicle } = require('../../controllers/admin/adminDriverController');
 
 
 // ========== Admin Authentication Routes ==========
@@ -140,23 +139,5 @@ router.patch(
   documentVerificationController.rejectDocument
 );
 
-
-// ////////////////////////vehicle routes
-
-
-// Get drivers without vehicle
-router.get('/drivers/no-vehicle/list', protectAdmin, getDriversWithoutVehicle);
-
-// Assign vehicle to driver
-router.post('/drivers/:driverId/assign-vehicle', protectAdmin, assignVehicle);
-
-// Update vehicle details
-router.patch('/drivers/:driverId/update-vehicle', protectAdmin, updateVehicle);
-
-// Remove vehicle assignment
-router.delete('/drivers/:driverId/remove-vehicle', protectAdmin, removeVehicle);
-
-// Redirect root to dashboard
-// router.get('/', (req, res) => res.redirect('/admin/dashboard'));
 
 module.exports = router;

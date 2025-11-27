@@ -1,47 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const deliveryController = require('../controllers/deliveryController');
-const { authenticateDriver, protectAdmin, isAdmin, isDriver } = require('../middleware/authMiddleware');
-const { checkPermission } = require('../middleware/roleMiddleware');
-
-// Admin Routes
-router.post(
-  '/',
-  protectAdmin,
-  isAdmin,
-  checkPermission('deliveries', 'create'),
-  deliveryController.createDelivery
-);
-
-router.patch(
-  '/:deliveryId/assign-driver',
-  protectAdmin,
-  isAdmin,
-  checkPermission('deliveries', 'update'),
-  deliveryController.assignDriver
-);
-
-router.post(
-  '/assign-multiple',
-  protectAdmin,
-  isAdmin,
-  checkPermission('deliveries', 'update'),
-  deliveryController.assignMultipleDeliveries
-);
-
-router.get(
-  '/',
-  protectAdmin,
-  isAdmin,
-  checkPermission('deliveries', 'read'),
-  deliveryController.getAllDeliveries
-);
-
-router.get(
-  '/:deliveryId',
-  authenticateDriver,
-  deliveryController.getDeliveryDetails
-);
+const { authenticateDriver,isDriver } = require('../middleware/authMiddleware');
 
 // Driver Routes
 router.get(
@@ -72,10 +32,12 @@ router.post(
   deliveryController.verifyOTPAndComplete
 );
 
-// Public Route (Tracking)
-router.get(
-  '/track/:trackingNumber',
-  deliveryController.trackDelivery
-);
+router.post(
+  '/:deliveryId/accept',
+  authenticateDriver,
+  isDriver,
+  deliveryController.acceptDelivery
+)
+
 
 module.exports = router;

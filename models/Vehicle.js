@@ -16,7 +16,7 @@ const maintenanceRecordSchema = new mongoose.Schema({
     min: 0
   },
   performedBy: {
-    type: String, 
+    type: String,
     required: true
   },
   meterReading: {
@@ -84,7 +84,7 @@ const vehicleSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  
+
   // Registration & Insurance
   registrationDate: {
     type: Date,
@@ -112,7 +112,7 @@ const vehicleSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
-  
+
   // Meter/Odometer
   currentMeterReading: {
     type: Number,
@@ -124,7 +124,7 @@ const vehicleSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  
+
   // Service & Maintenance
   lastServiceDate: Date,
   lastServiceReading: Number,
@@ -138,7 +138,7 @@ const vehicleSchema = new mongoose.Schema({
     type: Number,
     default: 180
   },
-  
+
   // Documents
   documents: [{
     documentType: {
@@ -153,10 +153,10 @@ const vehicleSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
+
   // Maintenance Records
   maintenanceRecords: [maintenanceRecordSchema],
-  
+
   // Assignment
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
@@ -168,7 +168,11 @@ const vehicleSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  
+  assignedDriver: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Driver',
+    default: null
+  },
   // Status
   status: {
     type: String,
@@ -180,7 +184,7 @@ const vehicleSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  
+
   // Additional Info
   fuelType: {
     type: String,
@@ -189,14 +193,14 @@ const vehicleSchema = new mongoose.Schema({
   },
   seatingCapacity: Number,
   loadCapacity: Number, // in kg
-  
+
   // Purchase Info
   purchaseDate: Date,
   purchasePrice: Number,
   currentValue: Number,
-  
+
   notes: String,
-  
+
 }, { timestamps: true });
 
 // Indexes
@@ -207,42 +211,42 @@ vehicleSchema.index({ vehicleType: 1 });
 vehicleSchema.index({ assignedTo: 1 });
 
 // Virtual for service due
-vehicleSchema.virtual('isServiceDue').get(function() {
+vehicleSchema.virtual('isServiceDue').get(function () {
   if (!this.nextServiceDate && !this.nextServiceReading) return false;
-  
+
   const dateDue = this.nextServiceDate && new Date(this.nextServiceDate) <= new Date();
   const readingDue = this.nextServiceReading && this.currentMeterReading >= this.nextServiceReading;
-  
+
   return dateDue || readingDue;
 });
 
 // Virtual for insurance expiry warning
-vehicleSchema.virtual('insuranceExpiryWarning').get(function() {
+vehicleSchema.virtual('insuranceExpiryWarning').get(function () {
   if (!this.insuranceExpiryDate) return false;
-  
+
   const daysToExpiry = Math.ceil((new Date(this.insuranceExpiryDate) - new Date()) / (1000 * 60 * 60 * 24));
   return daysToExpiry <= 30; // Warning if expires within 30 days
 });
 
 // Method to calculate next service date
-vehicleSchema.methods.calculateNextService = function() {
+vehicleSchema.methods.calculateNextService = function () {
   if (this.lastServiceDate && this.serviceIntervalDays) {
     const nextDate = new Date(this.lastServiceDate);
     nextDate.setDate(nextDate.getDate() + this.serviceIntervalDays);
     this.nextServiceDate = nextDate;
   }
-  
+
   if (this.lastServiceReading && this.serviceIntervalKm) {
     this.nextServiceReading = this.lastServiceReading + this.serviceIntervalKm;
   }
 };
 
 // Method to update meter reading
-vehicleSchema.methods.updateMeterReading = function(newReading) {
+vehicleSchema.methods.updateMeterReading = function (newReading) {
   if (newReading < this.currentMeterReading) {
     throw new Error('New meter reading cannot be less than current reading');
   }
-  
+
   this.currentMeterReading = newReading;
   this.lastMeterUpdate = new Date();
 };

@@ -18,7 +18,7 @@
 //         message: 'File too large. Maximum size is 5MB for documents and 2MB for profile images.'
 //       });
 //     }
-    
+
 //     return res.status(400).json({
 //       success: false,
 //       message: err.message || 'File upload failed'
@@ -234,7 +234,7 @@ const fs = require('fs');
   'public/uploads/journey',
   'public/uploads/signatures',
   'public/uploads/maintenance',
-  'public/uploads/expenses'  
+  'public/uploads/expenses'
 ].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -265,7 +265,7 @@ const storage = multer.diskStorage({
     if (file.fieldname.includes('profile')) folder = 'public/uploads/profiles/';
     if (file.fieldname.includes('journey') || file.fieldname === 'image') folder = 'public/uploads/journey/';
     if (file.fieldname === 'signature') folder = 'public/uploads/signatures/';
-    
+
     // Maintenance documents
     if (['invoice', 'receipt', 'before_photo', 'after_photo', 'report', 'warranty'].includes(file.fieldname)) {
       folder = 'public/uploads/maintenance/';
@@ -319,10 +319,11 @@ module.exports = {
   uploadMaintenanceDocuments: upload.fields([
     { name: 'invoice', maxCount: 5 },
     { name: 'receipt', maxCount: 5 },
-    { name: 'before_photo', maxCount: 10 },
-    { name: 'after_photo', maxCount: 10 },
+    { name: 'before_service_photo', maxCount: 10 },
+    { name: 'after_service_photo', maxCount: 10 },
     { name: 'report', maxCount: 5 },
-    { name: 'warranty', maxCount: 5 }
+    { name: 'warranty', maxCount: 5 },
+    { name: 'service_receipt', maxCount: 1 }
   ]),
 
   uploadExpenseReceipts: upload.fields([

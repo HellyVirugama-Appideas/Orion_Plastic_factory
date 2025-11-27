@@ -55,6 +55,59 @@ exports.authenticate = async (req, res, next) => {
 };
 
 
+// exports.authenticateDriver = async (req, res, next) => {
+//   try {
+//     const authHeader = req.headers.authorization;
+
+//     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+//       return unauthorizedResponse(res, 'No token provided');
+//     }
+
+//     const token = authHeader.split(' ')[1];
+
+//     // Verify JWT
+//     const decoded = verifyToken(token);
+//     if (!decoded || !decoded.userId) {
+//       return unauthorizedResponse(res, 'Invalid or expired token');
+//     }
+
+//     // Check active session
+//     const session = await Session.findOne({
+//       token,
+//       userId: decoded.userId,
+//       isActive: true,
+//       expiresAt: { $gt: new Date() }
+//     });
+
+//     if (!session) {
+//       return unauthorizedResponse(res, 'Session expired or invalid');
+//     }
+
+//     // SIRF DRIVER DHUNDO — User model bilkul nahi!
+//     const driver = await Driver.findById(decoded.userId)
+//       .select('-password -pin -resetPinToken -resetPinExpires');
+
+//     if (!driver) {
+//       return unauthorizedResponse(res, 'Driver not found');
+//     }
+
+//     if (!driver.isActive) {
+//       return unauthorizedResponse(res, 'Your account is deactivated');
+//     }
+
+//     // req.user mein DRIVER daal do
+//     req.user = driver;
+//     req.user._id = driver._id;
+//     req.token = token;
+
+//     next();
+
+//   } catch (error) {
+//     console.error('Driver Auth Error:', error);
+//     return unauthorizedResponse(res, 'Authentication failed');
+//   }
+// };
+
 exports.authenticateDriver = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -65,13 +118,11 @@ exports.authenticateDriver = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    // Verify JWT
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) {
       return unauthorizedResponse(res, 'Invalid or expired token');
     }
 
-    // Check active session
     const session = await Session.findOne({
       token,
       userId: decoded.userId,
@@ -83,7 +134,6 @@ exports.authenticateDriver = async (req, res, next) => {
       return unauthorizedResponse(res, 'Session expired or invalid');
     }
 
-    // SIRF DRIVER DHUNDO — User model bilkul nahi!
     const driver = await Driver.findById(decoded.userId)
       .select('-password -pin -resetPinToken -resetPinExpires');
 
@@ -95,9 +145,8 @@ exports.authenticateDriver = async (req, res, next) => {
       return unauthorizedResponse(res, 'Your account is deactivated');
     }
 
-    // req.user mein DRIVER daal do
-    req.user = driver;
-    req.user._id = driver._id;
+    req.driver = driver;          
+    req.driverId = driver._id;
     req.token = token;
 
     next();

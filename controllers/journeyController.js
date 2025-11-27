@@ -16,8 +16,7 @@ exports.startJourney = async (req, res) => {
       return errorResponse(res, 'deliveryId, latitude and longitude are required', 400);
     }
 
-    // DRIVER ALREADY req.user MEIN HAI (authenticateDriver middleware se)
-    const driver = req.user; // ← YEH HI DRIVER HAI! NO NEED TO QUERY AGAIN!
+    const driver = req.user;
 
     if (!driver) {
       return errorResponse(res, 'Driver not authenticated', 401);
@@ -26,7 +25,7 @@ exports.startJourney = async (req, res) => {
     // Verify delivery assigned to this driver
     const delivery = await Delivery.findOne({
       _id: deliveryId,
-      driverId: driver._id,     // ← driver._id use karo (real Driver ID)
+      driverId: driver._id,    
       status: 'assigned'
     });
 
@@ -231,7 +230,6 @@ exports.endJourney = async (req, res) => {
       return errorResponse(res, 'Journey not found', 404);
     }
 
-    // DRIVER ALREADY IN req.user (authenticateDriver)
     const driver = req.user;
 
     // 3. Verify ownership
@@ -320,7 +318,6 @@ exports.endJourney = async (req, res) => {
       });
     }
 
-    // 9. DRIVER KO FREE KAR DO — YEH LINE ADD KI!
     await Driver.findByIdAndUpdate(
       driver._id,
       { 
@@ -331,7 +328,6 @@ exports.endJourney = async (req, res) => {
       { new: true }
     );
 
-    // Optional: Driver rating update ya earnings badhana baad mein kar dena
 
     return successResponse(res, 'Journey ended successfully! You are now free for new deliveries', {
       journey: {
@@ -605,6 +601,8 @@ exports.getJourneyByDelivery = async (req, res) => {
     return errorResponse(res, 'Failed to retrieve journey', 500);
   }
 };
+
+
 
 // Get Driver's Journey History
 exports.getDriverJourneyHistory = async (req, res) => {

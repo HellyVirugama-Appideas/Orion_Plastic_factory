@@ -11,7 +11,7 @@ const deliverySchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true
-  }, 
+  },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -46,7 +46,7 @@ const deliverySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'assigned', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'failed'],
+    enum: ['pending', "pending_acceptance", 'assigned', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'failed'],
     default: 'pending'
   },
   priority: {
@@ -76,8 +76,15 @@ const deliverySchema = new mongoose.Schema({
     photos: [String], // Array of image URLs
     otp: String,
     otpVerified: { type: Boolean, default: false },
-    receiverName: String,
-    remarks: String
+    receiverName: String
+  },
+
+  remarks: {
+    type: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Remark'
+    }],
+    default: []
   },
   route: {
     type: mongoose.Schema.Types.ObjectId,
@@ -105,7 +112,7 @@ const deliverySchema = new mongoose.Schema({
 });
 
 // Generate unique tracking number
-deliverySchema.pre('save', async function(next) {
+deliverySchema.pre('save', async function (next) {
   if (this.isNew && !this.trackingNumber) {
     this.trackingNumber = `ORN${Date.now()}${Math.floor(Math.random() * 1000)}`;
   }

@@ -131,10 +131,10 @@ exports.getAllVehicles = async (req, res) => {
     if (serviceDue === 'true') {
       query.$or = [
         { nextServiceDate: { $lte: new Date() } },
-        { 
-          $expr: { 
-            $gte: ['$currentMeterReading', '$nextServiceReading'] 
-          } 
+        {
+          $expr: {
+            $gte: ['$currentMeterReading', '$nextServiceReading']
+          }
         }
       ];
     }
@@ -143,9 +143,9 @@ exports.getAllVehicles = async (req, res) => {
     if (insuranceExpiring === 'true') {
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      query.insuranceExpiryDate = { 
-        $gte: new Date(), 
-        $lte: thirtyDaysFromNow 
+      query.insuranceExpiryDate = {
+        $gte: new Date(),
+        $lte: thirtyDaysFromNow
       };
     }
 
@@ -284,7 +284,7 @@ exports.deleteVehicle = async (req, res) => {
           retiredBy: req.user._id
         }
       },
-      { new: true } 
+      { new: true }
     );
 
     if (!vehicle) {
@@ -347,6 +347,145 @@ exports.updateMeterReading = async (req, res) => {
   } catch (error) {
     console.error('Update Meter Reading Error:', error);
     return errorResponse(res, error.message || 'Failed to update meter reading', 500);
+  }
+};
+
+// ======================== assign vehicle to driver ========================
+
+
+exports.assignVehicleToDriver = async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const { driverId } = req.body;
+
+    if (!driverId) {
+      return errorResponse(res, 'driverId is required', 400);
+    }
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    const driver = await Driver.findById(driverId);
+
+    if (!vehicle) return errorResponse(res, 'Vehicle not found', 404);
+    if (!driver) return errorResponse(res, 'Driver not found', 404);
+
+    // Vehicle already assigned?
+    if (vehicle.assignedTo) {
+      return errorResponse(res, `Vehicle already assigned to ${vehicle.assignedTo.name || 'another driver'}`, 400);
+    }
+
+    // Driver already has vehicle?
+    if (driver.vehicle) {
+      return errorResponse(res, 'Driver already has a vehicle assigned', 400);
+    }
+
+
+    vehicle.assignedTo = driver._id;
+    vehicle.assignedBy = req.user._id;
+    vehicle.assignedAt = new Date();
+    vehicle.status = 'assigned';
+
+    driver.vehicle = vehicle._id;
+
+    await Promise.all([vehicle.save(), driver.save()]);
+
+    await vehicle.populate('assignedTo', 'name phone');
+
+    return successResponse(res, 'Vehicle assigned to driver successfully!', {
+      vehicle: {
+        _id: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        status: vehicle.status,
+        assignedTo: vehicle.assignedTo.name
+      },
+      driver: {
+        _id: driver._id,
+        name: driver.name,
+        phone: driver.phone,
+        assignedVehicle: vehicle.vehicleNumber
+      }
+    });
+
+  } catch (error) {
+    console.error('Assign Vehicle Error:', error);
+    return errorResponse(res, 'Failed to assign vehicle', 500);
+  }
+};
+
+exports.unassignVehicleFromDriver = async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+
+    const vehicle = await Vehicle.findById(vehicleId).populate('assignedTo');
+
+    if (!vehicle) return errorResponse(res, 'Vehicle not found', 404);
+    if (!vehicle.assignedTo) return errorResponse(res, 'Vehicle not assigned', 400);
+
+    const driver = await Driver.findById(vehicle.assignedTo._id);
+
+    // Unassign
+    vehicle.assignedTo = null;
+    vehicle.assignedBy = null;
+    vehicle.assignedAt = null;
+    vehicle.status = 'available';
+
+    if (driver) {
+      driver.vehicle = null;
+      await driver.save();
+    }
+
+    await vehicle.save();
+
+    return successResponse(res, 'Vehicle unassigned successfully', {
+      vehicle: {
+        _id: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        status: 'available'
+      }
+    });
+
+  } catch (error) {
+    console.error('Unassign Error:', error);
+    return errorResponse(res, 'Failed to unassign', 500);
+  }
+};
+
+// GET DRIVERS WITHOUT VEHICLE 
+exports.getDriversWithoutVehicle = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = {
+      $or: [
+        { vehicleNumber: null },
+        { vehicleNumber: '' },
+        { vehicleType: null }
+      ],
+      isActive: true
+    };
+
+    const [drivers, total] = await Promise.all([
+      Driver.find(query)
+        .select('name email phone licenseNumber profileStatus createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Driver.countDocuments(query)
+    ]);
+
+    return successResponse(res, 'Drivers without vehicle retrieved successfully', {
+      drivers,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('Get Drivers Without Vehicle Error:', error);
+    return errorResponse(res, 'Failed to retrieve drivers', 500);
   }
 };
 
@@ -465,133 +604,6 @@ exports.getMaintenanceHistory = async (req, res) => {
   }
 };
 
-// ASSIGN VEHICLE TO DRIVER 
-exports.assignVehicleToDriver = async (req, res) => {
-  try {
-    const { vehicleId } = req.params;
-    const { driverId } = req.body;
-
-    if (!driverId) {
-      return errorResponse(res, 'driverId is required in body', 400);
-    }
-
-    const vehicle = await Vehicle.findById(vehicleId);
-    const driver = await Driver.findById(driverId);
-
-    if (!vehicle) return errorResponse(res, 'Vehicle not found', 404);
-    if (!driver) return errorResponse(res, 'Driver not found', 404);
-
-    if (vehicle.status !== 'available') {
-      return errorResponse(res, `Vehicle is ${vehicle.status}, cannot assign`, 400);
-    }
-
-    if (driver.vehicleNumber) {
-      return errorResponse(res, `Driver already has vehicle: ${driver.vehicleNumber}`, 400);
-    }
-
-    const conflictingDriver = await Driver.findOne({
-      vehicleNumber: vehicle.vehicleNumber,
-      _id: { $ne: driverId }
-    });
-
-    if (conflictingDriver) {
-      return errorResponse(
-        res,
-        `Vehicle number ${vehicle.vehicleNumber} already assigned to ${conflictingDriver.name}`,
-        400
-      );
-    }
-
-    vehicle.assignedTo = driver._id;
-    vehicle.assignedBy = req.user._id;
-    vehicle.assignedAt = new Date();
-    vehicle.status = 'assigned';
-
-    driver.vehicleNumber = vehicle.vehicleNumber;
-    driver.vehicleType = vehicle.vehicleType;
-    driver.vehicleModel = vehicle.model || null;
-    driver.vehicleColor = vehicle.color || null;
-    driver.vehicleAssignedBy = req.user._id;
-    driver.vehicleAssignedAt = new Date();
-
-    await vehicle.save();   
-    await driver.save();   
-
-    return successResponse(res, 'Vehicle assigned successfully!', {
-      vehicle: {
-        id: vehicle._id,
-        vehicleNumber: vehicle.vehicleNumber,
-        status: vehicle.status,
-        assignedTo: driver.name
-      },
-      driver: {
-        id: driver._id,
-        name: driver.name,
-        phone: driver.phone,
-        vehicleNumber: driver.vehicleNumber
-      }
-    });
-
-  } catch (error) {
-    console.error('Assign Vehicle Error:', error);
-
-    if (error.code === 11000) {
-      return errorResponse(res, `Vehicle number already in use by another driver`, 400);
-    }
-
-    return errorResponse(res, 'Failed to assign vehicle', 500);
-  }
-};
-
-//  UNASSIGN VEHICLE FROM DRIVER 
-exports.unassignVehicleFromDriver = async (req, res) => {
-  try {
-    const { vehicleId } = req.params;
-
-    const vehicle = await Vehicle.findById(vehicleId);
-
-    if (!vehicle) {
-      return errorResponse(res, 'Vehicle not found', 404);
-    }
-
-    if (!vehicle.assignedTo) {
-      return errorResponse(res, 'Vehicle is not assigned to any driver', 400);
-    }
-
-    const driver = await Driver.findById(vehicle.assignedTo);
-
-    // Unassign from vehicle
-    vehicle.assignedTo = null;
-    vehicle.assignedAt = null;
-    vehicle.assignedBy = null;
-    vehicle.status = 'available';
-    await vehicle.save();
-
-    // Unassign from driver
-    if (driver) {
-      driver.vehicleNumber = null;
-      driver.vehicleType = null;
-      driver.vehicleModel = null;
-      driver.vehicleColor = null;
-      driver.vehicleAssignedBy = null;
-      driver.vehicleAssignedAt = null;
-      driver.isAvailable = false;
-      await driver.save();
-    }
-
-    return successResponse(res, 'Vehicle unassigned from driver successfully', {
-      vehicle: {
-        id: vehicle._id,
-        vehicleNumber: vehicle.vehicleNumber,
-        status: vehicle.status
-      }
-    });
-
-  } catch (error) {
-    console.error('Unassign Vehicle From Driver Error:', error);
-    return errorResponse(res, 'Failed to unassign vehicle', 500);
-  }
-};
 
 //  UPDATE VEHICLE STATUS 
 exports.updateVehicleStatus = async (req, res) => {
@@ -600,7 +612,7 @@ exports.updateVehicleStatus = async (req, res) => {
     const { status, notes } = req.body;
 
     const validStatuses = ['available', 'assigned', 'in_service', 'out_of_service', 'retired'];
-    
+
     if (!validStatuses.includes(status)) {
       return errorResponse(res, 'Invalid status', 400);
     }

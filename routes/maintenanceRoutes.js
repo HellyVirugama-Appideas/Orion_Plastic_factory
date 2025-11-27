@@ -116,14 +116,25 @@ const {
   getDueMaintenance,
   getUpcomingMaintenance,
   calculateNextServiceDate,
-  getServiceHistory
+  getServiceHistory,
+  completeServiceByDriver
 } = require('../controllers/maintenanceController');
 const { isDriver, authenticateDriver } = require('../middleware/authMiddleware');
+const { uploadMaintenanceDocuments, handleUploadError } = require('../middleware/uploadMiddleware');
 
 router.get('/schedules', authenticateDriver ,isDriver, getAllMaintenanceSchedules);
 router.get('/due', authenticateDriver,isDriver, getDueMaintenance);
 router.get('/upcoming', authenticateDriver,isDriver, getUpcomingMaintenance);
 router.get('/next-service/calculate', authenticateDriver,isDriver, calculateNextServiceDate);
 router.get('/history', authenticateDriver,isDriver, getServiceHistory);
+
+router.post(
+  "/complete_service",
+  authenticateDriver,
+  isDriver,
+  uploadMaintenanceDocuments,
+  handleUploadError,
+  completeServiceByDriver
+)
 
 module.exports = router;

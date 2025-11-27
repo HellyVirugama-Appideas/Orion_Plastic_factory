@@ -20,7 +20,7 @@ router.put(
   remarkController.updatePredefinedRemark
 );
 
-// Delete predefined remark (Admin only - soft delete)
+// Delete predefined remark (Admin only)
 router.delete(
   '/predefined/:remarkId',
   protectAdmin,

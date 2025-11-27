@@ -1,4 +1,6 @@
 const Remark = require('../../models/Remark');
+const Delivery = require("../../models/Delivery")
+
 
 
 // Create Predefined Remark
@@ -136,29 +138,71 @@ exports.updatePredefinedRemark = async (req, res) => {
 };
 
 // Delete (Soft) Predefined Remark
+// exports.deletePredefinedRemark = async (req, res) => {
+//   try {
+//     const { remarkId } = req.params;
+//     const remark = await Remark.findById(remarkId);
+
+//     if (!remark || !remark.isPredefined) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Predefined remark not found'
+//       });
+//     }
+
+//     remark.isActive = false;
+//     await remark.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Predefined remark deleted successfully'
+//     });
+
+//   } catch (error) {
+//     console.error('Delete remark error:', error);
+//     res.status(500).json({ success: false, message: 'Delete failed' });
+//   }
+// };
 exports.deletePredefinedRemark = async (req, res) => {
   try {
     const { remarkId } = req.params;
-    const remark = await Remark.findById(remarkId);
 
-    if (!remark || !remark.isPredefined) {
+    const remark = await Remark.findOne({ 
+      _id: remarkId, 
+      isPredefined: true 
+    });
+
+    if (!remark) {
       return res.status(404).json({
         success: false,
-        message: 'Predefined remark not found'
+        message: 'Predefined remark not found or already deleted'
       });
     }
 
-    remark.isActive = false;
-    await remark.save();
+    await Remark.deleteOne({ _id: remarkId });
 
-    res.status(200).json({
+    await Delivery.updateMany(
+      { remarks: remarkId },
+      { $pull: { remarks: remarkId } }
+    );
+
+
+    return res.status(200).json({
       success: true,
-      message: 'Predefined remark deleted successfully'
+      message: 'Predefined remark permanently deleted from database!',
+      data: {
+        deletedRemarkId: remarkId,
+        remarkText: remark.remarkText
+      }
     });
 
   } catch (error) {
-    console.error('Delete remark error:', error);
-    res.status(500).json({ success: false, message: 'Delete failed' });
+    console.error('Hard Delete Remark Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete remark',
+      error: error.message
+    });
   }
 };
 
