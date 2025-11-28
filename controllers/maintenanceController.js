@@ -781,63 +781,14 @@ exports.getServiceHistory = async (req, res) => {
   }
 };
 
-// exports.completeServiceByDriver = async (req, res) => {
-//   try {
-//     const { scheduleId } = req.body;
-//     const driverId = req.driver._id;
-
-//     if (!scheduleId) {
-//       return res.status(400).json({ success: false, message: 'scheduleId required' });
-//     }
-
-//     const maintenance = await MaintenanceSchedule.findById(scheduleId)
-//       .populate('vehicle');
-
-//     if (!maintenance) {
-//       return res.status(404).json({ success: false, message: 'Schedule not found' });
-//     }
-
-//     const vehicle = maintenance.vehicle;
-//     if (!vehicle || vehicle.assignedDriver?.toString() !== driverId.toString()) {
-//       return res.status(403).json({ success: false, message: 'This is not your vehicle!' });
-//     }
-
-//     if (maintenance.status === 'completed') {
-//       return res.status(400).json({ success: false, message: 'Already marked as completed' });
-//     }
-//     if (maintenance.status === 'cancelled') {
-//       return res.status(400).json({ success: false, message: 'This schedule was cancelled' });
-//     }
-
-//     maintenance.status = 'pending_approval'; 
-//     maintenance.driverMarkedComplete = true;
-//     maintenance.driverCompletedAt = new Date();
-//     maintenance.driverNotes = req.body.notes || 'Driver ne service complete mark kiya';
-
-//     await maintenance.save();
-
-
-//     return res.status(200).json({
-//       success: true,
-//       message: 'Service completion request sent to admin!',
-//       data: {
-//         scheduleId: maintenance._id,
-//         status: maintenance.status,
-//         message: 'Admin will verify and record the service soon'
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Driver complete service error:', error);
-//     return res.status(500).json({ success: false, message: 'Failed', error: error.message });
-//   }
-// };
-
-// controllers/maintenanceDriverController.js
-
 exports.completeServiceByDriver = async (req, res) => {
   try {
     const { scheduleId, notes } = req.body;
+
+    if (!req.driver && req.user) {
+      req.driver = req.user;
+      req.driverId = req.user._id;
+    }
 
     if (!req.driver) {
       return res.status(401).json({
@@ -865,8 +816,8 @@ exports.completeServiceByDriver = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vehicle not found' });
     }
 
-    if (!vehicle.assignedDriver ||
-      vehicle.assignedDriver.toString() !== driverId.toString()) {
+    if (!vehicle.assignedTo ||
+      vehicle.assignedTo.toString() !== driverId.toString()) {
       return res.status(403).json({
         success: false,
         message: 'This is not your vehicle!'

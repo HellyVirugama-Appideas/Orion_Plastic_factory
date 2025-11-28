@@ -142,6 +142,7 @@ exports.scheduleMaintenance = async (req, res) => {
     });
   }
 };
+
 exports.recordServiceDetails = async (req, res) => {
   try {
     const { scheduleId } = req.params;
@@ -152,7 +153,6 @@ exports.recordServiceDetails = async (req, res) => {
 
     const adminId = req.admin._id;
 
-    // SIRF VEHICLE POPULATE KARO — assignedDriver mat chhedo!
     const maintenance = await MaintenanceSchedule.findById(scheduleId)
       .populate('vehicle');
 
@@ -237,6 +237,7 @@ exports.recordServiceDetails = async (req, res) => {
     });
   }
 };
+
 exports.uploadServiceDocuments = async (req, res) => {
   try {
     const { scheduleId } = req.params;
@@ -425,5 +426,141 @@ exports.getMaintenanceCostSummary = async (req, res) => {
   } catch (error) {
     console.error('Cost summary error:', error);
     res.status(500).json({ success: false, message: 'Failed to get summary' });
+  }
+};
+
+// ADMIN: Approve or Reject Driver's Service Completion
+exports.approveOrRejectService = async (req, res) => {
+  try {
+    const { scheduleId } = req.params;
+    const { action, adminComments, actualCost, laborCost, partsCost, additionalCost, parts } = req.body;
+
+    // action must be "approve" or "reject"
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Action must be "approve" or "reject"'
+      });
+    }
+
+    const maintenance = await MaintenanceSchedule.findById(scheduleId)
+      .populate('vehicle');
+
+    if (!maintenance) {
+      return res.status(404).json({ success: false, message: 'Maintenance schedule not found' });
+    }
+
+    if (maintenance.status !== 'pending_approval') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot ${action}. Current status: ${maintenance.status}`
+      });
+    }
+
+    const adminId = req.admin._id;
+    const adminName = req.admin.name || 'Admin';
+
+    if (action === 'approve') {
+      maintenance.status = 'completed';
+      maintenance.completedAt = new Date();
+      maintenance.completedBy = adminId;
+      maintenance.adminComments = adminComments || 'Approved by admin';
+
+      if (actualCost !== undefined) {
+        maintenance.serviceDetails.actualCost = Number(actualCost);
+      }
+
+      if (laborCost || partsCost || additionalCost) {
+        maintenance.costBreakdown = {
+          laborCost: Number(laborCost) || 0,
+          partsCost: Number(partsCost) || 0,
+          additionalCost: Number(additionalCost) || 0,
+          totalCost: (Number(laborCost) || 0) + (Number(partsCost) || 0) + (Number(additionalCost) || 0)
+        };
+      }
+
+      if (parts && Array.isArray(parts)) {
+        maintenance.serviceDetails.parts = parts;
+      }
+
+      if (maintenance.vehicle) {
+        maintenance.vehicle.lastServiceDate = new Date();
+        await maintenance.vehicle.save();
+      }
+
+      const expense = new Expense({
+        expenseType: 'maintenance',
+        driver: maintenance.documents.find(d => d.uploadedByType === 'driver')?.uploadedBy || null,
+        vehicle: {
+          _id: maintenance.vehicle?._id,
+          vehicleNumber: maintenance.vehicle?.vehicleNumber,
+          registrationNumber: maintenance.vehicle?.registrationNumber
+        },
+        meterReading: {
+          current: maintenance.vehicle?.currentMeterReading || 0,
+          previous: maintenance.vehicle?.previousMeterReading || 0
+        },
+        fuelDetails: { totalAmount: maintenance.serviceDetails.actualCost || 0 },
+        description: `${maintenance.maintenanceType.replace(/_/g, ' ')} - Approved Service`,
+        category: 'scheduled',
+        approvalStatus: 'approved_by_finance',
+        paymentStatus: 'paid',
+        recordedBy: adminId
+      });
+
+      await expense.save();
+      maintenance.serviceHistoryId = expense._id;
+
+      if (maintenance.isRecurring && !maintenance.nextScheduleCreated) {
+        await MaintenanceSchedule.createNextSchedule(scheduleId);
+      }
+
+      if (global.io) {
+        global.io.to(`driver_${maintenance.vehicle?.assignedDriver}`).emit('service-approved', {
+          scheduleId: maintenance._id,
+          vehicleNumber: maintenance.vehicle?.vehicleNumber,
+          message: 'Your service has been approved by admin!',
+          actualCost: maintenance.serviceDetails.actualCost
+        });
+      }
+
+      await maintenance.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Service approved successfully!',
+        data: { maintenance, expenseId: expense._id }
+      });
+
+    } else if (action === 'reject') {
+      maintenance.status = 'in_progress';
+      maintenance.adminComments = adminComments || 'Rejected by admin. Please re-upload proper bill.';
+      maintenance.driverMarkedComplete = false;
+
+      if (global.io) {
+        global.io.to(`driver_${maintenance.vehicle?.assignedDriver}`).emit('service-rejected', {
+          scheduleId: maintenance._id,
+          vehicleNumber: maintenance.vehicle?.vehicleNumber,
+          message: 'Your service request was rejected.',
+          reason: adminComments || 'Invalid receipt or details'
+        });
+      }
+
+      await maintenance.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Service rejected. Driver notified.',
+        data: { maintenance }
+      });
+    }
+
+  } catch (error) {
+    console.error('Approve/Reject error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process request',
+      error: error.message
+    });
   }
 };

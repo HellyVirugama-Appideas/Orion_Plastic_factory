@@ -8,7 +8,7 @@ const maintenanceScheduleSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  
+
   // Maintenance Type
   maintenanceType: {
     type: String,
@@ -33,14 +33,14 @@ const maintenanceScheduleSchema = new mongoose.Schema({
     ],
     index: true
   },
-  
+
   // Schedule Information
   scheduleType: {
     type: String,
     enum: ['distance_based', 'time_based', 'both'],
     default: 'distance_based'
   },
-  
+
   // Distance-based scheduling (10k km intervals)
   distanceSchedule: {
     intervalKm: {
@@ -65,7 +65,7 @@ const maintenanceScheduleSchema = new mongoose.Schema({
       type: Number
     }
   },
-  
+
   // Time-based scheduling
   timeSchedule: {
     intervalMonths: {
@@ -76,7 +76,7 @@ const maintenanceScheduleSchema = new mongoose.Schema({
     nextServiceDate: Date,
     daysRemaining: Number
   },
-  
+
   // Service Details
   serviceDetails: {
     description: String,
@@ -97,29 +97,44 @@ const maintenanceScheduleSchema = new mongoose.Schema({
       cost: Number
     }]
   },
-  
+
   // Status
+  // status: {
+  //   type: String,
+  //   enum: ['scheduled', 'due', 'overdue', 'in_progress', 'completed', 'cancelled'],
+  //   default: 'scheduled',
+  //   index: true
+  // },
+
   status: {
     type: String,
-    enum: ['scheduled', 'due', 'overdue', 'in_progress', 'completed', 'cancelled'],
+    enum: [
+      'scheduled',
+      'due',
+      'overdue',
+      'in_progress',
+      'pending_approval',
+      'completed',
+      'cancelled'
+    ],
     default: 'scheduled',
     index: true
   },
-  
+
   // Priority
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'critical'],
     default: 'medium'
   },
-  
+
   // Completion Details
   completedAt: Date,
   completedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  
+
   // Cost Tracking
   costBreakdown: {
     laborCost: {
@@ -143,7 +158,7 @@ const maintenanceScheduleSchema = new mongoose.Schema({
       min: 0
     }
   },
-  
+
   // Documents
   documents: [{
     type: {
@@ -157,13 +172,13 @@ const maintenanceScheduleSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
+
   // Service History Reference
   serviceHistoryId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Expense'
   },
-  
+
   // Notifications
   notificationsSent: [{
     type: {
@@ -176,7 +191,7 @@ const maintenanceScheduleSchema = new mongoose.Schema({
       ref: 'User'
     }]
   }],
-  
+
   // Reminder Settings
   reminders: {
     kmBeforeDue: {
@@ -192,11 +207,11 @@ const maintenanceScheduleSchema = new mongoose.Schema({
       default: true
     }
   },
-  
+
   // Notes and Comments
   notes: String,
   adminComments: String,
-  
+
   // Recurring Schedule
   isRecurring: {
     type: Boolean,
@@ -206,14 +221,14 @@ const maintenanceScheduleSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  
+
   // Created by
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  
+
   // Approval (if required)
   requiresApproval: {
     type: Boolean,
@@ -224,8 +239,8 @@ const maintenanceScheduleSchema = new mongoose.Schema({
     ref: 'User'
   },
   approvedAt: Date
-  
-}, { 
+
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
@@ -238,7 +253,7 @@ maintenanceScheduleSchema.index({ 'timeSchedule.nextServiceDate': 1 });
 maintenanceScheduleSchema.index({ status: 1, priority: 1 });
 
 // Virtual for service status
-maintenanceScheduleSchema.virtual('isDue').get(function() {
+maintenanceScheduleSchema.virtual('isDue').get(function () {
   if (this.scheduleType === 'distance_based' || this.scheduleType === 'both') {
     return this.distanceSchedule.currentKm >= this.distanceSchedule.nextServiceKm;
   }
@@ -249,53 +264,53 @@ maintenanceScheduleSchema.virtual('isDue').get(function() {
 });
 
 // Calculate next service date (based on 10k km intervals)
-maintenanceScheduleSchema.pre('save', function(next) {
+maintenanceScheduleSchema.pre('save', function (next) {
   // Calculate next service km
   if (this.scheduleType === 'distance_based' || this.scheduleType === 'both') {
     if (!this.distanceSchedule.nextServiceKm) {
-      this.distanceSchedule.nextServiceKm = 
+      this.distanceSchedule.nextServiceKm =
         (this.distanceSchedule.lastServiceKm || 0) + (this.distanceSchedule.intervalKm || 10000);
     }
-    
+
     // Calculate remaining km
     if (this.distanceSchedule.currentKm) {
-      this.distanceSchedule.remainingKm = 
+      this.distanceSchedule.remainingKm =
         this.distanceSchedule.nextServiceKm - this.distanceSchedule.currentKm;
     }
   }
-  
+
   // Calculate next service date
   if (this.scheduleType === 'time_based' || this.scheduleType === 'both') {
     if (this.timeSchedule.lastServiceDate && this.timeSchedule.intervalMonths) {
       const nextDate = new Date(this.timeSchedule.lastServiceDate);
       nextDate.setMonth(nextDate.getMonth() + this.timeSchedule.intervalMonths);
       this.timeSchedule.nextServiceDate = nextDate;
-      
+
       // Calculate days remaining
       const today = new Date();
       const diffTime = nextDate - today;
       this.timeSchedule.daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
   }
-  
+
   // Calculate total cost
   if (this.costBreakdown) {
-    this.costBreakdown.totalCost = 
+    this.costBreakdown.totalCost =
       (this.costBreakdown.laborCost || 0) +
       (this.costBreakdown.partsCost || 0) +
       (this.costBreakdown.additionalCost || 0);
   }
-  
+
   // Auto-update status
   if (this.isDue && this.status === 'scheduled') {
     this.status = 'due';
   }
-  
+
   next();
 });
 
 // Static method to get due maintenance
-maintenanceScheduleSchema.statics.getDueMaintenance = async function(vehicleId) {
+maintenanceScheduleSchema.statics.getDueMaintenance = async function (vehicleId) {
   const query = { status: { $in: ['due', 'overdue'] } };
   if (vehicleId) {
     query.vehicle = vehicleId;
@@ -304,30 +319,30 @@ maintenanceScheduleSchema.statics.getDueMaintenance = async function(vehicleId) 
 };
 
 // Static method to get upcoming maintenance
-maintenanceScheduleSchema.statics.getUpcomingMaintenance = async function(vehicleId, daysAhead = 30) {
+maintenanceScheduleSchema.statics.getUpcomingMaintenance = async function (vehicleId, daysAhead = 30) {
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + daysAhead);
-  
+
   const query = {
     status: 'scheduled',
     'timeSchedule.nextServiceDate': { $lte: futureDate }
   };
-  
+
   if (vehicleId) {
     query.vehicle = vehicleId;
   }
-  
+
   return this.find(query).populate('vehicle').sort({ 'timeSchedule.nextServiceDate': 1 });
 };
 
 // Static method to create next recurring schedule
-maintenanceScheduleSchema.statics.createNextSchedule = async function(maintenanceId) {
+maintenanceScheduleSchema.statics.createNextSchedule = async function (maintenanceId) {
   const maintenance = await this.findById(maintenanceId);
-  
+
   if (!maintenance || !maintenance.isRecurring || maintenance.nextScheduleCreated) {
     return null;
   }
-  
+
   const nextSchedule = new this({
     vehicle: maintenance.vehicle,
     maintenanceType: maintenance.maintenanceType,
@@ -350,10 +365,10 @@ maintenanceScheduleSchema.statics.createNextSchedule = async function(maintenanc
     isRecurring: true,
     createdBy: maintenance.createdBy
   });
-  
+
   maintenance.nextScheduleCreated = true;
   await maintenance.save();
-  
+
   return await nextSchedule.save();
 };
 

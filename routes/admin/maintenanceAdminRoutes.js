@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protectAdmin } = require('../../middleware/authMiddleware');
+const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 const upload = require('../../middleware/uploadMiddleware');
 const {
   scheduleMaintenance,
@@ -8,7 +8,8 @@ const {
   uploadServiceDocuments,
   updateMaintenanceSchedule,
   cancelMaintenanceSchedule,
-  getMaintenanceCostSummary
+  getMaintenanceCostSummary,
+  approveOrRejectService
 } = require('../../controllers/admin/maintenanceAdminController');
 const {uploadMaintenanceDocuments,handleUploadError} = require("../../middleware/uploadMiddleware")
 
@@ -40,5 +41,7 @@ router.post('/:scheduleId/documents',
 router.put('/:scheduleId', protectAdmin, updateMaintenanceSchedule);
 router.delete('/:scheduleId', protectAdmin, cancelMaintenanceSchedule);
 router.get('/costs/summary', protectAdmin, getMaintenanceCostSummary);
+
+router.post('/:scheduleId/approve-reject', protectAdmin, isAdmin,approveOrRejectService)
 
 module.exports = router;
