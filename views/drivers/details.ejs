@@ -1,0 +1,506 @@
+<%- include('../layouts/main', { body: `
+<div class="page-header">
+  <div class="page-title-row">
+    <div>
+      <h1 class="page-title">${driver.name}</h1>
+      <nav class="breadcrumb">
+        <a href="/admin/dashboard">Dashboard</a>
+        <i class="fas fa-chevron-right"></i>
+        <a href="/admin/drivers">Drivers</a>
+        <i class="fas fa-chevron-right"></i>
+        <span>${driver.name}</span>
+      </nav>
+    </div>
+    <div style="display: flex; gap: 12px;">
+      <a href="/admin/drivers/${driver._id}/edit" class="btn btn-secondary">
+        <i class="fas fa-edit"></i>
+        Edit
+      </a>
+      <button class="btn btn-${driver.status === 'active' ? 'danger' : 'success'}" 
+        onclick="toggleDriverStatus('${driver._id}', '${driver.status}')">
+        <i class="fas fa-${driver.status === 'active' ? 'ban' : 'check'}"></i>
+        ${driver.status === 'active' ? 'Deactivate' : 'Activate'}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid" style="margin-bottom: 24px;">
+  <div class="stat-card">
+    <div class="stat-header">
+      <div class="stat-icon">
+        <i class="fas fa-truck"></i>
+      </div>
+    </div>
+    <div class="stat-value">${stats.totalDeliveries}</div>
+    <div class="stat-label">Total Deliveries</div>
+  </div>
+  
+  <div class="stat-card success">
+    <div class="stat-header">
+      <div class="stat-icon">
+        <i class="fas fa-check-circle"></i>
+      </div>
+    </div>
+    <div class="stat-value">${stats.completedDeliveries}</div>
+    <div class="stat-label">Completed</div>
+  </div>
+  
+  <div class="stat-card warning">
+    <div class="stat-header">
+      <div class="stat-icon">
+        <i class="fas fa-clock"></i>
+      </div>
+    </div>
+    <div class="stat-value">${stats.activeDeliveries}</div>
+    <div class="stat-label">Active Now</div>
+  </div>
+  
+  <div class="stat-card">
+    <div class="stat-header">
+      <div class="stat-icon">
+        <i class="fas fa-star"></i>
+      </div>
+    </div>
+    <div class="stat-value">${driver.rating ? driver.rating.toFixed(1) : 'N/A'}</div>
+    <div class="stat-label">Average Rating</div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+  <!-- Driver Info Sidebar -->
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <!-- Profile Card -->
+    <div class="card">
+      <div class="card-body" style="text-align: center;">
+        <div style="width: 120px; height: 120px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 48px; margin: 0 auto 20px; box-shadow: var(--shadow-lg);">
+          ${driver.name.charAt(0)}
+        </div>
+        
+        <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">${driver.name}</h2>
+        
+        <span class="badge badge-${driver.status === 'active' ? 'success' : driver.status === 'inactive' ? 'secondary' : 'warning'}" 
+          style="font-size: 14px; padding: 6px 16px;">
+          ${driver.status.toUpperCase()}
+        </span>
+        
+        <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color); text-align: left;">
+          <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px;">Email</div>
+            <div style="font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-envelope" style="color: var(--primary-color);"></i>
+              <a href="mailto:${driver.email}" style="color: var(--text-primary); text-decoration: none;">
+                ${driver.email}
+              </a>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px;">Phone</div>
+            <div style="font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-phone" style="color: var(--primary-color);"></i>
+              <a href="tel:${driver.phoneNumber}" style="color: var(--text-primary); text-decoration: none;">
+                ${driver.phoneNumber}
+              </a>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 16px;">
+            <div style="font-size: 12px; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px;">License Number</div>
+            <div style="font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-id-card" style="color: var(--primary-color);"></i>
+              ${driver.licenseNumber || 'N/A'}
+            </div>
+          </div>
+          
+          ${driver.vehicleNumber ? `
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 12px; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px;">Vehicle Number</div>
+              <div style="font-weight: 500; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-car" style="color: var(--primary-color);"></i>
+                ${driver.vehicleNumber}
+              </div>
+            </div>
+          ` : ''}
+          
+          <div>
+            <div style="font-size: 12px; color: var(--text-light); text-transform: uppercase; margin-bottom: 4px;">Joined</div>
+            <div style="font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-calendar" style="color: var(--primary-color);"></i>
+              ${new Date(driver.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+      </div>
+      <div class="card-body">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <a href="/admin/deliveries/create?driverId=${driver._id}" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            Assign New Delivery
+          </a>
+          
+          <button class="btn btn-secondary" onclick="sendNotification('${driver._id}')">
+            <i class="fas fa-bell"></i>
+            Send Notification
+          </button>
+          
+          <a href="/admin/expenses?driverId=${driver._id}" class="btn btn-secondary">
+            <i class="fas fa-receipt"></i>
+            View Expenses
+          </a>
+          
+          <a href="/admin/maintenance?driverId=${driver._id}" class="btn btn-secondary">
+            <i class="fas fa-wrench"></i>
+            Maintenance Log
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Vehicle Info -->
+    ${driver.vehicleType ? `
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Vehicle Information</h3>
+        </div>
+        <div class="card-body">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <span style="color: var(--text-light);">Type</span>
+              <span style="font-weight: 600; text-transform: capitalize;">${driver.vehicleType}</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+              <span style="color: var(--text-light);">Number</span>
+              <span style="font-weight: 600;">${driver.vehicleNumber || 'N/A'}</span>
+            </div>
+            
+            ${driver.vehicleModel ? `
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                <span style="color: var(--text-light);">Model</span>
+                <span style="font-weight: 600;">${driver.vehicleModel}</span>
+              </div>
+            ` : ''}
+            
+            ${driver.vehicleCapacity ? `
+              <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                <span style="color: var(--text-light);">Capacity</span>
+                <span style="font-weight: 600;">${driver.vehicleCapacity} kg</span>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+  </div>
+  
+  <!-- Main Content -->
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <!-- Active Deliveries -->
+    ${activeDeliveries && activeDeliveries.length > 0 ? `
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Active Deliveries</h3>
+          <span class="badge badge-primary">${activeDeliveries.length}</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tracking #</th>
+                  <th>Order</th>
+                  <th>Route</th>
+                  <th>Status</th>
+                  <th>ETA</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${activeDeliveries.map(delivery => `
+                  <tr>
+                    <td>
+                      <span style="font-weight: 600; color: var(--primary-color);">${delivery.trackingNumber}</span>
+                    </td>
+                    <td>
+                      <div>
+                        <div style="font-weight: 500;">${delivery.orderId?.orderNumber || 'N/A'}</div>
+                        <div style="font-size: 12px; color: var(--text-light);">${delivery.orderId?.customerId?.name || ''}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style="font-size: 13px;">
+                        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                          <i class="fas fa-map-marker-alt" style="color: #10b981; font-size: 10px;"></i>
+                          <span style="color: var(--text-secondary);">${delivery.pickupAddress?.city || 'N/A'}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                          <i class="fas fa-map-marker-alt" style="color: #ef4444; font-size: 10px;"></i>
+                          <span style="color: var(--text-secondary);">${delivery.deliveryAddress?.city || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge badge-${getDeliveryStatusBadgeClass(delivery.status)}">
+                        ${delivery.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td>
+                      ${delivery.estimatedDeliveryTime ? `
+                        <div style="font-size: 14px; font-weight: 500; color: var(--success-color);">
+                          ${new Date(delivery.estimatedDeliveryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                      ` : `
+                        <span style="font-size: 13px; color: var(--text-light);">-</span>
+                      `}
+                    </td>
+                    <td>
+                      <div style="display: flex; gap: 4px;">
+                        <a href="/admin/deliveries/${delivery._id}" class="btn btn-sm btn-secondary" title="View">
+                          <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="/admin/tracking/${delivery.trackingNumber}" class="btn btn-sm btn-success" title="Track">
+                          <i class="fas fa-location-arrow"></i>
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Performance Chart -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Performance Overview</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm btn-secondary" onclick="changeChartPeriod('week')">Week</button>
+          <button class="btn btn-sm btn-primary" onclick="changeChartPeriod('month')">Month</button>
+          <button class="btn btn-sm btn-secondary" onclick="changeChartPeriod('year')">Year</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="performanceChart" height="80"></canvas>
+      </div>
+    </div>
+    
+    <!-- Recent Deliveries -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Recent Deliveries</h3>
+        <a href="/admin/deliveries?driver=${driver._id}" class="btn btn-sm btn-secondary">View All</a>
+      </div>
+      <div class="card-body" style="padding: 0;">
+        ${recentDeliveries && recentDeliveries.length > 0 ? `
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Tracking #</th>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${recentDeliveries.map(delivery => `
+                  <tr onclick="window.location='/admin/deliveries/${delivery._id}'" style="cursor: pointer;">
+                    <td>
+                      <div style="font-size: 14px;">${new Date(delivery.createdAt).toLocaleDateString()}</div>
+                      <div style="font-size: 12px; color: var(--text-light);">${new Date(delivery.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    </td>
+                    <td>
+                      <span style="font-weight: 600; color: var(--primary-color);">${delivery.trackingNumber}</span>
+                    </td>
+                    <td>
+                      <span style="font-weight: 500;">${delivery.orderId?.orderNumber || 'N/A'}</span>
+                    </td>
+                    <td>
+                      <div>
+                        <div style="font-weight: 500;">${delivery.orderId?.customerId?.name || 'N/A'}</div>
+                        <div style="font-size: 12px; color: var(--text-light);">${delivery.orderId?.customerId?.phoneNumber || ''}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge badge-${getDeliveryStatusBadgeClass(delivery.status)}">
+                        ${delivery.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td onclick="event.stopPropagation();">
+                      <a href="/admin/deliveries/${delivery._id}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `
+          <div style="text-align: center; padding: 40px; color: var(--text-light);">
+            <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+            No deliveries yet
+          </div>
+        `}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  // Performance Chart
+  const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+  let performanceChart = new Chart(performanceCtx, {
+    type: 'line',
+    data: {
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      datasets: [{
+        label: 'Deliveries',
+        data: [3, 5, 4, 7, 6, 8, 5],
+        borderColor: '#667eea',
+        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          }
+        }
+      }
+    }
+  });
+  
+  function changeChartPeriod(period) {
+    // Update chart data based on period
+    let labels, data;
+    
+    if (period === 'week') {
+      labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      data = [3, 5, 4, 7, 6, 8, 5];
+    } else if (period === 'month') {
+      labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      data = [28, 32, 25, 30];
+    } else {
+      labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      data = [85, 92, 78, 95, 88, 102, 96, 89, 94, 98, 87, 91];
+    }
+    
+    performanceChart.data.labels = labels;
+    performanceChart.data.datasets[0].data = data;
+    performanceChart.update();
+    
+    // Update button states
+    document.querySelectorAll('.card-header button').forEach(btn => {
+      btn.className = 'btn btn-sm btn-secondary';
+    });
+    event.target.className = 'btn btn-sm btn-primary';
+  }
+  
+  function getDeliveryStatusBadgeClass(status) {
+    const classes = {
+      'pending': 'warning',
+      'assigned': 'info',
+      'picked_up': 'info',
+      'in_transit': 'primary',
+      'out_for_delivery': 'primary',
+      'delivered': 'success',
+      'failed': 'danger',
+      'returned': 'danger'
+    };
+    return classes[status] || 'secondary';
+  }
+  
+  async function toggleDriverStatus(driverId, currentStatus) {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const confirmed = confirm(`Are you sure you want to \${newStatus === 'active' ? 'activate' : 'deactivate'} this driver?\`);
+    
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(\`/admin/drivers/\${driverId}/status\`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to update driver status');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('An error occurred');
+    }
+  }
+  
+  function sendNotification(driverId) {
+    const message = prompt('Enter notification message:');
+    if (!message) return;
+    
+    fetch(\`/admin/drivers/\${driverId}/notify\`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showToast('Notification sent successfully!');
+      } else {
+        alert('Failed to send notification');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred');
+    });
+  }
+</script>
+
+<style>
+  @media (max-width: 1024px) {
+    .page-header > div > div:last-child {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+ }) %>

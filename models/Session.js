@@ -1,45 +1,27 @@
+// models/Session.js  (ya PinSession.js)
+
 const mongoose = require('mongoose');
 
 const sessionSchema = new mongoose.Schema({
-  userId: {
+  driverId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  token: {
-    type: String,
+    ref: 'Driver',
     required: true,
     unique: true
   },
-  deviceInfo: {
+  type: {
     type: String,
-    trim: true
-  },
-  ipAddress: {
-    type: String,
-    trim: true
-  },
-  userAgent: {
-    type: String,
-    trim: true
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  expiresAt: {
-    type: Date,
+    enum: ['forgot_pin', 'change_pin'],
     required: true
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-}, {
-  timestamps: true
-});
+  otp: { type: String },                    // only for forgot_pin
+  otpExpires: { type: Date },               // only for forgot_pin
+  oldPinVerified: { type: Boolean, default: false }, // only for change_pin
+  newPin: { type: String },               // common
+  verified: { type: Boolean, default: false } // for forgot_pin OTP verify
+}, { timestamps: true });
 
-// Auto-delete expired sessions
-sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// 24 hours ->  delete
+sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 module.exports = mongoose.model('Session', sessionSchema);

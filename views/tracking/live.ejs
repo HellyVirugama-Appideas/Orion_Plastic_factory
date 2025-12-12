@@ -1,0 +1,522 @@
+<%- include('../layouts/main', { body: `
+<div class="page-header">
+  <div class="page-title-row">
+    <div>
+      <h1 class="page-title">Live Tracking</h1>
+      <nav class="breadcrumb">
+        <a href="/admin/dashboard">Dashboard</a>
+        <i class="fas fa-chevron-right"></i>
+        <span>Live Tracking</span>
+      </nav>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--success-color); color: white; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        <span style="width: 8px; height: 8px; background: white; border-radius: 50%; display: inline-block; animation: pulse 2s infinite;"></span>
+        Live Updates
+      </div>
+      <button class="btn btn-secondary" onclick="refreshMap()">
+        <i class="fas fa-sync-alt"></i>
+        Refresh
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  .tracking-container {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 24px;
+    height: calc(100vh - 200px);
+  }
+  
+  .tracking-sidebar {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .tracking-map {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    position: relative;
+  }
+  
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .driver-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s;
+    cursor: pointer;
+    border: 2px solid transparent;
+  }
+  
+  .driver-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  
+  .driver-card.active {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .driver-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .driver-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--primary-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  
+  .driver-info h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  
+  .driver-vehicle {
+    font-size: 13px;
+    color: var(--text-light);
+  }
+  
+  .delivery-info {
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .delivery-route {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .route-point {
+    display: flex;
+    align-items: start;
+    gap: 8px;
+    font-size: 13px;
+  }
+  
+  .route-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  
+  .map-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .map-control-btn {
+    background: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  
+  .map-control-btn:hover {
+    box-shadow: var(--shadow-lg);
+    transform: scale(1.05);
+  }
+  
+  @media (max-width: 1024px) {
+    .tracking-container {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    
+    .tracking-sidebar {
+      max-height: 400px;
+    }
+    
+    .tracking-map {
+      height: 500px;
+    }
+  }
+</style>
+
+<div class="tracking-container">
+  <!-- Drivers Sidebar -->
+  <div class="tracking-sidebar">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Active Deliveries</h3>
+        <span class="badge badge-primary">${activeDeliveries?.length || 0}</span>
+      </div>
+    </div>
+    
+    ${activeDeliveries && activeDeliveries.length > 0 ? activeDeliveries.map((delivery, index) => `
+      <div class="driver-card ${index === 0 ? 'active' : ''}" onclick="focusDelivery('${delivery._id}')" data-delivery-id="${delivery._id}">
+        <div class="driver-header">
+          <div class="driver-avatar">
+            ${delivery.driverId?.name?.charAt(0) || 'D'}
+          </div>
+          <div class="driver-info">
+            <h4>${delivery.driverId?.name || 'Unassigned'}</h4>
+            <div class="driver-vehicle">${delivery.driverId?.vehicleNumber || 'N/A'}</div>
+          </div>
+          <span class="badge badge-${getDeliveryStatusBadgeClass(delivery.status)}" style="margin-left: auto;">
+            ${delivery.status.replace(/_/g, ' ')}
+          </span>
+        </div>
+        
+        <div class="delivery-info">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 12px; color: var(--text-light); text-transform: uppercase; font-weight: 600;">Tracking #</span>
+            <span style="font-weight: 600; color: var(--primary-color); font-size: 13px;">${delivery.trackingNumber}</span>
+          </div>
+          
+          <div class="delivery-route">
+            <div class="route-point">
+              <div class="route-icon" style="background: rgba(16, 185, 129, 0.1);">
+                <i class="fas fa-map-marker-alt" style="color: #10b981; font-size: 10px;"></i>
+              </div>
+              <div style="flex: 1;">
+                <div style="font-weight: 500; font-size: 13px; margin-bottom: 2px;">Pickup</div>
+                <div style="color: var(--text-light); font-size: 12px;">${delivery.pickupAddress?.city || 'N/A'}</div>
+              </div>
+            </div>
+            
+            <div style="width: 2px; height: 20px; background: var(--border-color); margin-left: 9px;"></div>
+            
+            <div class="route-point">
+              <div class="route-icon" style="background: rgba(239, 68, 68, 0.1);">
+                <i class="fas fa-map-marker-alt" style="color: #ef4444; font-size: 10px;"></i>
+              </div>
+              <div style="flex: 1;">
+                <div style="font-weight: 500; font-size: 13px; margin-bottom: 2px;">Delivery</div>
+                <div style="color: var(--text-light); font-size: 12px;">${delivery.deliveryAddress?.city || 'N/A'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-color);">
+          <div>
+            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; margin-bottom: 2px;">ETA</div>
+            <div style="font-weight: 600; color: var(--success-color); font-size: 14px;">
+              ${delivery.estimatedDeliveryTime ? new Date(delivery.estimatedDeliveryTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-light); text-transform: uppercase; margin-bottom: 2px;">Distance</div>
+            <div style="font-weight: 600; font-size: 14px;">
+              ${delivery.totalDistance ? (delivery.totalDistance / 1000).toFixed(1) + ' km' : 'N/A'}
+            </div>
+          </div>
+          <a href="/admin/deliveries/${delivery._id}" class="btn btn-sm btn-primary" onclick="event.stopPropagation();">
+            View
+          </a>
+        </div>
+      </div>
+    `).join('') : `
+      <div style="text-align: center; padding: 40px 20px; color: var(--text-light);">
+        <i class="fas fa-truck" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+        <p>No active deliveries</p>
+      </div>
+    `}
+  </div>
+  
+  <!-- Map -->
+  <div class="tracking-map">
+    <div id="map"></div>
+    
+    <div class="map-controls">
+      <button class="map-control-btn" onclick="map.setZoom(map.getZoom() + 1)" title="Zoom In">
+        <i class="fas fa-plus"></i>
+      </button>
+      <button class="map-control-btn" onclick="map.setZoom(map.getZoom() - 1)" title="Zoom Out">
+        <i class="fas fa-minus"></i>
+      </button>
+      <button class="map-control-btn" onclick="centerMap()" title="Center Map">
+        <i class="fas fa-crosshairs"></i>
+      </button>
+      <button class="map-control-btn" onclick="toggleTraffic()" title="Toggle Traffic">
+        <i class="fas fa-traffic-light"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=geometry"></script>
+<script>
+  let map;
+  let markers = {};
+  let routes = {};
+  let trafficLayer;
+  let activeDeliveryId = null;
+  
+  // Initialize map
+  function initMap() {
+    const center = { lat: 23.0225, lng: 72.5714 }; // Ahmedabad coordinates
+    
+    map = new google.maps.Map(document.getElementById('map'), {
+      zoom: 12,
+      center: center,
+      styles: [
+        {
+          featureType: 'poi',
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }]
+        }
+      ],
+      mapTypeControl: false,
+      fullscreenControl: false,
+      streetViewControl: false
+    });
+    
+    trafficLayer = new google.maps.TrafficLayer();
+    
+    // Add markers for active deliveries
+    const deliveries = ${JSON.stringify(activeDeliveries || [])};
+    deliveries.forEach((delivery, index) => {
+      addDeliveryMarker(delivery, index === 0);
+    });
+    
+    // Auto-refresh every 30 seconds
+    setInterval(refreshMap, 30000);
+  }
+  
+  function addDeliveryMarker(delivery, isActive) {
+    if (!delivery.currentLocation || !delivery.currentLocation.coordinates) return;
+    
+    const position = {
+      lat: delivery.currentLocation.coordinates[1],
+      lng: delivery.currentLocation.coordinates[0]
+    };
+    
+    // Create custom marker
+    const marker = new google.maps.Marker({
+      position: position,
+      map: map,
+      title: delivery.driverId?.name || 'Driver',
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: isActive ? '#667eea' : '#10b981',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 3
+      },
+      zIndex: isActive ? 1000 : 100
+    });
+    
+    // Info window
+    const infoWindow = new google.maps.InfoWindow({
+      content: 
+        <div style="padding: 8px; font-family: 'Inter', sans-serif;">
+          <h4 style="margin: 0 0 8px; font-size: 14px; font-weight: 600;">\${delivery.driverId?.name || 'Driver'}</h4>
+          <p style="margin: 0; font-size: 12px; color: #64748b;">\${delivery.trackingNumber}</p>
+          <p style="margin: 4px 0 0; font-size: 12px;">
+            <strong>Status:</strong> \${delivery.status.replace(/_/g, ' ')}
+          </p>
+        </div>
+      
+    });
+    
+    marker.addListener('click', () => {
+      Object.values(markers).forEach(m => m.infoWindow.close());
+      infoWindow.open(map, marker);
+      focusDelivery(delivery._id);
+    });
+    
+    markers[delivery._id] = { marker, infoWindow };
+    
+    // Draw route if pickup and delivery addresses exist
+    if (delivery.pickupAddress?.coordinates && delivery.deliveryAddress?.coordinates) {
+      drawRoute(delivery);
+    }
+  }
+  
+  function drawRoute(delivery) {
+    const pickup = {
+      lat: delivery.pickupAddress.coordinates[1],
+      lng: delivery.pickupAddress.coordinates[0]
+    };
+    const dropoff = {
+      lat: delivery.deliveryAddress.coordinates[1],
+      lng: delivery.deliveryAddress.coordinates[0]
+    };
+    
+    const route = new google.maps.Polyline({
+      path: [pickup, dropoff],
+      geodesic: true,
+      strokeColor: '#667eea',
+      strokeOpacity: 0.6,
+      strokeWeight: 3,
+      map: map
+    });
+    
+    // Pickup marker
+    new google.maps.Marker({
+      position: pickup,
+      map: map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: '#10b981',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 2
+      }
+    });
+    
+    // Dropoff marker
+    new google.maps.Marker({
+      position: dropoff,
+      map: map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: '#ef4444',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 2
+      }
+    });
+    
+    routes[delivery._id] = route;
+  }
+  
+  function focusDelivery(deliveryId) {
+    // Update UI
+    document.querySelectorAll('.driver-card').forEach(card => {
+      card.classList.remove('active');
+    });
+    const card = document.querySelector([data-delivery-id="\${deliveryId}"]);
+    if (card) {
+      card.classList.add('active');
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    // Update map
+    if (markers[deliveryId]) {
+      const marker = markers[deliveryId].marker;
+      map.panTo(marker.getPosition());
+      map.setZoom(14);
+      markers[deliveryId].infoWindow.open(map, marker);
+      
+      // Update marker icons
+      Object.keys(markers).forEach(id => {
+        markers[id].marker.setIcon({
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: id === deliveryId ? 12 : 10,
+          fillColor: id === deliveryId ? '#667eea' : '#10b981',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3
+        });
+        markers[id].marker.setZIndex(id === deliveryId ? 1000 : 100);
+      });
+    }
+    
+    activeDeliveryId = deliveryId;
+  }
+  
+  function centerMap() {
+    if (activeDeliveryId && markers[activeDeliveryId]) {
+      map.panTo(markers[activeDeliveryId].marker.getPosition());
+      map.setZoom(14);
+    } else {
+      map.setCenter({ lat: 23.0225, lng: 72.5714 });
+      map.setZoom(12);
+    }
+  }
+  
+  function toggleTraffic() {
+    if (trafficLayer.getMap()) {
+      trafficLayer.setMap(null);
+    } else {
+      trafficLayer.setMap(map);
+    }
+  }
+  
+  async function refreshMap() {
+    try {
+      const response = await fetch('/admin/api/deliveries/active');
+      const data = await response.json();
+      
+      // Clear existing markers
+      Object.values(markers).forEach(({ marker, infoWindow }) => {
+        marker.setMap(null);
+        infoWindow.close();
+      });
+      markers = {};
+      
+      Object.values(routes).forEach(route => route.setMap(null));
+      routes = {};
+      
+      // Add new markers
+      data.deliveries.forEach((delivery, index) => {
+        addDeliveryMarker(delivery, delivery._id === activeDeliveryId);
+      });
+      
+      console.log('Map refreshed');
+    } catch (error) {
+      console.error('Error refreshing map:', error);
+    }
+  }
+  
+  function getDeliveryStatusBadgeClass(status) {
+    const classes = {
+      'pending': 'warning',
+      'assigned': 'info',
+      'picked_up': 'info',
+      'in_transit': 'primary',
+      'out_for_delivery': 'primary',
+      'delivered': 'success'
+    };
+    return classes[status] || 'secondary';
+  }
+  
+  // Initialize map on load
+  window.addEventListener('load', initMap);
+</script>
+` }) %>

@@ -38,7 +38,7 @@
 //     unique: true,
 //     uppercase: true
 //   },
-  
+
 //   // Vehicle details - ASSIGNED BY ADMIN (not required at signup)
 //   vehicleType: { 
 //     type: String, 
@@ -59,7 +59,7 @@
 //     default: null 
 //   },
 //   vehicleAssignedAt: { type: Date, default: null },
-  
+
 //   // PIN for app access
 //   pin: { 
 //     type: String, 
@@ -73,7 +73,7 @@
 //     default: 'incomplete'
 //   },
 //   rejectionReason: { type: String, default: null },
-  
+
 //   // Availability
 //   isAvailable: { type: Boolean, default: false },
 //   isActive: { type: Boolean, default: true },
@@ -121,11 +121,11 @@
 //   // PIN management
 //   pinAttempts: { type: Number, default: 0 },
 //   pinLockedUntil: { type: Date },
-  
+
 //   // Password reset
 //   resetPasswordToken: String,
 //   resetPasswordExpires: Date,
-  
+
 //   // PIN reset
 //   resetPinToken: String,
 //   resetPinExpires: Date,
@@ -185,6 +185,21 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const driverSchema = new mongoose.Schema({
+  phone: {
+    type: String,
+    required: [true, 'Phone is required'],
+    unique: true,
+    match: [/^[0-9]{10}$/, '10 digit phone number required']
+  },
+  otp: {
+    type: String,
+    required: false
+  },
+  // otpExpiresAt: {
+  //   type: Date,
+  //   required: true,
+  //   default: Date.now
+  // },
   name: {
     type: String,
     required: [true, 'Name is required'],
@@ -192,71 +207,82 @@ const driverSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'], 
+    required: [false, 'Email is required'],
     unique: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Valid email required']
   },
-  phone: {
-    type: String,
-    required: [true, 'Phone is required'],
-    unique: true,
-    match: [/^[0-9]{10}$/, '10 digit phone number required']
-  },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: [false, 'Password is required'],
     minlength: [6, 'Password minimum 6 characters']
   },
   role: {
     type: String,
     default: 'driver',
-    enum: ['driver']  
+    enum: ['driver']
+  },
+// ADD THIS — RC Registration Number
+  registrationNumber: {
+    type: String,
+    uppercase: true,
+    trim: true,
+    sparse: true,        
+    unique: true,         
+    match: [/^[A-Z0-9\s-]+$/, 'Invalid registration number format']
   },
 
   // Driver License
-  licenseNumber: { 
-    type: String, 
-    required: [true, 'License number is required'], 
+  licenseNumber: {
+    type: String,
+    required: [true, 'License number is required'],
     unique: true,
+    sparse: true,
     uppercase: true
   },
-  
+
   // Vehicle details - ASSIGNED BY ADMIN
-  vehicleType: { 
-    type: String, 
+  vehicleType: {
+    type: String,
     enum: ['car', 'bike', 'auto', 'truck', 'van', 'tempo'],
     default: null
   },
-  vehicleNumber: { 
-    type: String, 
-    unique: true, 
+  vehicleNumber: {
+    type: String,
+    unique: true,
     sparse: true,
-    uppercase: true 
+    uppercase: true
   },
   vehicleModel: { type: String, default: null },
   vehicleColor: { type: String, default: null },
-  vehicleAssignedBy: { 
-    type: mongoose.Schema.Types.ObjectId, 
+  vehicleAssignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'admin',
-    default: null 
+    default: null
   },
   vehicleAssignedAt: { type: Date, default: null },
-  
+
   // PIN for app access
-  pin: { 
-    type: String, 
-    required: [true, 'PIN is required']
+  pin: {
+    type: String,
+    // required: [true, 'PIN is required']
   },
 
   // Profile status
   profileStatus: {
     type: String,
-    enum: ['incomplete', 'pending_verification', 'approved', 'rejected'],
-    default: 'incomplete'
+    enum: [
+      'incomplete',
+      'pending_pin_setup',
+      'pending_profile',
+      'pending_verification',
+      'approved',
+      'rejected'
+    ],
+    default: 'pending_pin_setup'
   },
   rejectionReason: { type: String, default: null },
-  
+
   // Availability
   isAvailable: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
@@ -269,23 +295,11 @@ const driverSchema = new mongoose.Schema({
 
   // Documents array
   documents: [{
+
     documentType: {
       type: String,
       required: true,
-      enum: [
-        'aadhaar_front',
-        'aadhaar_back',
-        'license_front',
-        'license_back',
-        'pan_card',
-        'vehicle_rc',
-        'vehicle_insurance',
-        'police_verification',
-        'fitness_certificate',
-        'permit',
-        'profile_photo',
-        'other'
-      ]
+      enum: ['license_front', 'license_back', 'vehicle_rc_front', 'vehicle_rc_back']
     },
     fileUrl: { type: String, required: true },
     documentNumber: { type: String },
@@ -314,8 +328,12 @@ const driverSchema = new mongoose.Schema({
     }
   },
 
-  // Government IDs (NEW)
+  // Government IDs 
   governmentIds: {
+    emiratesId: {
+      type: String,
+      required: true
+    },
     aadhaarNumber: {
       type: String,
       match: [/^\d{12}$/, '12 digit Aadhaar number required']
@@ -328,6 +346,7 @@ const driverSchema = new mongoose.Schema({
     voterId: String,
     passportNumber: String
   },
+
 
   // Address (NEW)
   address: {
@@ -411,19 +430,17 @@ const driverSchema = new mongoose.Schema({
   },
 
   ///fuel status
-  fuel : {
-    
-  },
-  
+
+
 
   // PIN management
   pinAttempts: { type: Number, default: 0 },
   pinLockedUntil: { type: Date },
-  
+
   // Password reset
   resetPasswordToken: String,
   resetPasswordExpires: Date,
-  
+
   // PIN reset
   resetPinToken: String,
   resetPinExpires: Date,
@@ -431,10 +448,8 @@ const driverSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Indexes
-driverSchema.index({ email: 1 }, { unique: true });
 driverSchema.index({ phone: 1 }, { unique: true });
 driverSchema.index({ licenseNumber: 1 }, { unique: true });
-driverSchema.index({ vehicleNumber: 1 }, { sparse: true });
 driverSchema.index({ profileStatus: 1 });
 driverSchema.index({ isAvailable: 1 });
 driverSchema.index({ 'blockStatus.isBlocked': 1 });
@@ -467,7 +482,7 @@ driverSchema.methods.comparePin = async function (candidatePin) {
 };
 
 // Remove sensitive data from JSON
-driverSchema.methods.toJSON = function() {
+driverSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
   delete obj.pin;

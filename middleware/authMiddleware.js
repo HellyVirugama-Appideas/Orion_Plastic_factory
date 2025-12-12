@@ -55,57 +55,86 @@ exports.authenticate = async (req, res, next) => {
 };
 
 
+// exports.authenticateDriver = async (req, res, next) => {
+//   try {
+//     const authHeader = req.headers.authorization;
+
+//     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+//       return unauthorizedResponse(res, 'No token provided');
+//     }
+
+//     const token = authHeader.split(' ')[1];
+
+//     // Verify JWT
+//     const decoded = verifyToken(token);
+//     if (!decoded || !decoded.userId) {
+//       return unauthorizedResponse(res, 'Invalid or expired token');
+//     }
+
+//     // Check active session
+//     const session = await Session.findOne({
+//       token,
+//       userId: decoded.userId,
+//       isActive: true,
+//       expiresAt: { $gt: new Date() }
+//     });
+
+//     if (!session) {
+//       return unauthorizedResponse(res, 'Session expired or invalid');
+//     }
+
+//     const driver = await Driver.findById(decoded.userId)
+//       .select('-password -pin -resetPinToken -resetPinExpires');
+
+//     if (!driver) {
+//       return unauthorizedResponse(res, 'Driver not found');
+//     }
+
+//     if (!driver.isActive) {
+//       return unauthorizedResponse(res, 'Your account is deactivated');
+//     }
+
+//     req.user = driver;
+//     req.user._id = driver._id;
+//     req.token = token;
+
+//     next(); 
+
+//   } catch (error) {
+//     console.error('Driver Auth Error:', error);
+//     return unauthorizedResponse(res, 'Authentication failed');
+//   }
+// };
+
 exports.authenticateDriver = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return unauthorizedResponse(res, 'No token provided');
+      return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
     const token = authHeader.split(' ')[1];
 
-    // Verify JWT
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) {
-      return unauthorizedResponse(res, 'Invalid or expired token');
-    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check active session
-    const session = await Session.findOne({
-      token,
-      userId: decoded.userId,
-      isActive: true,
-      expiresAt: { $gt: new Date() }
-    });
-
-    if (!session) {
-      return unauthorizedResponse(res, 'Session expired or invalid');
-    }
-
-    const driver = await Driver.findById(decoded.userId)
-      .select('-password -pin -resetPinToken -resetPinExpires');
-
+    const driver = await Driver.findById(decoded.id || decoded.userId);
     if (!driver) {
-      return unauthorizedResponse(res, 'Driver not found');
+      return res.status(401).json({ success: false, message: 'Driver not found' });
     }
 
-    if (!driver.isActive) {
-      return unauthorizedResponse(res, 'Your account is deactivated');
+    if (driver.profileStatus !== 'approved') {
+      return res.status(403).json({ success: false, message: 'Account not approved' });
     }
 
     req.user = driver;
-    req.user._id = driver._id;
-    req.token = token;
-
-    next(); 
+    next();
 
   } catch (error) {
-    console.error('Driver Auth Error:', error);
-    return unauthorizedResponse(res, 'Authentication failed');
+    console.error('Auth Error:', error);
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 };
-
 // Check if user is driver
 exports.isDriver = async (req, res, next) => {
   if (req.user.role !== 'driver') {

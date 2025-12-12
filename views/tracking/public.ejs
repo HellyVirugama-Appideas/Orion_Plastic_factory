@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - ORION</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --primary-color: #667eea;
+      --secondary-color: #764ba2;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --text-light: #94a3b8;
+      --bg-primary: #f8fafc;
+      --border-color: #e2e8f0;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 24px 20px;
+      color: white;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: -40px auto 40px;
+      padding: 0 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+    
+    .tracking-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--border-color);
+      margin-bottom: 32px;
+    }
+    
+    .tracking-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-color);
+    }
+    
+    .status-badge {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .status-in-transit {
+      background: rgba(102, 126, 234, 0.1);
+      color: var(--primary-color);
+    }
+    
+    .status-delivered {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success-color);
+    }
+    
+    .timeline {
+      position: relative;
+      padding-left: 40px;
+    }
+    
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: var(--border-color);
+    }
+    
+    .timeline-item {
+      position: relative;
+      padding-bottom: 32px;
+    }
+    
+    .timeline-item:last-child {
+      padding-bottom: 0;
+    }
+    
+    .timeline-dot {
+      position: absolute;
+      left: -32px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      border: 3px solid var(--border-color);
+    }
+    
+    .timeline-dot.active {
+      border-color: var(--primary-color);
+      background: var(--primary-color);
+      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+    }
+    
+    .timeline-dot.completed {
+      border-color: var(--success-color);
+      background: var(--success-color);
+    }
+    
+    .timeline-content h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .timeline-time {
+      font-size: 13px;
+      color: var(--text-light);
+      margin-bottom: 8px;
+    }
+    
+    .timeline-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+      margin-top: 32px;
+    }
+    
+    .info-item {
+      padding: 20px;
+      background: var(--bg-primary);
+      border-radius: 12px;
+    }
+    
+    .info-label {
+      font-size: 12px;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .info-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .map-container {
+      height: 400px;
+      background: var(--bg-primary);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 24px;
+    }
+    
+    @media (max-width: 768px) {
+      .tracking-header {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+      
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>ORION Delivery Tracking</h1>
+    <p>Real-time package tracking</p>
+  </div>
+  
+  <div class="container">
+    <div class="card">
+      <div class="tracking-header">
+        <div class="tracking-number">#<%= delivery.trackingNumber %></div>
+        <div class="status-badge status-<%= delivery.status.replace('_', '-') %>">
+          <%= delivery.status.replace(/_/g, ' ') %>
+        </div>
+      </div>
+      
+      <h2 style="font-size: 20px; margin-bottom: 24px;">Tracking History</h2>
+      
+      <div class="timeline">
+        <% 
+        const statusOrder = ['pending', 'assigned', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered'];
+        const currentIndex = statusOrder.indexOf(delivery.status);
+        
+        const timelineEvents = [
+          { status: 'pending', title: 'Order Placed', description: 'Your order has been received' },
+          { status: 'assigned', title: 'Driver Assigned', description: 'Driver has been assigned to your delivery' },
+          { status: 'picked_up', title: 'Package Picked Up', description: 'Package has been picked up from origin' },
+          { status: 'in_transit', title: 'In Transit', description: 'Package is on the way to destination' },
+          { status: 'out_for_delivery', title: 'Out for Delivery', description: 'Driver is on the way to deliver your package' },
+          { status: 'delivered', title: 'Delivered', description: 'Package has been delivered successfully' }
+        ];
+        %>
+        
+        <% timelineEvents.forEach((event, index) => { %>
+          <div class="timeline-item">
+            <div class="timeline-dot <%= index < currentIndex ? 'completed' : index === currentIndex ? 'active' : '' %>"></div>
+            <div class="timeline-content">
+              <h3><%= event.title %></h3>
+              <% if (index <= currentIndex) { %>
+                <div class="timeline-time">
+                  <%= new Date(delivery.updatedAt).toLocaleString('en-IN', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) %>
+                </div>
+              <% } %>
+              <div class="timeline-description"><%= event.description %></div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Order Number</div>
+          <div class="info-value"><%= delivery.orderId?.orderNumber || 'N/A' %></div>
+        </div>
+        
+        <% if (delivery.driverId) { %>
+          <div class="info-item">
+            <div class="info-label">Driver</div>
+            <div class="info-value"><%= delivery.driverId.name %></div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">Vehicle</div>
+            <div class="info-value"><%= delivery.driverId.vehicleNumber || 'N/A' %></div>
+          </div>
+        <% } %>
+        
+        <% if (delivery.estimatedDeliveryTime) { %>
+          <div class="info-item">
+            <div class="info-label">Estimated Delivery</div>
+            <div class="info-value">
+              <%= new Date(delivery.estimatedDeliveryTime).toLocaleString('en-IN', { 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) %>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2 style="font-size: 20px; margin-bottom: 16px;">Delivery Addresses</h2>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <i class="fas fa-map-marker-alt" style="color: var(--success-color);"></i>
+            <h3 style="font-size: 16px; font-weight: 600;">Pickup Location</h3>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.6;">
+            <%= delivery.pickupAddress?.addressLine1 %><br>
+            <% if (delivery.pickupAddress?.addressLine2) { %>
+              <%= delivery.pickupAddress.addressLine2 %><br>
+            <% } %>
+            <%= delivery.pickupAddress?.city %>, <%= delivery.pickupAddress?.state %> <%= delivery.pickupAddress?.pincode %>
+          </p>
+        </div>
+        
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <i class="fas fa-map-marker-alt" style="color: var(--danger-color);"></i>
+            <h3 style="font-size: 16px; font-weight: 600;">Delivery Location</h3>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 14px; line-height: 1.6;">
+            <%= delivery.deliveryAddress?.addressLine1 %><br>
+            <% if (delivery.deliveryAddress?.addressLine2) { %>
+              <%= delivery.deliveryAddress.addressLine2 %><br>
+            <% } %>
+            <%= delivery.deliveryAddress?.city %>, <%= delivery.deliveryAddress?.state %> <%= delivery.deliveryAddress?.pincode %>
+          </p>
+        </div>
+      </div>
+      
+      <% if (delivery.currentLocation && delivery.currentLocation.coordinates) { %>
+        <div class="map-container" id="map"></div>
+        
+        <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+        <script>
+          function initMap() {
+            const position = {
+              lat: <%= delivery.currentLocation.coordinates[1] %>,
+              lng: <%= delivery.currentLocation.coordinates[0] %>
+            };
+            
+            const map = new google.maps.Map(document.getElementById('map'), {
+              zoom: 14,
+              center: position
+            });
+            
+            new google.maps.Marker({
+              position: position,
+              map: map,
+              title: 'Current Location'
+            });
+          }
+          
+          window.addEventListener('load', initMap);
+        </script>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

@@ -448,14 +448,8 @@ exports.adminSignin = async (req, res) => {
   }
 };
 // Render login page
-exports.renderLogin = (req, res) => {
-  if (req.cookies.adminToken) {
-    return res.redirect('dashboard/index');
-  }
-  res.render('auth/login', {
-    title: 'Admin Login',
-    error: null
-  });
+exports.renderLogin = async(req, res) => {
+  res.render("auth/login", { error: null });
 };
 
 

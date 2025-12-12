@@ -3,12 +3,14 @@ const router = express.Router();
 const adminAuthController = require('../../controllers/admin/adminAuthController');
 const adminDashboardController = require('../../controllers/admin/adminDashboardController');
 const documentVerificationController = require('../../controllers/admin/documentVerificationController');
-const { protectAdmin } = require('../../middleware/authMiddleware');
+const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/roleMiddleware');
 const { validateEmail, validatePassword, validateRequiredFields } = require('../../middleware/validator');
 
 
 // ========== Admin Authentication Routes ==========
+router.get('/', adminAuthController.renderLogin);
+
 router.post(
   '/signup',
   validateRequiredFields(['name', 'email', 'phone', 'password']),
@@ -24,7 +26,10 @@ router.post(
   adminAuthController.adminSignin
 );
 
-router.get("/signin",adminAuthController.renderLogin)
+
+// Dashboard
+router.get('/dashboard',protectAdmin,isAdmin, adminDashboardController.renderDashboard);
+router.get('/', (req, res) => res.redirect('/admin/dashboard'));
 
 router.get('/profile', protectAdmin,  adminAuthController.getAdminProfile);
 
@@ -35,44 +40,48 @@ router.post("/logout",protectAdmin,adminAuthController.adminLogout)
 router.post("/logout/all",protectAdmin,adminAuthController.adminLogoutAll)
 
 // ========== Dashboard Routes ==========
-router.get('/dashboard/stats', protectAdmin,  adminDashboardController.getDashboardStats);
+// router.get('/dashboard/stats', protectAdmin,  adminDashboardController.getDashboardStats);
+router.get('/dashboard', protectAdmin, adminDashboardController.renderDashboard);
 
-// ========== User Management Routes ==========
-router.get(
-  '/users',
-  protectAdmin,
-  checkPermission('users', 'read'),
-  adminDashboardController.getAllUsers
-);
+// // ========== User Management Routes ==========
+// router.get(
+//   '/users',
+//   protectAdmin,
+//   checkPermission('users', 'read'),
+//   adminDashboardController.getAllUsers
+// );
 
-router.get(
-  '/users/:userId',
-  protectAdmin,
-  checkPermission('users', 'read'),
-  adminDashboardController.getUserDetails
-);
+// router.get(
+//   '/users/:userId',
+//   protectAdmin,
+//   checkPermission('users', 'read'),
+//   adminDashboardController.getUserDetails
+// );
 
-router.patch(
-  '/users/:userId/toggle-status',
-  protectAdmin,
-  checkPermission('users', 'update'),
-  adminDashboardController.toggleUserStatus
-);
+// router.patch(
+//   '/users/:userId/toggle-status',
+//   protectAdmin,
+//   checkPermission('users', 'update'),
+//   adminDashboardController.toggleUserStatus
+// );
 
-router.delete(
-  '/users/:userId',
-  protectAdmin,
-  checkPermission('users', 'delete'),
-  adminDashboardController.deleteUser
-);
+// router.delete(
+//   '/users/:userId',
+//   protectAdmin,
+//   checkPermission('users', 'delete'),
+//   adminDashboardController.deleteUser
+// );
 
 // ========== Driver Management Routes ==========
-router.get(
-  '/drivers',
-  protectAdmin,
-  checkPermission('drivers', 'read'),
-  adminDashboardController.getAllDrivers
-);
+router.get('/drivers', adminDashboardController.renderDriversList);
+// router.get('/drivers/create', driverController.renderCreateDriver);
+
+// router.get(
+//   '/drivers',
+//   protectAdmin,
+//   checkPermission('drivers', 'read'),
+//   adminDashboardController.getAllDrivers
+// );
 
 router.get(
   '/drivers/:driverId/documents',

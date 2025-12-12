@@ -59,3 +59,4 @@ router.get('/analytics/driver-score', protectAdmin, isAdmin, analyticsController
 router.get('/analytics/kpis', protectAdmin, isAdmin, analyticsController.getDashboardKPIs);
 
 module.exports = router;
+

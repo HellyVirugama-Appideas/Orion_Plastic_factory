@@ -1,0 +1,740 @@
+const mongoose = require("mongoose")
+const Driver = require('../../models/Driver');
+const TempDriver = require('../../models/TempDriver');
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+const jwtHelper = require('../../utils/jwtHelper');
+const { generateAccessToken, generateRefreshToken } = require('../../utils/jwtHelper');
+const { successResponse, errorResponse } = require('../../utils/responseHelper');
+const Session = require('../../models/Session');
+
+// Step 1: Save Personal Details (Guest Mode)
+// exports.saveStep1 = async (req, res) => {
+//   try {
+//     let { tempId, fullName, contactNumber, emiratesId, vehicleNumber, region } = req.body;
+//     tempId = tempId || uuidv4();
+
+//     if (!fullName || !contactNumber || !emiratesId || !vehicleNumber || !region) {
+//       return errorResponse(res, 'All fields required', 400);
+//     }
+
+//     await TempDriver.findOneAndUpdate(
+//       { tempId },
+//       { tempId, personalDetails: { fullName, contactNumber, emiratesId, vehicleNumber: vehicleNumber.toUpperCase(), region } },
+//       { upsert: true, new: true }
+//     );
+
+//     return successResponse(res, 'Step 1 saved', { tempId, nextStep: 'step2' });
+//   } catch (error) {
+//     return errorResponse(res, 'Failed to save', 500);
+//   }
+// };
+exports.saveStep1 = async (req, res) => {
+  try {
+    let { tempId, fullName, contactNumber, emiratesId, vehicleNumber, region } = req.body;
+    tempId = tempId || uuidv4();
+
+    if (!fullName || !contactNumber || !emiratesId || !vehicleNumber || !region) {
+      return errorResponse(res, 'All fields required', 400);
+    }
+
+    // CORRECT — nested object daalo!
+    const result = await TempDriver.findOneAndUpdate(
+      { tempId },
+      {
+        $set: {
+          tempId,
+          personalDetails: {
+            fullName: fullName.trim(),
+            contactNumber,
+            emiratesId,
+            vehicleNumber: vehicleNumber.toUpperCase(),
+            region
+          }
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    console.log('Step 1 Saved:', result.toObject()); // ← Debug ke liye
+
+    return successResponse(res, 'Step 1 saved successfully!', {
+      tempId,
+      nextStep: 'step2'
+    });
+
+  } catch (error) {
+    console.error('Save Step 1 Error:', error);
+    return errorResponse(res, 'Failed to save Step 1', 500);
+  }
+};
+
+// Step 2: Upload License
+exports.saveStep2 = async (req, res) => {
+  try {
+    const { tempId, licenseNumber } = req.body;
+    const files = req.files;
+
+    if (!tempId || !licenseNumber || !files?.licenseFront?.[0] || !files?.licenseBack?.[0]) {
+      return errorResponse(res, 'All fields required', 400);
+    }
+
+    await TempDriver.findOneAndUpdate({ tempId }, {
+      license: {
+        licenseNumber: licenseNumber.toUpperCase(),
+        frontUrl: files.licenseFront[0].path.replace('public', ''),
+        backUrl: files.licenseBack[0].path.replace('public', '')
+      }
+    });
+
+    return successResponse(res, 'License saved', { nextStep: 'step3' });
+  } catch (error) {
+    return errorResponse(res, 'Upload failed', 500);
+  }
+};
+
+// Step 3: Upload RC
+exports.saveStep3 = async (req, res) => {
+  try {
+    const { tempId, registrationNumber } = req.body;
+    const files = req.files;
+
+    if (!tempId || !registrationNumber || !files?.rcFront?.[0] || !files?.rcBack?.[0]) {
+      return errorResponse(res, 'All fields required', 400);
+    }
+
+    await TempDriver.findOneAndUpdate({ tempId }, {
+      rc: {
+        registrationNumber: registrationNumber.toUpperCase(),
+        frontUrl: files.rcFront[0].path.replace('public', ''),
+        backUrl: files.rcBack[0].path.replace('public', '')
+      }
+    });
+
+    return successResponse(res, 'All data saved!', { nextStep: 'phone-signup' });
+  } catch (error) {
+    return errorResponse(res, 'Upload failed', 500);
+  }
+};
+
+ // Final: Phone + OTP → Create Real Driver
+exports.finalSignup = async (req, res) => {
+  try {
+    const { tempId, phone } = req.body;
+
+    if (!tempId || !phone || !/^\d{10}$/.test(phone)) {
+      return errorResponse(res, 'Valid tempId and 10-digit phone required', 400);
+    }
+
+    // Check if temp session exists
+    const tempExists = await TempDriver.findOne({ tempId });
+    if (!tempExists) {
+      return errorResponse(res, 'Session expired. Please start again.', 400);
+    }
+
+    // Check if phone already registered
+    const driverExists = await Driver.findOne({ phone });
+    if (driverExists) {
+      return errorResponse(res, 'Phone number already registered', 400);
+    }
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Update TempDriver with phone + OTP
+    const updated = await TempDriver.findOneAndUpdate(
+      { tempId },
+      {
+        $set: {
+          phone,
+          otp,
+          otpExpiresAt
+        }
+      },
+      { new: true, upsert: false }
+    );
+
+    if (!updated) {
+      return errorResponse(res, 'Failed to save OTP. Try again.', 500);
+    }
+
+    console.log(`OTP for ${phone}: ${otp} | tempId: ${tempId}`);
+
+    return successResponse(res, 'OTP sent successfully!', {
+      message: 'Check your phone for 4-digit code',
+      otp: otp  // Remove in production
+    });
+
+  } catch (error) {
+    console.error('Final Signup Error:', error.message);
+    return errorResponse(res, 'Server error. Please try again.', 500);
+  }
+};
+
+// Verify OTP + Create Driver + Give Access Token
+exports.verifyOtpAndCreateDriver = async (req, res) => {
+  try {
+    const { tempId, phone, otp } = req.body;
+
+    const temp = await TempDriver.findOne({
+      tempId,
+      phone,
+      otp,
+      otpExpiresAt: { $gt: new Date() }
+    });
+
+    if (!temp) {
+      return errorResponse(res, 'Invalid or expired OTP', 400);
+    }
+
+    // ← YEH SAB DAALO AB (required fields)
+    const driverData = {
+      phone,
+      name: temp.personalDetails.fullName?.trim() || 'Driver',
+      licenseNumber: temp.license.licenseNumber?.toUpperCase(),
+      vehicleNumber: temp.personalDetails.vehicleNumber?.toUpperCase(),
+
+      // Optional fields (safe)
+      'address.city': temp.personalDetails.region,
+      'governmentIds.emiratesId': temp.personalDetails.emiratesId,
+
+      documents: [
+        { documentType: 'license_front', fileUrl: temp.license.frontUrl || '', documentNumber: temp.license.licenseNumber },
+        { documentType: 'license_back', fileUrl: temp.license.backUrl || '', documentNumber: temp.license.licenseNumber },
+        { documentType: 'vehicle_rc_front', fileUrl: temp.rc.frontUrl || '', documentNumber: temp.rc.registrationNumber },
+        { documentType: 'vehicle_rc_back', fileUrl: temp.rc.backUrl || '', documentNumber: temp.rc.registrationNumber }
+      ],
+
+      profileStatus: 'pending_pin_setup'
+    };
+
+    console.log("Creating driver with data:", driverData);
+
+    const driver = new Driver(driverData);
+
+    const validationError = driver.validateSync();
+    if (validationError) {
+      console.error("Validation Error:", validationError.message);
+      return errorResponse(res, 'Data validation failed: ' + validationError.message, 400);
+    }
+
+    await driver.save();
+    console.log("Driver created successfully:", driver._id);
+
+    await TempDriver.deleteOne({ tempId });
+
+    const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
+
+    return successResponse(res, 'Account created successfully!', {
+      accessToken,
+      message: 'Now create your 4-digit PIN',
+      nextStep: 'create-pin'
+    });
+
+  } catch (error) {
+    console.error('Create Driver Failed:', error.message);
+    if (error.code === 11000) {
+      return errorResponse(res, 'Phone or License already registered', 400);
+    }
+    return errorResponse(res, 'Failed to create account: ' + error.message, 500);
+  }
+};
+
+// Create PIN (After Final Signup)
+exports.createPin = async (req, res) => {
+  try {
+    if (!req.user) {
+      return errorResponse(res, 'Unauthorized', 401);
+    }
+
+    const { newPin, confirmPin } = req.body;
+
+    if (String(newPin) !== String(confirmPin)) {
+      return errorResponse(res, 'PINs do not match', 400);
+    }
+
+    if (!/^\d{4}$/.test(newPin)) {
+      return errorResponse(res, 'PIN must be exactly 4 digits', 400);
+    }
+
+    if (req.user.profileStatus !== 'pending_pin_setup') {
+      return errorResponse(res, 'Cannot set PIN at this stage', 400);
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    req.user.pin = await bcrypt.hash(String(newPin), salt);
+
+    req.user.profileStatus = 'pending_verification';
+    await req.user.save();
+
+    return successResponse(res, 'PIN created successfully!', {
+      message: 'Your account is now pending admin approval'
+    });
+
+  } catch (error) {
+    console.error("Create PIN error:", error);
+    return errorResponse(res, 'Failed to create PIN', 500);
+  }
+};
+
+
+/////login 
+// Step 1: Emirates ID + Vehicle Number 
+exports.login = async (req, res) => {
+  try {
+    const { emiratesId, vehicleNumber } = req.body;
+
+    if (!emiratesId || !vehicleNumber) {
+      return errorResponse(res, 'Emirates ID and Vehicle Number are required', 400);
+    }
+
+    const emiratesIdClean = emiratesId.trim();
+    const vehicleNumberClean = vehicleNumber.trim().toUpperCase();
+
+    console.log("Searching:", { emiratesIdClean, vehicleNumberClean });
+
+    // YE LINE SAHI KARO — single quotes hata do!
+    const driver = await Driver.findOne({
+      "governmentIds.emiratesId": emiratesIdClean,    
+      vehicleNumber: vehicleNumberClean,
+      profileStatus: 'approved'
+    });
+
+    if (!driver) {
+      // Debug ke liye — yeh hata dena baad mein
+      const all = await Driver.find({ profileStatus: 'approved' }).select('governmentIds.emiratesId vehicleNumber name');
+      console.log("All approved drivers:", all);
+      
+      return errorResponse(res, 'Invalid Emirates ID or Vehicle Number', 400);
+    }
+
+    if (!driver.pin) {
+      return errorResponse(res, 'PIN not set. Contact admin.', 400);
+    }
+
+    return successResponse(res, 'Credentials valid. Now enter PIN', {
+      driverId: driver._id,
+      name: driver.name,
+      phone: driver.phone,
+      vehicleNumber: driver.vehicleNumber
+    });
+
+  } catch (error) {
+    console.error('Login Error:', error);
+    return errorResponse(res, 'Server error', 500);
+  }
+};
+
+/// step-2 pin verify
+exports.verifyPin = async (req, res) => {
+  try {
+    const { driverId, pin } = req.body;
+
+    // Validation
+    if (!driverId || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      return errorResponse(res, 'Valid 4-digit PIN required', 400);
+    }
+
+    const driver = await Driver.findById(driverId).select('+pin'); // +pin because it's select: false by default
+    if (!driver) {
+      return errorResponse(res, 'Driver not found', 404);
+    }
+
+    // Check if approved
+    if (driver.profileStatus !== 'approved') {
+      return errorResponse(res, 'Account not approved by admin yet', 403);
+    }
+
+    // Verify PIN
+    const isMatch = await driver.comparePin(pin);
+    if (!isMatch) {
+      // Optional: Add PIN attempt counter
+      driver.pinAttempts = (driver.pinAttempts || 0) + 1;
+      if (driver.pinAttempts >= 5) {
+        driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock 30 min
+      }
+      await driver.save();
+      return errorResponse(res, 'Incorrect PIN', 400);
+    }
+
+    // Reset attempts on success
+    driver.pinAttempts = 0;
+    driver.pinLockedUntil = null;
+    await driver.save();
+
+    // GENERATE BOTH TOKENS
+    const accessToken = generateAccessToken(driver._id, 'driver');
+    const refreshToken = generateRefreshToken(driver._id, 'driver');
+
+    // Optional: Save refresh token in DB (recommended for logout feature)
+    driver.refreshToken = refreshToken;
+    driver.lastLoginAt = new Date();
+    await driver.save();
+
+    // Send to frontend
+    return successResponse(res, 'Login successful!', {
+      tokens: {
+        accessToken,
+        refreshToken,
+        expiresIn: 24 * 60 * 60 // 24 hours in seconds
+      },
+      driver: {
+        _id: driver._id,
+        name: driver.name,
+        phone: driver.phone,
+        vehicleNumber: driver.vehicleNumber,
+        emiratesId: driver.governmentIds?.emiratesId,
+        profileImage: driver.profileImage || null,
+        isAvailable: driver.isAvailable
+      }
+    });
+
+  } catch (error) {
+    console.error('PIN Verify Error:', error);
+    return errorResponse(res, 'Login failed. Please try again.', 500);
+  }
+};
+
+exports.refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return errorResponse(res, 'Refresh token required', 400);
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    const driver = await Driver.findById(decoded.id);
+    if (!driver || driver.refreshToken !== refreshToken) {
+      return errorResponse(res, 'Invalid refresh token', 401);
+    }
+
+    // Generate new access token
+    const newAccessToken = generateAccessToken(driver._id, 'driver');
+
+    return successResponse(res, 'Token refreshed', {
+      accessToken: newAccessToken,
+      expiresIn: 24 * 60 * 60
+    });
+
+  } catch (error) {
+    return errorResponse(res, 'Session expired. Please login again.', 401);
+  }
+};
+
+
+///////setting update profile details
+// PUT /api/driver/profile/update-personal
+exports.updatePersonalDetails = async (req, res) => {
+  try {
+    const driver = req.user;
+    const { fullName, contactNumber, emiratesId, region } = req.body;
+
+    if (emiratesId) {
+      const exists = await Driver.findOne({
+        'governmentIds.emiratesId': emiratesId,
+        _id: { $ne: driver._id }
+      });
+      if (exists) return errorResponse(res, 'Emirates ID already used', 400);
+    }
+
+    driver.name = fullName || driver.name;
+    driver.phone = contactNumber || driver.phone;
+    driver.governmentIds.emiratesId = emiratesId || driver.governmentIds.emiratesId;
+    driver['address.city'] = region || driver.address?.city;
+
+    await driver.save();
+
+    return successResponse(res, 'Profile updated successfully!', {
+      driver: {
+        name: driver.name,
+        phone: driver.phone,
+        emiratesId: driver.governmentIds.emiratesId,
+        region: driver.address?.city
+      }
+    });
+
+  } catch (error) {
+    return errorResponse(res, 'Update failed', 500);
+  }
+};
+
+// PUT /api/driver/profile/update-license
+// PUT /api/driver/profile/update-license
+exports.updateLicense = async (req, res) => {
+  try {
+    const driver = req.user;
+    const { licenseNumber } = req.body;
+    const files = req.files;
+
+    if (!licenseNumber && !files?.licenseFront && !files?.licenseBack) {
+      return errorResponse(res, 'Nothing to update', 400);
+    }
+
+    if (licenseNumber) {
+      const exists = await Driver.findOne({ licenseNumber, _id: { $ne: driver._id } });
+      if (exists) return errorResponse(res, 'License number already used', 400);
+      driver.licenseNumber = licenseNumber.toUpperCase();
+    }
+
+    // Replace old license documents
+    driver.documents = driver.documents.filter(d => 
+      !['license_front', 'license_back'].includes(d.documentType)
+    );
+
+    if (files?.licenseFront?.[0]) {
+      driver.documents.push({
+        documentType: 'license_front',
+        fileUrl: files.licenseFront[0].path.replace('public', ''),
+        documentNumber: licenseNumber || driver.licenseNumber
+      });
+    }
+
+    if (files?.licenseBack?.[0]) {
+      driver.documents.push({
+        documentType: 'license_back',
+        fileUrl: files.licenseBack[0].path.replace('public', ''),
+        documentNumber: licenseNumber || driver.licenseNumber
+      });
+    }
+
+    await driver.save();
+
+    // AB DATA BHI DIKHEGA
+    return successResponse(res, 'License updated successfully!', {
+      licenseNumber: driver.licenseNumber,
+      licenseDocuments: driver.documents
+        .filter(d => ['license_front', 'license_back'].includes(d.documentType))
+        .map(d => ({
+          type: d.documentType,
+          url: d.fileUrl
+        }))
+    });
+
+  } catch (error) {
+    console.error(error);
+    return errorResponse(res, 'Update failed', 500);
+  }
+};
+
+// PUT /api/driver/profile/update-rc
+exports.updateRC = async (req, res) => {
+  try {
+    const driver = req.user;
+    const { registrationNumber } = req.body;
+    const files = req.files;
+
+    // Update registration number in main field (if you have it)
+    if (registrationNumber) {
+      driver.registrationNumber = registrationNumber.toUpperCase();
+    }
+
+    // Remove old RC documents
+    driver.documents = driver.documents.filter(d => 
+      !['vehicle_rc_front', 'vehicle_rc_back'].includes(d.documentType)
+    );
+
+    if (files?.rcFront?.[0]) {
+      driver.documents.push({
+        documentType: 'vehicle_rc_front',
+        fileUrl: files.rcFront[0].path.replace('public', ''),
+        documentNumber: registrationNumber || driver.registrationNumber || driver.vehicleNumber
+      });
+    }
+
+    if (files?.rcBack?.[0]) {
+      driver.documents.push({
+        documentType: 'vehicle_rc_back',
+        fileUrl: files.rcBack[0].path.replace('public', ''),
+        documentNumber: registrationNumber || driver.registrationNumber || driver.vehicleNumber
+      });
+    }
+
+    await driver.save();
+
+    // AB YE DIKHEGA — BEAUTIFUL RESPONSE
+    return successResponse(res, 'RC Book updated successfully!', {
+      registrationNumber: driver.registrationNumber || 'Not updated',
+      rcDocuments: driver.documents
+        .filter(d => ['vehicle_rc_front', 'vehicle_rc_back'].includes(d.documentType))
+        .map(d => ({
+          type: d.documentType,
+          url: d.fileUrl
+        }))
+    });
+
+  } catch (error) {
+    console.error(error);
+    return errorResponse(res, 'Update failed', 500);
+  }
+};
+
+// PUT /api/driver/profile/update-rc
+// PUT /api/driver/profile/update-license
+exports.updateLicense = async (req, res) => {
+  try {
+    const driver = req.user;
+    const { licenseNumber } = req.body;
+    const files = req.files;
+
+    if (!licenseNumber && !files?.licenseFront && !files?.licenseBack) {
+      return errorResponse(res, 'Nothing to update', 400);
+    }
+
+    if (licenseNumber) {
+      const exists = await Driver.findOne({ licenseNumber, _id: { $ne: driver._id } });
+      if (exists) return errorResponse(res, 'License number already used', 400);
+      driver.licenseNumber = licenseNumber.toUpperCase();
+    }
+
+    // Replace old license documents
+    driver.documents = driver.documents.filter(d => 
+      !['license_front', 'license_back'].includes(d.documentType)
+    );
+
+    if (files?.licenseFront?.[0]) {
+      driver.documents.push({
+        documentType: 'license_front',
+        fileUrl: files.licenseFront[0].path.replace('public', ''),
+        documentNumber: licenseNumber || driver.licenseNumber
+      });
+    }
+
+    if (files?.licenseBack?.[0]) {
+      driver.documents.push({
+        documentType: 'license_back',
+        fileUrl: files.licenseBack[0].path.replace('public', ''),
+        documentNumber: licenseNumber || driver.licenseNumber
+      });
+    }
+
+    await driver.save();
+
+    // AB DATA BHI DIKHEGA
+    return successResponse(res, 'License updated successfully!', {
+      licenseNumber: driver.licenseNumber,
+      licenseDocuments: driver.documents
+        .filter(d => ['license_front', 'license_back'].includes(d.documentType))
+        .map(d => ({
+          type: d.documentType,
+          url: d.fileUrl
+        }))
+    });
+
+  } catch (error) {
+    console.error(error);
+    return errorResponse(res, 'Update failed', 500);
+  }
+};
+
+// PUT /api/driver/profile/update-rc
+exports.updateRC = async (req, res) => {
+  try {
+    const driver = req.user;
+    const { registrationNumber } = req.body;
+    const files = req.files;
+
+    if (registrationNumber) {
+      driver.registrationNumber = registrationNumber.toUpperCase();
+    }
+
+    // Remove old RC documents
+    driver.documents = driver.documents.filter(d => 
+      !['vehicle_rc_front', 'vehicle_rc_back'].includes(d.documentType)
+    );
+
+    if (files?.rcFront?.[0]) {
+      driver.documents.push({
+        documentType: 'vehicle_rc_front',
+        fileUrl: files.rcFront[0].path.replace('public', ''),
+        documentNumber: registrationNumber || driver.registrationNumber || driver.vehicleNumber
+      });
+    }
+
+    if (files?.rcBack?.[0]) {
+      driver.documents.push({
+        documentType: 'vehicle_rc_back',
+        fileUrl: files.rcBack[0].path.replace('public', ''),
+        documentNumber: registrationNumber || driver.registrationNumber || driver.vehicleNumber
+      });
+    }
+
+    await driver.save();
+
+    // AB YE DIKHEGA — BEAUTIFUL RESPONSE
+    return successResponse(res, 'RC Book updated successfully!', {
+      registrationNumber: driver.registrationNumber || 'Not updated',
+      rcDocuments: driver.documents
+        .filter(d => ['vehicle_rc_front', 'vehicle_rc_back'].includes(d.documentType))
+        .map(d => ({
+          type: d.documentType,
+          url: d.fileUrl
+        }))
+    });
+
+  } catch (error) {
+    console.error(error);
+    return errorResponse(res, 'Update failed', 500);
+  }
+};
+
+// DELETE /api/account/delete/:id
+exports.deleteAccount = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid driver ID', 400);
+    }
+
+    // Find driver first
+    const driver = await Driver.findById(id);
+    if (!driver) {
+      return errorResponse(res, 'Driver not found', 404);
+    }
+
+    // Delete everything related to this driver
+    await Driver.deleteOne({ _id: id });
+    await Session.deleteMany({ driverId: id });
+    await TempDriver.deleteMany({ phone: driver.phone });
+
+    console.log(`Account deleted by admin: ${driver.name} (${driver.phone})`);
+
+    return successResponse(res, 'Account deleted successfully!', {
+      deletedDriver: {
+        id: driver._id,
+        name: driver.name,
+        phone: driver.phone,
+        emiratesId: driver.governmentIds?.emiratesId
+      },
+      deletedAt: new Date()
+    });
+
+  } catch (error) {
+    console.error('Delete Account Error:', error);
+    return errorResponse(res, 'Failed to delete account', 500);
+  }
+};
+
+// POST /api/driver/auth/logout
+exports.logout = async (req, res) => {
+  try {
+    const driver = req.user;
+
+    // Clear refresh token
+    driver.refreshToken = null;
+    await driver.save();
+
+    return successResponse(res, 'Logged out successfully!', {
+      message: 'You have been logged out'
+    });
+
+  } catch (error) {
+    return errorResponse(res, 'Logout failed', 500);
+  }
+};
+
+
+

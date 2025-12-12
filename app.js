@@ -191,9 +191,7 @@
 
 // module.exports = app;
 
-
-
-
+///////////////////////////////////////////////////////////////////2////
 
 const express = require('express');
 require('dotenv').config();
@@ -216,12 +214,12 @@ const Driver = require('./models/Driver');
 
 // ==================== EXISTING ROUTES ====================
 const authRoutes = require('./routes/authRoutes');
-const driverRoutes = require('./routes/driverRoutes');
-const profileRoutes = require('./routes/profileRoutes');
+const driverRoutes = require('./routes/Driver/driverRoutes');
+const profileRoutes = require('./routes/Driver/profileRoutes');
 const adminRoutes = require('./routes/admin/adminRoutes');
-const deliveryRoutes = require("./routes/deliveryRoutes");
-const trackingRoutes = require("./routes/trackingRoutes");
-const journeyRoutes = require("./routes/journeyRoutes");
+const deliveryRoutes = require("./routes/Driver/deliveryRoutes");
+const trackingRoutes = require("./routes/Driver/trackingRoutes");
+const journeyRoutes = require("./routes/Driver/journeyRoutes");
 const routeRoutes = require("./routes/routeRoutes");
 const feedbackRoutes = require("./routes/feedbackRoutes");
 const orderRoutes = require("./routes/admin/orderRoutes");
@@ -231,15 +229,18 @@ const driverManagementRoutes = require("./routes/admin/driverManagementRoutes");
 const customerRoutes = require("./routes/admin/customerRoutes");
 const remarkAdminRoutes = require("./routes/admin/remarkAdminRoutes");
 const remarkRoutes = require("./routes/remarkRoutes");
-const maintenanceRoutes = require("./routes/maintenanceRoutes");
+const maintenanceRoutes = require("./routes/Driver/maintenanceRoutes");
 const maintenanceAdminRoutes = require("./routes/admin/maintenanceAdminRoutes");
 const expenseAdminRoutes = require("./routes/admin/expenseAdminRoutes");
-const expenseRoutes = require("./routes/expenseRoutes");
+const expenseRoutes = require("./routes/Driver/expenseRoutes");
 const deliveryAdminRoutes = require("./routes/admin/deliveryAdminRoutes.");
 const AdminTrackingRoutes = require("./routes/admin/AdminTrackingRoutes");
 
-// ==================== NEW ROUTES (Chat, Notifications, Reports, Analytics) ====================
 const communicationRoutes = require('./routes/admin/Communicationroutes');
+const driverChatRoutes = require("./routes/Driver/driverChatRoutes")
+const onboardingRoutes = require("./routes/admin/onboardingRoutes")
+
+const driverApprovalRoutes= require("./routes/admin/driverApprovalRoutes")
 
 // Middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -266,7 +267,7 @@ connectDB();
 
 // ==================== MIDDLEWARE ====================
 app.use(helmet({
-  contentSecurityPolicy: false // For EJS views and Google Maps
+  contentSecurityPolicy: false
 }));
 app.use(compression());
 app.use(cors({
@@ -283,7 +284,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-here',
   resave: false,
   saveUninitialized: false,
-  cookie: { 
+  cookie: {
     secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
@@ -295,9 +296,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // View engine
 app.set('view engine', 'ejs');
-app.set('views', [
-  path.join(__dirname, 'views'),
-  path.join(__dirname, 'admin/views')
+app.set('views', [ 
+  path.join(__dirname, 'views')
 ]);
 
 // ==================== SOCKET.IO REAL-TIME FEATURES ====================
@@ -312,7 +312,7 @@ io.on("connection", (socket) => {
   socket.on("join-admin-room", () => {
     socket.join("admin-room");
     console.log("👔 Admin joined admin-room:", socket.id);
-    
+
     // Send current active drivers to admin
     const activeDriversList = Array.from(activeDrivers.values()).map(driver => {
       const location = driverLocations.get(driver.driverId);
@@ -322,11 +322,11 @@ io.on("connection", (socket) => {
   });
 
   // ==================== LIVE TRACKING (Uber-style) ====================
-  
+
   // Driver connects and starts sending location
   socket.on('driver:connect', async (data) => {
     const { driverId, driverName, vehicleNumber } = data;
-    
+
     activeDrivers.set(driverId, {
       socketId: socket.id,
       driverId,
@@ -407,7 +407,7 @@ io.on("connection", (socket) => {
   });
 
   // ==================== LIVE CHAT SYSTEM ====================
-  
+
   // User joins chat
   socket.on('chat:join', (data) => {
     const { userId } = data;
@@ -476,7 +476,7 @@ io.on("connection", (socket) => {
   socket.on('chat:read', async (data) => {
     try {
       const { conversationId, userId } = data;
-      
+
       await ChatMessage.updateMany(
         {
           conversationId,
@@ -500,7 +500,7 @@ io.on("connection", (socket) => {
   });
 
   // ==================== NOTIFICATIONS ====================
-  
+
   // Client subscribes to notifications
   socket.on('notifications:subscribe', (data) => {
     const { userId, userType } = data;
@@ -509,7 +509,7 @@ io.on("connection", (socket) => {
   });
 
   // ==================== MAINTENANCE NOTIFICATIONS ====================
-  
+
   // Driver completed service
   socket.on("driver-completed-service", async ({ scheduleId, driverName, vehicleNumber }) => {
     try {
@@ -566,10 +566,11 @@ app.use("/api/deliveries", deliveryRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/journey", journeyRoutes);
-app.use("/api/routes", routeRoutes);
+app.use("/api/routes", routeRoutes); 
 app.use("/api/remark", remarkRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/chat", driverChatRoutes)
 
 // Admin Routes (Existing)
 app.use('/admin', adminRoutes);
@@ -583,43 +584,50 @@ app.use("/admin/remarks", remarkAdminRoutes);
 app.use("/admin/maintenance", maintenanceAdminRoutes);
 app.use("/admin/expenses", expenseAdminRoutes);
 app.use("/admin/tracking", AdminTrackingRoutes);
+app.use("/admin/onboarding", onboardingRoutes)
+app.use('/admin/drivers',driverApprovalRoutes)
 
-// ==================== NEW API ROUTES ====================
+// Routes
+app.get("/", (req, res) => {
+  try {
+    res.render("auth/login", { error: null });
+  } catch (error) {
+    console.error('Root route error:', error);
+    res.send('<h1>Orion Admin</h1><p>Please check your views/admin/login.ejs file</p>');
+  }
+});
 
 // Chat, Notifications, Reports, Analytics
 app.use('/api/admin', communicationRoutes);
 
-
-// ==================== ROOT & HEALTH ====================
-
-app.get('/', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Orion Delivery Tracking API v3.0', 
-    version: '3.0.0',
-    features: [
-      'Live Tracking (Uber-style)',
-      'Live Chat (WebSocket)',
-      'Multi-channel Notifications',
-      'Reports & Analytics',
-      'Admin Panel'
-    ],
-    endpoints: {
-      auth: '/api/auth',
-      driver: '/api/driver',
-      admin: '/admin',
-      tracking: '/api/tracking',
-      chat: '/api/admin/chat',
-      reports: '/api/admin/reports',
-      analytics: '/api/admin/analytics',
-      adminPanel: '/admin/panel/tracking'
-    }
-  });
-});
+// app.get('/', (req, res) => {
+//   res.json({ 
+//     success: true, 
+//     message: 'Orion Delivery Tracking API v3.0', 
+//     version: '3.0.0',
+//     features: [
+//       'Live Tracking (Uber-style)',
+//       'Live Chat (WebSocket)',
+//       'Multi-channel Notifications',
+//       'Reports & Analytics',
+//       'Admin Panel'
+//     ],
+//     endpoints: {
+//       auth: '/api/auth',
+//       driver: '/api/driver',
+//       admin: '/admin',
+//       tracking: '/api/tracking',
+//       chat: '/api/admin/chat',
+//       reports: '/api/admin/reports',
+//       analytics: '/api/admin/analytics',
+//       adminPanel: '/admin/panel/tracking'
+//     }
+//   });
+// });
 
 app.get('/health', (req, res) => {
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Server Healthy',
     activeDrivers: activeDrivers.size,
     timestamp: new Date(),
@@ -629,8 +637,8 @@ app.get('/health', (req, res) => {
 
 // ==================== 404 HANDLER ====================
 app.use((req, res) => {
-  res.status(404).json({ 
-    success: false, 
+  res.status(404).json({
+    success: false,
     message: 'Route not found',
     path: req.path
   });

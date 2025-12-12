@@ -4,6 +4,7 @@ const orderController = require('../../controllers/orderController');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/roleMiddleware');
 const { createOrderByAdmin } = require('../../controllers/admin/orderController');
+const { renderOrdersList, renderCreateOrder } = require('../../controllers/admin/adminDashboardController');
 
 
 // Admin creates order
@@ -15,16 +16,19 @@ const { createOrderByAdmin } = require('../../controllers/admin/orderController'
 //   orderController.createOrderByAdmin
 // );
 
+router.get('/orders', renderOrdersList);
+router.get('/orders/create', renderCreateOrder);
+
 router.post("/create",protectAdmin,isAdmin,createOrderByAdmin)
 
 // Get all orders
-router.get(
-  '/all',
-  protectAdmin, 
-  isAdmin,
-  checkPermission('orders', 'read'),
-  orderController.getAllOrders
-);
+// router.get(
+//   '/all',
+//   protectAdmin, 
+//   isAdmin,
+//   checkPermission('orders', 'read'),
+//   orderController.getAllOrders
+// );
 
 // Confirm order
 router.patch(
