@@ -4,7 +4,7 @@ const {  protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/roleMiddleware');
 const { createDelivery, assignDriver, assignMultipleDeliveries, getAllDeliveries, getDeliveryDetails, trackDelivery, renderCreateDelivery } = require('../../controllers/admin/deliveryAdminController');
 const { renderDeliveriesList } = require('../../controllers/admin/adminDashboardController');
-
+ 
 // Admin Routes
 router.get('/deliveries',protectAdmin,isAdmin , renderDeliveriesList);
 router.get('/deliveries/create',protectAdmin,isAdmin, renderCreateDelivery);

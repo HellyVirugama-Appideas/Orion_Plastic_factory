@@ -187,7 +187,7 @@ exports.assignDriver = async (req, res) => {
     // 3. ASSIGN DRIVER + SET STATUS TO pending_acceptance
     delivery.driverId = driver._id;
     delivery.vehicleNumber = driver.vehicleNumber;
-    delivery.status = 'pending_acceptance';  
+    delivery.status = 'assigned';  
 
     await delivery.save();
 
@@ -198,7 +198,7 @@ exports.assignDriver = async (req, res) => {
     // 5. Add to status history
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
-      status: 'pending_acceptance',
+      status: 'assigned',
       remarks: `Delivery assigned to ${driver.name} (${driver.vehicleNumber}) — Awaiting driver acceptance`,
       updatedBy: {
         userId: req.user?._id || null,

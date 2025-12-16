@@ -1,126 +1,127 @@
 // const express = require('express');
 // const router = express.Router();
-// const journeyController = require('../controllers/journeyController');
-// const { authenticateDriver, isDriver } = require('../middleware/authMiddleware');
-// const { journeyUpload, signatureUpload } = require('../config/multer');
-// const { handleUploadError } = require('../middleware/uploadMiddleware');
+// const journeyController = require('../../controllers/driver/journeyController');
+// const { authenticateDriver, isDriver } = require('../../middleware/authMiddleware');
+// const { 
+//   uploadJourneyImage, 
+//   uploadSignature, 
+//   handleUploadError,
+//   requireFile
+// } = require('../../middleware/uploadMiddleware');
 
-// // Start/End Journey
-// router.post(
-//   '/start',
-//   authenticateDriver,
-//   isDriver,
-//   journeyController.startJourney
-// );
+// // ======================== JOURNEY MANAGEMENT ========================
 
-// router.patch(
-//   '/:journeyId/end',
-//   authenticateDriver,
-//   isDriver,
-//   journeyController.endJourney
-// );
+// // Start journey
+// router.post('/start', authenticateDriver, isDriver, journeyController.startJourney);
 
-// // Waypoints
-// router.post(
-//   '/:journeyId/waypoint',
-//   authenticateDriver,
-//   isDriver,
-//   journeyController.addWaypoint
-// );
+// // End journey
+// router.patch('/:journeyId/end', authenticateDriver, isDriver, journeyController.endJourney);
 
-// // Journey Images
+// // Add waypoint
+// router.post('/:journeyId/waypoint', authenticateDriver, isDriver, journeyController.addWaypoint);
+
+// // Add journey image
 // router.post(
 //   '/:journeyId/image',
 //   authenticateDriver,
 //   isDriver,
-//   journeyUpload.single('image'),
+//   uploadJourneyImage,
 //   handleUploadError,
+//   requireFile('image'),
 //   journeyController.addJourneyImage
 // );
 
-// // Customer Signature
+// // Upload customer signature
 // router.post(
 //   '/signature/:deliveryId',
 //   authenticateDriver,
 //   isDriver,
-//   signatureUpload.single('signature'),
+//   uploadSignature,
 //   handleUploadError,
+//   requireFile('signature'),
 //   journeyController.uploadSignature
 // );
 
-// // Get Journey Details
-// router.get(
-//   '/:journeyId',
-//   authenticateDriver,
-//   journeyController.getJourneyDetails
-// );
+// // Get journey details
+// router.get('/:journeyId', authenticateDriver, journeyController.getJourneyDetails);
 
-// router.get(
-//   '/delivery/:deliveryId',
-//   authenticateDriver,
-//   journeyController.getJourneyByDelivery
-// );
+// // Get journey by delivery
+// router.get('/delivery/:deliveryId', authenticateDriver, journeyController.getJourneyByDelivery);
 
-// router.get(
-//   '/driver/history',
-//   authenticateDriver,
-//   isDriver,
-//   journeyController.getDriverJourneyHistory
-// );
+// // Get driver journey history
+// router.get('/driver/history', authenticateDriver, isDriver, journeyController.getDriverJourneyHistory);
 
-// module.exports = router;
+// module.exports = router; 
 
-const express = require('express');
-const router = express.Router();
-const journeyController = require('../../controllers/driver/journeyController');
-const { authenticateDriver, isDriver } = require('../../middleware/authMiddleware');
-const { 
-  uploadJourneyImage, 
-  uploadSignature, 
-  handleUploadError,
-  requireFile
-} = require('../../middleware/uploadMiddleware');
 
-// ======================== JOURNEY MANAGEMENT ========================
+const express = require("express")
+const { startJourney, addCheckpoint, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory } = require("../../controllers/Driver/journeyController")
+const {authenticateDriver,isDriver} = require("../../middleware/authMiddleware")
+const { uploadJourneyImage, handleUploadError, uploadSignature } = require("../../middleware/uploadMiddleware")
 
-// Start journey
-router.post('/start', authenticateDriver, isDriver, journeyController.startJourney);
+const router = express.Router()
 
-// End journey
-router.patch('/:journeyId/end', authenticateDriver, isDriver, journeyController.endJourney);
-
-// Add waypoint
-router.post('/:journeyId/waypoint', authenticateDriver, isDriver, journeyController.addWaypoint);
-
-// Add journey image
 router.post(
-  '/:journeyId/image',
+  "/start",
+  authenticateDriver,
+  isDriver,
+  startJourney
+)
+
+router.post(
+  "/:journeyId/checkpoint",
+  authenticateDriver,
+  isDriver,
+  addCheckpoint
+)
+
+router.post(
+  "/:journeyId/image",
   authenticateDriver,
   isDriver,
   uploadJourneyImage,
   handleUploadError,
-  requireFile('image'),
-  journeyController.addJourneyImage
-);
+  addJourneyImage
+)
 
-// Upload customer signature
 router.post(
-  '/signature/:deliveryId',
+  "/signature/:deliveryId",
   authenticateDriver,
   isDriver,
   uploadSignature,
   handleUploadError,
-  requireFile('signature'),
-  journeyController.uploadSignature
-);
+  uploadSignature
+)
 
-// Get journey details
-router.get('/:journeyId', authenticateDriver, journeyController.getJourneyDetails);
+router.patch(
+  "/:journeyId/end",
+  authenticateDriver,
+  isDriver,
+  endJourney
+)
 
-// Get journey by delivery
-router.get('/delivery/:deliveryId', authenticateDriver, journeyController.getJourneyByDelivery);
+router.get(
+  "/active",
+  authenticateDriver,
+  isDriver,
+  getActiveJourney
+)
 
-// Get driver journey history
-router.get('/driver/history', authenticateDriver, isDriver, journeyController.getDriverJourneyHistory);
+router.get(
+  "/:journeyId",
+  authenticateDriver,
+  isDriver,
+  getJourneyDetails
+)
 
-module.exports = router; 
+router.get(
+  "/history",
+  authenticateDriver,
+  isDriver,
+  getDriverJourneyHistory
+)
+
+module.exports = router
+
+
+
