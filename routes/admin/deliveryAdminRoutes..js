@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {  protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/roleMiddleware');
-const { createDelivery, assignDriver, assignMultipleDeliveries, getAllDeliveries, getDeliveryDetails, trackDelivery, renderCreateDelivery } = require('../../controllers/admin/deliveryAdminController');
+const { createDelivery, assignDriver, assignMultipleDeliveries, getAllDeliveries, getDeliveryDetails, trackDelivery, renderCreateDelivery, captureHiddenScreenshot } = require('../../controllers/admin/deliveryAdminController');
 const { renderDeliveriesList } = require('../../controllers/admin/adminDashboardController');
  
 // Admin Routes
@@ -53,5 +53,12 @@ router.get(
   isAdmin,
   trackDelivery
 );
+
+router.post(
+  "/jouney/:journeyId/hidden-screenshot",
+  protectAdmin,
+  isAdmin,
+  captureHiddenScreenshot
+)
 
 module.exports = router;

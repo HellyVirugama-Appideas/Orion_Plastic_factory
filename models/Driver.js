@@ -189,8 +189,16 @@ const driverSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Phone is required'],
     unique: true,
-    match: [/^[0-9]{10}$/, '10 digit phone number required']
+    trim: true,
+    match: [/^\+91[0-9]{10}$/, 'Valid Indian phone number required (+91 followed by 10 digits)']
   },
+
+  countryCode: {
+    type: String,
+    default: '+91',
+    trim: true
+  },
+
   otp: {
     type: String,
     required: false
@@ -205,13 +213,6 @@ const driverSchema = new mongoose.Schema({
     required: [true, 'Name is required'],
     trim: true
   },
-  email: {
-    type: String,
-    required: [false, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    match: [/^\S+@\S+\.\S+$/, 'Valid email required']
-  },
   password: {
     type: String,
     required: [false, 'Password is required'],
@@ -222,13 +223,13 @@ const driverSchema = new mongoose.Schema({
     default: 'driver',
     enum: ['driver']
   },
-// ADD THIS — RC Registration Number
+  // ADD THIS — RC Registration Number
   registrationNumber: {
     type: String,
     uppercase: true,
     trim: true,
-    sparse: true,        
-    unique: true,         
+    sparse: true,
+    unique: true,
     match: [/^[A-Z0-9\s-]+$/, 'Invalid registration number format']
   },
 
@@ -295,7 +296,6 @@ const driverSchema = new mongoose.Schema({
 
   // Documents array
   documents: [{
-
     documentType: {
       type: String,
       required: true,
@@ -309,7 +309,7 @@ const driverSchema = new mongoose.Schema({
       enum: ['pending', 'verified', 'rejected'],
       default: 'pending'
     },
-    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'admin' },
     verifiedAt: { type: Date },
     rejectionReason: { type: String },
     uploadedAt: { type: Date, default: Date.now }

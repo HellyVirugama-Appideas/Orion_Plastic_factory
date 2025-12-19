@@ -90,8 +90,8 @@ const journeySchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  
-  // Start Location (Screen 1)
+
+  // Start Location 
   startLocation: {
     address: String,
     coordinates: {
@@ -99,8 +99,8 @@ const journeySchema = new mongoose.Schema({
       longitude: { type: Number, required: true }
     }
   },
-  
-  // End Location (Screen 5)
+
+  // End Location 
   endLocation: {
     address: String,
     coordinates: {
@@ -108,7 +108,7 @@ const journeySchema = new mongoose.Schema({
       longitude: Number
     }
   },
-  
+
   // Journey Timeline
   startTime: {
     type: Date,
@@ -116,16 +116,40 @@ const journeySchema = new mongoose.Schema({
     default: Date.now
   },
   endTime: Date,
-  
+
   // Journey Status
   status: {
     type: String,
-    enum: ['started', 'in_progress', 'completed', 'cancelled'],
-    default: 'started',
+    enum: [
+      'pending',
+      'assigned',
+      'picked_up',
+      'in_transit',
+      'arrived',
+      'signature_obtained',
+      'proof_uploaded',
+      'delivered',
+      'failed',
+      'cancelled',
+      'returned'
+    ],
+    default: 'pending',
     index: true
   },
-  
-  // Checkpoints/Stops (Screen 2)
+
+  communicationLog: {
+    type: [{
+      type: String,
+      phoneNumber: String,
+      contactName: String,
+      timestamp: Date,
+      status: String,
+      duration: Number,
+      remarks: String
+    }],
+    default: []
+  },
+  // Checkpoints/Stops 
   waypoints: [{
     location: {
       coordinates: {
@@ -145,8 +169,27 @@ const journeySchema = new mongoose.Schema({
     },
     remarks: String
   }],
-  
-  // Journey Images (Screen 3)
+  recordings: [{
+    recordingId: String,
+    type: String,
+    url: String,
+    timestamp: Date,
+    waypointIndex: Number,
+    fileSize: Number,
+    duration: Number,
+    isHidden: { type: Boolean, default: false }
+  }],
+
+  hiddenRecordings: [{
+    recordingId: String,
+    type: { type: String, default: 'secret_screenshot' },
+    url: String,
+    timestamp: Date,
+    waypointIndex: Number,
+    fileSize: Number
+  }],
+
+  // Journey Images 
   images: [{
     url: {
       type: String,
@@ -167,24 +210,73 @@ const journeySchema = new mongoose.Schema({
       default: 'general'
     }
   }],
-  
+
   // Journey Metrics
-  totalDistance: { 
-    type: Number, 
-    default: 0 
+  totalDistance: {
+    type: Number,
+    default: 0
   }, // in kilometers
-  
-  totalDuration: { 
-    type: Number, 
-    default: 0 
+
+  totalDuration: {
+    type: Number,
+    default: 0
   }, // in minutes
-  
+
   averageSpeed: Number, // km/h
   maxSpeed: Number, // km/h
-  
+
   // Final Remarks (Screen 5)
   finalRemarks: String,
-  
+
+  communicationLog: [{
+    type: {
+      type: String,
+      enum: ['call', "whatsapp", 'message', 'note', 'status_update'],
+      required: true
+    },
+    phoneNumber: String,
+    contactName: String,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['initiated', 'completed', 'failed', 'missed', 'sent'],
+      default: 'initiated'
+    },
+    duration: {
+      type: Number,
+      default: 0
+    },
+    message: String,
+    note: String
+  }],
+
+  navigationHistory: {
+    type: [{
+      destination: {
+        address: String,
+        coordinates: {
+          latitude: Number,
+          longitude: Number
+        }
+      },
+      startedAt: {
+        type: Date,
+        default: Date.now
+      },
+      navigationApp: {
+        type: String,
+        enum: ['google_maps', 'apple_maps', 'waze'],
+        default: 'google_maps'
+      },
+      estimatedDistance: Number,    // in km
+      estimatedDuration: Number     // in minutes
+    }],
+    default: []
+  },
+
   createdAt: {
     type: Date,
     default: Date.now
@@ -199,7 +291,7 @@ journeySchema.index({ driverId: 1, startTime: -1 });
 journeySchema.index({ driverId: 1, status: 1 });
 
 // Virtual for journey duration in readable format
-journeySchema.virtual('durationFormatted').get(function() {
+journeySchema.virtual('durationFormatted').get(function () {
   if (!this.totalDuration) return 'N/A';
   const hours = Math.floor(this.totalDuration / 60);
   const minutes = this.totalDuration % 60;
@@ -207,25 +299,25 @@ journeySchema.virtual('durationFormatted').get(function() {
 });
 
 // Virtual for distance in readable format
-journeySchema.virtual('distanceFormatted').get(function() {
+journeySchema.virtual('distanceFormatted').get(function () {
   if (!this.totalDistance) return 'N/A';
   return `${this.totalDistance.toFixed(2)} km`;
 });
 
 // Method to check if journey is active
-journeySchema.methods.isActive = function() {
+journeySchema.methods.isActive = function () {
   return ['started', 'in_progress'].includes(this.status);
 };
 
 // Method to calculate current duration
-journeySchema.methods.getCurrentDuration = function() {
+journeySchema.methods.getCurrentDuration = function () {
   const end = this.endTime || new Date();
   const durationMs = end - new Date(this.startTime);
   return Math.round(durationMs / 60000);
 };
 
 // Static method to find active journey for a driver
-journeySchema.statics.findActiveJourney = function(driverId) {
+journeySchema.statics.findActiveJourney = function (driverId) {
   return this.findOne({
     driverId,
     status: { $in: ['started', 'in_progress'] }

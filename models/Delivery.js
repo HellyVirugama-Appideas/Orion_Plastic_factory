@@ -17,15 +17,24 @@ const deliverySchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  recipientName: String,
+  recipientPhone: String, // fallback if needed
+
   driverId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Driver',
     default: null
   },
+  journeyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Journey',
+    index: true
+  },
   vehicleNumber: {
     type: String,
     default: null
   },
+
   pickupLocation: {
     address: { type: String, required: true },
     coordinates: {

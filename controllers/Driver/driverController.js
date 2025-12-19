@@ -18,27 +18,50 @@ const Session = require('../../models/Session');
 //       return errorResponse(res, 'All fields required', 400);
 //     }
 
-//     await TempDriver.findOneAndUpdate(
+//     // CORRECT — nested object daalo!
+//     const result = await TempDriver.findOneAndUpdate(
 //       { tempId },
-//       { tempId, personalDetails: { fullName, contactNumber, emiratesId, vehicleNumber: vehicleNumber.toUpperCase(), region } },
+//       {
+//         $set: {
+//           tempId,
+//           personalDetails: {
+//             fullName: fullName.trim(),
+//             contactNumber,
+//             emiratesId,
+//             vehicleNumber: vehicleNumber.toUpperCase(),
+//             region
+//           }
+//         }
+//       },
 //       { upsert: true, new: true }
 //     );
 
-//     return successResponse(res, 'Step 1 saved', { tempId, nextStep: 'step2' });
+//     console.log('Step 1 Saved:', result.toObject()); // ← Debug ke liye
+
+//     return successResponse(res, 'Step 1 saved successfully!', {
+//       tempId,
+//       nextStep: 'step2'
+//     });
+
 //   } catch (error) {
-//     return errorResponse(res, 'Failed to save', 500);
+//     console.error('Save Step 1 Error:', error);
+//     return errorResponse(res, 'Failed to save Step 1', 500);
 //   }
 // };
+
 exports.saveStep1 = async (req, res) => {
   try {
-    let { tempId, fullName, contactNumber, emiratesId, vehicleNumber, region } = req.body;
+    let { tempId, fullName, contactNumber, contactCountryCode, emiratesId, vehicleNumber, region } = req.body;
     tempId = tempId || uuidv4();
 
     if (!fullName || !contactNumber || !emiratesId || !vehicleNumber || !region) {
       return errorResponse(res, 'All fields required', 400);
     }
 
-    // CORRECT — nested object daalo!
+    // Normalize contact number with country code
+    contactCountryCode = contactCountryCode || '+91';
+    const fullContactNumber = `${contactCountryCode}${contactNumber.replace(/\D/g, '')}`;
+
     const result = await TempDriver.findOneAndUpdate(
       { tempId },
       {
@@ -46,7 +69,8 @@ exports.saveStep1 = async (req, res) => {
           tempId,
           personalDetails: {
             fullName: fullName.trim(),
-            contactNumber,
+            contactNumber: fullContactNumber,           // ← Full number with country code
+            contactCountryCode: contactCountryCode,     // ← Separate country code
             emiratesId,
             vehicleNumber: vehicleNumber.toUpperCase(),
             region
@@ -55,8 +79,6 @@ exports.saveStep1 = async (req, res) => {
       },
       { upsert: true, new: true }
     );
-
-    console.log('Step 1 Saved:', result.toObject()); // ← Debug ke liye
 
     return successResponse(res, 'Step 1 saved successfully!', {
       tempId,
@@ -118,67 +140,205 @@ exports.saveStep3 = async (req, res) => {
 };
 
  // Final: Phone + OTP → Create Real Driver
+// exports.finalSignup = async (req, res) => {
+//   try {
+//     const { tempId, phone } = req.body;
+
+//     if (!tempId || !phone || !/^\d{10}$/.test(phone)) {
+//       return errorResponse(res, 'Valid tempId and 10-digit phone required', 400);
+//     }
+
+//     // Check if temp session exists
+//     const tempExists = await TempDriver.findOne({ tempId });
+//     if (!tempExists) {
+//       return errorResponse(res, 'Session expired. Please start again.', 400);
+//     }
+
+//     // Check if phone already registered
+//     const driverExists = await Driver.findOne({ phone });
+//     if (driverExists) {
+//       return errorResponse(res, 'Phone number already registered', 400);
+//     }
+
+//     const otp = Math.floor(1000 + Math.random() * 9000).toString();
+//     const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+//     // Update TempDriver with phone + OTP
+//     const updated = await TempDriver.findOneAndUpdate(
+//       { tempId },
+//       {
+//         $set: {
+//           phone,
+//           otp,
+//           otpExpiresAt
+//         }
+//       },
+//       { new: true, upsert: false }
+//     );
+
+//     if (!updated) {
+//       return errorResponse(res, 'Failed to save OTP. Try again.', 500);
+//     }
+
+//     console.log(`OTP for ${phone}: ${otp} | tempId: ${tempId}`);
+
+//     return successResponse(res, 'OTP sent successfully!', {
+//       message: 'Check your phone for 4-digit code',
+//       otp: otp  // Remove in production
+//     });
+
+//   } catch (error) {
+//     console.error('Final Signup Error:', error.message);
+//     return errorResponse(res, 'Server error. Please try again.', 500);
+//   }
+// };
+
 exports.finalSignup = async (req, res) => {
   try {
-    const { tempId, phone } = req.body;
+    let { tempId, phone, countryCode } = req.body;
 
+    // Validation
     if (!tempId || !phone || !/^\d{10}$/.test(phone)) {
-      return errorResponse(res, 'Valid tempId and 10-digit phone required', 400);
+      return errorResponse(res, 'Valid 10-digit phone number required', 400);
     }
 
-    // Check if temp session exists
+    countryCode = countryCode || '+91';
+
+    const fullPhone = `${countryCode}${phone}`;
+
     const tempExists = await TempDriver.findOne({ tempId });
     if (!tempExists) {
       return errorResponse(res, 'Session expired. Please start again.', 400);
     }
 
-    // Check if phone already registered
-    const driverExists = await Driver.findOne({ phone });
+    // Check duplicate with full phone (countryCode + phone)
+    const driverExists = await Driver.findOne({ phone: fullPhone });
     if (driverExists) {
       return errorResponse(res, 'Phone number already registered', 400);
     }
 
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Update TempDriver with phone + OTP
     const updated = await TempDriver.findOneAndUpdate(
       { tempId },
       {
         $set: {
-          phone,
+          phone: fullPhone,           
+          countryCode: countryCode,   
           otp,
           otpExpiresAt
         }
       },
-      { new: true, upsert: false }
+      { new: true }
     );
 
     if (!updated) {
       return errorResponse(res, 'Failed to save OTP. Try again.', 500);
     }
 
-    console.log(`OTP for ${phone}: ${otp} | tempId: ${tempId}`);
+    console.log(`OTP for ${fullPhone}: ${otp}`);
 
     return successResponse(res, 'OTP sent successfully!', {
       message: 'Check your phone for 4-digit code',
-      otp: otp  // Remove in production
+      otp: otp  
     });
 
   } catch (error) {
     console.error('Final Signup Error:', error.message);
-    return errorResponse(res, 'Server error. Please try again.', 500);
+    return errorResponse(res, 'Server error', 500);
   }
 };
 
 // Verify OTP + Create Driver + Give Access Token
+// exports.verifyOtpAndCreateDriver = async (req, res) => {
+//   try {
+//     const { tempId, phone, otp } = req.body;
+
+//     const temp = await TempDriver.findOne({
+//       tempId,
+//       phone,
+//       otp,
+//       otpExpiresAt: { $gt: new Date() }
+//     });
+
+//     if (!temp) {
+//       return errorResponse(res, 'Invalid or expired OTP', 400);
+//     }
+
+//     // ← YEH SAB DAALO AB (required fields)
+//     const driverData = {
+//       phone,
+//       name: temp.personalDetails.fullName?.trim() || 'Driver',
+//       licenseNumber: temp.license.licenseNumber?.toUpperCase(),
+//       vehicleNumber: temp.personalDetails.vehicleNumber?.toUpperCase(),
+
+//       // Optional fields (safe)
+//       'address.city': temp.personalDetails.region,
+//       'governmentIds.emiratesId': temp.personalDetails.emiratesId,
+
+//       documents: [
+//         { documentType: 'license_front', fileUrl: temp.license.frontUrl || '', documentNumber: temp.license.licenseNumber },
+//         { documentType: 'license_back', fileUrl: temp.license.backUrl || '', documentNumber: temp.license.licenseNumber },
+//         { documentType: 'vehicle_rc_front', fileUrl: temp.rc.frontUrl || '', documentNumber: temp.rc.registrationNumber },
+//         { documentType: 'vehicle_rc_back', fileUrl: temp.rc.backUrl || '', documentNumber: temp.rc.registrationNumber }
+//       ],
+
+//       profileStatus: 'pending_pin_setup'
+//     };
+
+//     console.log("Creating driver with data:", driverData);
+
+//     const driver = new Driver(driverData);
+
+//     const validationError = driver.validateSync();
+//     if (validationError) {
+//       console.error("Validation Error:", validationError.message);
+//       return errorResponse(res, 'Data validation failed: ' + validationError.message, 400);
+//     }
+
+//     await driver.save();
+//     console.log("Driver created successfully:", driver._id);
+
+//     await TempDriver.deleteOne({ tempId });
+
+//     const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
+
+//     return successResponse(res, 'Account created successfully!', {
+//       accessToken,
+//       message: 'Now create your 4-digit PIN',
+//       nextStep: 'create-pin'
+//     });
+
+//   } catch (error) {
+//     console.error('Create Driver Failed:', error.message);
+//     if (error.code === 11000) {
+//       return errorResponse(res, 'Phone or License already registered', 400);
+//     }
+//     return errorResponse(res, 'Failed to create account: ' + error.message, 500);
+//   }
+// };
+
 exports.verifyOtpAndCreateDriver = async (req, res) => {
   try {
-    const { tempId, phone, otp } = req.body;
+    const { tempId, phone, otp, countryCode: inputCountryCode } = req.body;
 
+    // Validate phone (must be 10 digits)
+    const cleanedPhone = phone?.replace(/\D/g, '') || '';
+    if (cleanedPhone.length !== 10) {
+      return errorResponse(res, 'Valid 10-digit phone number required', 400);
+    }
+
+    // Use provided country code or default to +91
+    const countryCode = inputCountryCode?.trim() || '+91';
+
+    // Full international format
+    const fullPhone = `${countryCode}${cleanedPhone}`;
+
+    // Find temp driver with full phone
     const temp = await TempDriver.findOne({
       tempId,
-      phone,
+      phone: fullPhone,
       otp,
       otpExpiresAt: { $gt: new Date() }
     });
@@ -187,42 +347,59 @@ exports.verifyOtpAndCreateDriver = async (req, res) => {
       return errorResponse(res, 'Invalid or expired OTP', 400);
     }
 
-    // ← YEH SAB DAALO AB (required fields)
+    // Prepare driver data
     const driverData = {
-      phone,
+      phone: fullPhone,
+      countryCode: countryCode,
       name: temp.personalDetails.fullName?.trim() || 'Driver',
-      licenseNumber: temp.license.licenseNumber?.toUpperCase(),
+      licenseNumber: temp.license?.licenseNumber?.toUpperCase(),
       vehicleNumber: temp.personalDetails.vehicleNumber?.toUpperCase(),
-
-      // Optional fields (safe)
       'address.city': temp.personalDetails.region,
       'governmentIds.emiratesId': temp.personalDetails.emiratesId,
 
       documents: [
-        { documentType: 'license_front', fileUrl: temp.license.frontUrl || '', documentNumber: temp.license.licenseNumber },
-        { documentType: 'license_back', fileUrl: temp.license.backUrl || '', documentNumber: temp.license.licenseNumber },
-        { documentType: 'vehicle_rc_front', fileUrl: temp.rc.frontUrl || '', documentNumber: temp.rc.registrationNumber },
-        { documentType: 'vehicle_rc_back', fileUrl: temp.rc.backUrl || '', documentNumber: temp.rc.registrationNumber }
+        {
+          documentType: 'license_front',
+          fileUrl: temp.license?.frontUrl || '',
+          documentNumber: temp.license?.licenseNumber
+        },
+        {
+          documentType: 'license_back',
+          fileUrl: temp.license?.backUrl || '',
+          documentNumber: temp.license?.licenseNumber
+        },
+        {
+          documentType: 'vehicle_rc_front',
+          fileUrl: temp.rc?.frontUrl || '',
+          documentNumber: temp.rc?.registrationNumber
+        },
+        {
+          documentType: 'vehicle_rc_back',
+          fileUrl: temp.rc?.backUrl || '',
+          documentNumber: temp.rc?.registrationNumber
+        }
       ],
 
       profileStatus: 'pending_pin_setup'
     };
 
-    console.log("Creating driver with data:", driverData);
-
+    // Create driver instance
     const driver = new Driver(driverData);
 
+    // Validate
     const validationError = driver.validateSync();
     if (validationError) {
       console.error("Validation Error:", validationError.message);
       return errorResponse(res, 'Data validation failed: ' + validationError.message, 400);
     }
 
+    // Save driver
     await driver.save();
-    console.log("Driver created successfully:", driver._id);
 
+    // Clean up temp data
     await TempDriver.deleteOne({ tempId });
 
+    // Generate access token
     const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
 
     return successResponse(res, 'Account created successfully!', {
@@ -232,13 +409,66 @@ exports.verifyOtpAndCreateDriver = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create Driver Failed:', error.message);
+    console.error('Create Driver Failed:', error);
+
     if (error.code === 11000) {
-      return errorResponse(res, 'Phone or License already registered', 400);
+      const field = Object.keys(error.keyValue)[0];
+      const value = error.keyValue[field];
+      const messages = {
+        phone: 'Phone number already registered',
+        licenseNumber: 'License number already registered',
+        vehicleNumber: 'Vehicle number already registered',
+        email: 'Email already registered'
+      };
+      return errorResponse(res, messages[field] || 'Duplicate entry found', 400);
     }
-    return errorResponse(res, 'Failed to create account: ' + error.message, 500);
+
+    return errorResponse(res, 'Failed to create account', 500);
   }
 };
+
+// Resend OTP for phone verification
+exports.resendOtp = async (req, res) => {
+  try {
+    const { tempId } = req.body;
+
+    if (!tempId) {
+      return errorResponse(res, 'tempId is required', 400);
+    }
+
+    // Find the temp driver
+    const temp = await TempDriver.findOne({ tempId });
+
+    if (!temp) {
+      // Agar document nahi mila → matlab TTL se delete ho gaya
+      return errorResponse(res, 'Registration session has expired. Please start the signup process again.', 410); // 410 Gone status better hai
+    }
+
+    // Optional: Check if previous OTP was expired
+    const isPreviousOtpExpired = temp.otpExpiresAt < new Date();
+
+    // Generate new OTP anyway
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes fresh
+
+    // Update the document
+    temp.otp = newOtp;
+    temp.otpExpiresAt = otpExpiresAt;
+    await temp.save();
+
+    console.log(`RESEND OTP → ${temp.phone}: ${newOtp} | tempId: ${tempId} | Previous expired: ${isPreviousOtpExpired}`);
+
+    return successResponse(res, 'New OTP sent successfully!', {
+      message: 'Check your phone for the new 4-digit code',
+      otp: newOtp  // Remove in production
+    });
+
+  } catch (error) {
+    console.error('Resend OTP Error:', error);
+    return errorResponse(res, 'Server error. Please try again.', 500);
+  }
+};
+
 
 // Create PIN (After Final Signup)
 exports.createPin = async (req, res) => {
@@ -324,6 +554,8 @@ exports.login = async (req, res) => {
     return errorResponse(res, 'Server error', 500);
   }
 };
+
+
 
 /// step-2 pin verify
 exports.verifyPin = async (req, res) => {
@@ -427,10 +659,62 @@ exports.refreshToken = async (req, res) => {
 
 ///////setting update profile details
 // PUT /api/driver/profile/update-personal
+// exports.updatePersonalDetails = async (req, res) => {
+//   try {
+//     const driver = req.user;
+//     const { fullName, contactNumber, emiratesId, region } = req.body;
+
+//     if (emiratesId) {
+//       const exists = await Driver.findOne({
+//         'governmentIds.emiratesId': emiratesId,
+//         _id: { $ne: driver._id }
+//       });
+//       if (exists) return errorResponse(res, 'Emirates ID already used', 400);
+//     }
+
+//     driver.name = fullName || driver.name;
+//     driver.phone = contactNumber || driver.phone;
+//     driver.governmentIds.emiratesId = emiratesId || driver.governmentIds.emiratesId;
+//     driver['address.city'] = region || driver.address?.city;
+
+//     await driver.save();
+
+//     return successResponse(res, 'Profile updated successfully!', {
+//       driver: {
+//         name: driver.name,
+//         phone: driver.phone,
+//         emiratesId: driver.governmentIds.emiratesId,
+//         region: driver.address?.city
+//       }
+//     });
+
+//   } catch (error) {
+//     return errorResponse(res, 'Update failed', 500);
+//   }
+// };
+
 exports.updatePersonalDetails = async (req, res) => {
   try {
     const driver = req.user;
-    const { fullName, contactNumber, emiratesId, region } = req.body;
+    const { fullName, phone, countryCode, emiratesId, region } = req.body;
+
+    // Phone update with country code
+    if (phone) {
+      if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+        return errorResponse(res, 'Phone must be 10 digits', 400);
+      }
+      const newCountryCode = countryCode || driver.countryCode || '+91';
+      const fullPhone = `${newCountryCode}${phone.replace(/\D/g, '')}`;
+
+      // Check duplicate
+      const exists = await Driver.findOne({ phone: fullPhone, _id: { $ne: driver._id } });
+      if (exists) {
+        return errorResponse(res, 'Phone number already registered', 400);
+      }
+
+      driver.phone = fullPhone;
+      driver.countryCode = newCountryCode;
+    }
 
     if (emiratesId) {
       const exists = await Driver.findOne({
@@ -441,7 +725,6 @@ exports.updatePersonalDetails = async (req, res) => {
     }
 
     driver.name = fullName || driver.name;
-    driver.phone = contactNumber || driver.phone;
     driver.governmentIds.emiratesId = emiratesId || driver.governmentIds.emiratesId;
     driver['address.city'] = region || driver.address?.city;
 
@@ -451,12 +734,14 @@ exports.updatePersonalDetails = async (req, res) => {
       driver: {
         name: driver.name,
         phone: driver.phone,
+        countryCode: driver.countryCode,
         emiratesId: driver.governmentIds.emiratesId,
         region: driver.address?.city
       }
     });
 
   } catch (error) {
+    console.error('Update Personal Details Error:', error);
     return errorResponse(res, 'Update failed', 500);
   }
 };

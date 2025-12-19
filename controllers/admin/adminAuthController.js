@@ -342,8 +342,8 @@ exports.adminSignup = async (req, res) => {
     const { name, email, phone, password, department, employeeId, permissions = [] } = req.body;
 
     // Check if admin already exists
-    const existingAdmin = await Admin.findOne({ 
-      $or: [{ email }, { phone }] 
+    const existingAdmin = await Admin.findOne({
+      $or: [{ email }, { phone }]
     });
     if (existingAdmin) {
       return errorResponse(res, 'Admin with this email or phone already exists', 400);
@@ -421,10 +421,12 @@ exports.adminSignin = async (req, res) => {
     // Create session
     await Session.create({
       userId: admin._id,
+      type: 'login_session',
+      userType: 'admin',
       token: accessToken,
       deviceInfo: req.headers['user-agent'] || 'Unknown',
       ipAddress: req.ip || req.connection.remoteAddress,
-      expiresAt:new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
 
     successResponse(res, 'Admin login successful', {
@@ -448,7 +450,7 @@ exports.adminSignin = async (req, res) => {
   }
 };
 // Render login page
-exports.renderLogin = async(req, res) => {
+exports.renderLogin = async (req, res) => {
   res.render("auth/login", { error: null });
 };
 
@@ -517,7 +519,7 @@ exports.updateAdminProfile = async (req, res) => {
 
 exports.adminLogout = async (req, res) => {
   try {
-    const adminId = req.admin._id; 
+    const adminId = req.admin._id;
     const authHeader = req.headers.authorization;
     let token = null;
 
@@ -565,7 +567,7 @@ exports.adminLogoutAll = async (req, res) => {
 
     await Session.deleteMany({ userId: adminId });
 
-    await RefreshToken.deleteMany({ userId: adminId });   
+    await RefreshToken.deleteMany({ userId: adminId });
 
     res.clearCookie('adminToken', {
       httpOnly: true,

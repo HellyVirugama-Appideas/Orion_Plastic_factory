@@ -345,6 +345,7 @@ module.exports = {
   uploadDocument: upload.single('document'),
   uploadProfileImage: upload.single('profileImage'),
   uploadJourneyImage: uploadImageOnly.single('image'),
+  uploadEndJourneyImage: uploadImageOnly.single("image"),
   uploadSignature: uploadImageOnly.single('signature'),
   uploadMultipleDocuments: upload.array('documents', 15),
 

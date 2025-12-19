@@ -4,7 +4,7 @@ const reportConfigSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true
-  },
+  }, 
   reportType: {
     type: String,
     required: true,

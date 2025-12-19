@@ -1,8 +1,8 @@
 const express = require("express");
-const { saveStep1, saveStep2, saveStep3, finalSignup, verifyOtpAndCreateDriver, createPin, login, verifyPin, updatePersonalDetails, updateLicense, updateRC, deleteAccount, logout } = require("../../controllers/Driver/driverController");
+const { saveStep1, saveStep2, saveStep3, finalSignup, verifyOtpAndCreateDriver, createPin, login, verifyPin, updatePersonalDetails, updateLicense, updateRC, deleteAccount, logout, resendOtp } = require("../../controllers/Driver/driverController");
 const { uploadDriverDocuments, handleUploadError } = require("../../middleware/uploadMiddleware");
 const { authenticatePendingDriver } = require("../../middleware/authPendingDriver");
-const { sendPinResetOtp, verifyPinResetOtp, setNewPin, confirmNewPin } = require("../../controllers/Driver/forgotPinController");
+const { sendPinResetOtp, verifyPinResetOtp, setNewPin, confirmNewPin, resendPinResetOtp } = require("../../controllers/Driver/forgotPinController");
 const { verifyOldPin, setNewpin, confirmAndChangePin } = require("../../controllers/Driver/changePinController");
 const { authenticateDriver, isDriver } = require("../../middleware/authMiddleware");
 
@@ -14,6 +14,7 @@ router.post('/onboarding/step3', uploadDriverDocuments, handleUploadError, saveS
 
 router.post('/signup', finalSignup);
 router.post('/signup/verify-otp', verifyOtpAndCreateDriver);
+router.post("/signup/resend-otp",resendOtp)
 
 router.post("/create-pin", authenticatePendingDriver, createPin)
 
@@ -25,6 +26,7 @@ router.post("/login/verify-pin", verifyPin)
 ///forgot pin
 router.post("/forgot-pin", sendPinResetOtp)
 router.post("/forgot-pin/verify-otp", verifyPinResetOtp),
+router.post("/forgot-pin/resend-otp",resendPinResetOtp)
 router.post("/forgot-pin/new-pin", setNewPin)
 router.post("/forgot-pin/confirm", confirmNewPin)
 

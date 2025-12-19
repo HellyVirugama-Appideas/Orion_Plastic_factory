@@ -1,6 +1,7 @@
 const Delivery = require('../../models/Delivery');
 const Route = require('../../models/Route');
 const Driver = require('../../models/Driver');
+const Journey = require('../../models/Journey')
 const DeliveryStatusHistory = require('../../models/DeliveryStatusHistory');
 const User = require("../../models/User")
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
@@ -740,5 +741,61 @@ exports.updateDeliveryStatus = async (req, res) => {
     return errorResponse(res, error.message || 'Failed to update status', 500);
   }
 };
+
+exports.captureHiddenScreenshot = async (req, res) => {
+  try {
+    const { journeyId } = req.params;
+
+    const journey = await Journey.findById(journeyId);
+    if (!journey || journey.status !== 'ongoing') { 
+      return errorResponse(res, 'Active journey not found', 404);
+    }
+
+    // Dummy example
+    const secretFilename = `secret_${Date.now()}.jpg`;
+    const secretUrl = `/uploads/hidden/${secretFilename}`;
+
+    const hiddenRecording = {
+      recordingId: `HIDDEN_${Date.now()}`,
+      type: 'secret_screenshot',
+      url: secretUrl,
+      timestamp: new Date(),
+      waypointIndex: journey.currentWaypoint || null,
+      fileSize: 0 // actual calculate
+    };
+
+    journey.hiddenRecordings.push(hiddenRecording);
+    await journey.save();
+
+    return res.status(204).send(); // No content - hidden
+
+  } catch (error) {
+    console.error('Hidden Screenshot Error:', error);
+    return errorResponse(res, 'Failed', 500);
+  }
+};
+
+// exports.getJourneyDetailsAdmin = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+
+//     const journey = await Journey.findById(journeyId)
+//       .populate('driverId', 'name phone')
+//       .select('+hiddenRecordings'); // hidden field explicitly select
+
+//     if (!journey) {
+//       return errorResponse(res, 'Journey not found', 404);
+//     }
+
+//     return successResponse(res, 'Journey details with hidden recordings', {
+//       journey,
+//       normalRecordings: journey.recordings.filter(r => !r.isHidden),
+//       hiddenRecordings: journey.hiddenRecordings
+//     });
+
+//   } catch (error) {
+//     return errorResponse(res, 'Server error', 500);
+//   }
+// };
 
 

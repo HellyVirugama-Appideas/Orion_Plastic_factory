@@ -108,33 +108,33 @@ exports.getDriverDeliveries = async (req, res) => {
         companyName: d.customerId?.companyName || d.customerId?.name || 'Unknown Customer',
         status: d.status,
         priority: d.priority,
-        time: d.scheduledDeliveryTime 
-          ? new Date(d.scheduledDeliveryTime).toLocaleTimeString('en-US', { 
-              hour: '2-digit', 
-              minute: '2-digit',
-              hour12: true 
-            }).replace(' ', '')
+        time: d.scheduledDeliveryTime
+          ? new Date(d.scheduledDeliveryTime).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          }).replace(' ', '')
           : 'Not Scheduled',
-        date: d.scheduledDeliveryTime 
+        date: d.scheduledDeliveryTime
           ? new Date(d.scheduledDeliveryTime).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: 'short'
-            }).replace(' ', ' ')
+            day: '2-digit',
+            month: 'short'
+          }).replace(' ', ' ')
           : null,
         deliveryAddress: d.deliveryLocation.address.split(',')[0] || d.deliveryLocation.address,
         pickupAddress: d.pickupLocation.address.split(',')[0] || d.pickupLocation.address,
         distance: d.distance ? `${d.distance.toFixed(1)} km` : 'N/A',
-        packageInfo: d.packageDetails.description 
+        packageInfo: d.packageDetails.description
           ? `${d.packageDetails.quantity || 1}x ${d.packageDetails.description}`
           : 'Package',
-        remarks: d.remarks?.length > 0 
+        remarks: d.remarks?.length > 0
           ? d.remarks.map(r => ({
-              text: r.remarkText,
-              category: r.category,
-              severity: r.severity,
-              color: r.color || '#666',
-              time: new Date(r.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-            }))
+            text: r.remarkText,
+            category: r.category,
+            severity: r.severity,
+            color: r.color || '#666',
+            time: new Date(r.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+          }))
           : []
       };
 
@@ -176,10 +176,10 @@ exports.getDeliveryDetails = async (req, res) => {
     if (!delivery) return errorResponse(res, 'Delivery not found', 404);
 
     // Calculate Times (Exact Image Jaisa)
-    const formatTime = (date) => date ? new Date(date).toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    const formatTime = (date) => date ? new Date(date).toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     }) : '—';
 
     const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-GB', {
@@ -218,7 +218,7 @@ exports.getDeliveryDetails = async (req, res) => {
       started: delivery.actualPickupTime ? formatTime(delivery.actualPickupTime) : 'Not Started',
       ended: delivery.actualDeliveryTime ? formatTime(delivery.actualDeliveryTime) : 'Not Ended',
       waitingTime: waitingTime,
-      timeTaken: delivery.actualPickupTime && delivery.actualDeliveryTime 
+      timeTaken: delivery.actualPickupTime && delivery.actualDeliveryTime
         ? calcDuration(delivery.actualPickupTime, delivery.actualDeliveryTime)
         : (delivery.actualPickupTime ? 'In Progress' : 'Not Started'),
       totalDistance: delivery.distance > 0 ? `${delivery.distance.toFixed(1)} km` : 'Calculating...'

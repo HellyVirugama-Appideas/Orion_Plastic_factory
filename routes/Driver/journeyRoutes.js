@@ -55,9 +55,9 @@
 
 
 const express = require("express")
-const { startJourney, addCheckpoint, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory } = require("../../controllers/Driver/journeyController")
-const {authenticateDriver,isDriver} = require("../../middleware/authMiddleware")
-const { uploadJourneyImage, handleUploadError, uploadSignature } = require("../../middleware/uploadMiddleware")
+const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature } = require("../../controllers/Driver/journeyController")
+const { authenticateDriver, isDriver } = require("../../middleware/authMiddleware")
+const { uploadJourneyImage, handleUploadError, uploadSignature, uploadEndJourneyImage } = require("../../middleware/uploadMiddleware")
 
 const router = express.Router()
 
@@ -65,11 +65,11 @@ router.post(
   "/start",
   authenticateDriver,
   isDriver,
-  startJourney
+  startJourney 
 )
 
 router.post(
-  "/:journeyId/checkpoint",
+  "/:journeyId/checkpoints",
   authenticateDriver,
   isDriver,
   addCheckpoint
@@ -85,20 +85,106 @@ router.post(
 )
 
 router.post(
-  "/signature/:deliveryId",
+  "/:deliveryId/signature",
   authenticateDriver,
   isDriver,
   uploadSignature,
   handleUploadError,
-  uploadSignature
+  uploadProofSignature
+)
+router.post(
+  "/:deliveryId/proof-photos",
+  authenticateDriver,
+  isDriver,
+  uploadEndJourneyImage,
+  handleUploadError,
+  uploadProofPhotos
+),
+router.post(
+  "/journey/:journeyId/complete-delivery",
+  authenticateDriver,
+  isDriver,
+  completeDelivery
 )
 
-router.patch(
+router.post(
   "/:journeyId/end",
   authenticateDriver,
   isDriver,
   endJourney
 )
+
+router.post(
+  "/:journeyId/cancel",
+  authenticateDriver,
+  isDriver,
+  cancelJourney
+)
+
+router.post(
+  "/:journeyId/call",
+  authenticateDriver,
+  isDriver,
+  initiateCall
+)
+
+router.put(
+  "/:journeyId/call/:callId/end/call",
+  authenticateDriver,
+  isDriver,
+  endCall
+)
+
+router.post(
+  "/:journeyId/whatsapp",
+  authenticateDriver,
+  isDriver,
+  initiateWhatsApp
+)
+
+router.get(
+  "/:journeyId/communications",
+  authenticateDriver,
+  isDriver,
+  getCommunicationHistory
+)
+
+////
+router.get(
+  "/:journeyId/navigate",
+  authenticateDriver,
+  isDriver,
+  getNavigation
+)
+
+router.post(
+  "/:journeyId/recordings",
+  authenticateDriver,
+  isDriver,
+  uploadRecording
+)
+
+router.get(
+  "/active",
+  authenticateDriver,
+  isDriver,
+  getActiveJourney
+)
+
+router.get(
+  "/:journeyId",
+  authenticateDriver,
+  isDriver,
+  getJourneyDetails
+)
+
+router.get(
+  "/",
+  authenticateDriver,
+  isDriver,
+  getDriverJourneyHistory
+)
+
 
 router.get(
   "/active",

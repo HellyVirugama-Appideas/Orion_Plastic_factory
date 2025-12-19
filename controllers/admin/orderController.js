@@ -16,7 +16,7 @@ exports.createOrderByAdmin = async (req, res) => {
       scheduledPickupDate,
       scheduledDeliveryDate,
       specialInstructions,
-      packagingInstructions = '',
+      packagingInstructions = '', 
       priority = 'medium',
       status = 'pending'
     } = req.body;

@@ -61,5 +61,6 @@ const tempDriverSchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now } ///expires: '72h'
 });
+tempDriverSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 module.exports = mongoose.model('TempDriver', tempDriverSchema);

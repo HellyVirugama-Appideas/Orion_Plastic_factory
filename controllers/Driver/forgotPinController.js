@@ -150,21 +150,83 @@ const { successResponse, errorResponse } = require('../../utils/responseHelper')
 const bcrypt = require('bcryptjs');
 
 
+// exports.sendPinResetOtp = async (req, res) => {
+//   try {
+//     const { phone, emiratesId } = req.body;
+
+//     if (!phone || !emiratesId) {
+//       return errorResponse(res, 'Phone number and Emirates ID are required', 400);
+//     }
+
+//     if (!/^[0-9]{10}$/.test(phone)) {
+//       return errorResponse(res, 'Valid 10-digit phone number required', 400);
+//     }
+
+//     const driver = await Driver.findOne({
+//       phone: phone.trim(),
+//       'governmentIds.emiratesId': emiratesId.trim(),
+//       profileStatus: 'approved'
+//     });
+
+//     if (!driver) {
+//       return errorResponse(res, 'No approved driver found with these details', 404);
+//     }
+
+//     const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+//     await Session.findOneAndUpdate(
+//       { driverId: driver._id },
+//       {
+//         driverId: driver._id,
+//         otp,
+//         otpExpires: Date.now() + 5 * 60 * 1000,
+//         verified: false,
+//         newPin: null
+//       },
+//       { upsert: true, setDefaultsOnInsert: true }
+//     );
+
+//     console.log(`PIN Reset OTP → ${driver.name} (${phone}): ${otp}`);
+
+//     return successResponse(res, 'OTP sent successfully!', {
+//       driverId: driver._id,
+//       name: driver.name,
+//       otp: otp,
+//       maskedPhone: phone.replace(/(\d{6})\d{4}/, '$1****') 
+//     });
+
+//   } catch (error) {
+//     console.error('Send OTP Error:', error);
+//     return errorResponse(res, 'Server error', 500);
+//   }
+// };
 exports.sendPinResetOtp = async (req, res) => {
   try {
-    const { phone, emiratesId } = req.body;
+    let { phone, emiratesId, countryCode: inputCountryCode } = req.body;
 
     if (!phone || !emiratesId) {
       return errorResponse(res, 'Phone number and Emirates ID are required', 400);
     }
 
-    if (!/^[0-9]{10}$/.test(phone)) {
+    // Clean phone - only digits
+    const cleanedPhone = phone.replace(/\D/g, '');
+
+    if (cleanedPhone.length !== 10) {
       return errorResponse(res, 'Valid 10-digit phone number required', 400);
     }
 
+    // Use provided country code or default +91
+    const countryCode = inputCountryCode?.trim() || '+91';
+
+    // Full international phone number
+    const fullPhone = `${countryCode}${cleanedPhone}`;
+
+    const emiratesIdClean = emiratesId.trim();
+
+    // Search driver with full phone (with country code)
     const driver = await Driver.findOne({
-      phone: phone.trim(),
-      'governmentIds.emiratesId': emiratesId.trim(),
+      phone: fullPhone,
+      'governmentIds.emiratesId': emiratesIdClean,
       profileStatus: 'approved'
     });
 
@@ -173,31 +235,118 @@ exports.sendPinResetOtp = async (req, res) => {
     }
 
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
 
+    // Update or create PIN reset session
     await Session.findOneAndUpdate(
       { driverId: driver._id },
       {
         driverId: driver._id,
+        type: 'forgot_pin',                 // agar tumhare model mein type field hai
         otp,
-        otpExpires: Date.now() + 5 * 60 * 1000,
+        otpExpires,
         verified: false,
-        newPin: null
+        newPin: null,
+        oldPinVerified: false
       },
       { upsert: true, setDefaultsOnInsert: true }
     );
 
-    console.log(`PIN Reset OTP → ${driver.name} (${phone}): ${otp}`);
+    console.log(`PIN Reset OTP → ${driver.name} (${fullPhone}): ${otp}`);
+
+    // Mask last 4 digits for security
+    const maskedPhone = cleanedPhone.replace(/(\d{6})\d{4}/, '$1****');
+    const maskedFullPhone = `${countryCode}${maskedPhone}`;
 
     return successResponse(res, 'OTP sent successfully!', {
       driverId: driver._id,
       name: driver.name,
-      otp: otp,
-      maskedPhone: phone.replace(/(\d{6})\d{4}/, '$1****') 
+      phone: fullPhone,                   
+      maskedPhone: maskedFullPhone,       
+      countryCode: countryCode,
+      otp: otp 
     });
 
   } catch (error) {
-    console.error('Send OTP Error:', error);
-    return errorResponse(res, 'Server error', 500);
+    console.error('Send PIN Reset OTP Error:', error);
+    return errorResponse(res, 'Server error. Please try again.', 500);
+  }
+};
+
+exports.resendPinResetOtp = async (req, res) => {
+  try {
+    let { phone, emiratesId, countryCode: inputCountryCode } = req.body;
+
+    if (!phone || !emiratesId) {
+      return errorResponse(res, 'Phone number and Emirates ID are required', 400);
+    }
+
+    // Clean phone - only digits
+    const cleanedPhone = phone.replace(/\D/g, '');
+
+    if (cleanedPhone.length !== 10) {
+      return errorResponse(res, 'Valid 10-digit phone number required', 400);
+    }
+
+    // Use provided country code or default +91
+    const countryCode = inputCountryCode?.trim() || '+91';
+
+    // Full international phone number
+    const fullPhone = `${countryCode}${cleanedPhone}`;
+
+    const emiratesIdClean = emiratesId.trim();
+
+    // Find the driver
+    const driver = await Driver.findOne({
+      phone: fullPhone,
+      'governmentIds.emiratesId': emiratesIdClean,
+      profileStatus: 'approved'
+    });
+
+    if (!driver) {
+      return errorResponse(res, 'No approved driver found with these details', 404);
+    }
+
+    // Check if there is an existing PIN reset session
+    const existingSession = await Session.findOne({ driverId: driver._id });
+
+    if (!existingSession) {
+      return errorResponse(res, 'No active PIN reset request found. Please initiate forgot PIN first.', 400);
+    }
+
+    // Generate new OTP
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    // Update the existing session with new OTP
+    await Session.findOneAndUpdate(
+      { driverId: driver._id },
+      {
+        otp: newOtp,
+        otpExpires,
+        verified: false 
+      },
+      { new: true }
+    );
+
+    console.log(`RESEND PIN Reset OTP → ${driver.name} (${fullPhone}): ${newOtp}`);
+
+    // Mask phone for response
+    const maskedPhone = cleanedPhone.replace(/(\d{6})\d{4}/, '$1****');
+    const maskedFullPhone = `${countryCode}${maskedPhone}`;
+
+    return successResponse(res, 'New OTP sent successfully!', {
+      driverId: driver._id,
+      name: driver.name,
+      phone: fullPhone,
+      maskedPhone: maskedFullPhone,
+      countryCode: countryCode,
+      otp: newOtp 
+    });
+
+  } catch (error) {
+    console.error('Resend PIN Reset OTP Error:', error);
+    return errorResponse(res, 'Server error. Please try again.', 500);
   }
 };
 
