@@ -1,40 +1,43 @@
-// // models/Session.js  (ya PinSession.js)
-
 // const mongoose = require('mongoose');
 
 // const sessionSchema = new mongoose.Schema({
 //   driverId: {
 //     type: mongoose.Schema.Types.ObjectId,
 //     // ref: 'Driver',
-//     required: true,
+//     required: false,               
 //     unique: true
 //   },
 //   type: {
 //     type: String,
-//     required: true
+//     required: false               
 //   },
-//   otp: { type: String },                    // only for forgot_pin
-//   otpExpires: { type: Date },               // only for forgot_pin
-//   oldPinVerified: { type: Boolean, default: false }, // only for change_pin
-//   newPin: { type: String },               // common
-//   verified: { type: Boolean, default: false }, // for forgot_pin OTP verify
+//   otp: { type: String },
+//   otpExpires: { type: Date },
+//   oldPinVerified: { type: Boolean, default: false },
+//   newPin: { type: String },
+//   verified: { type: Boolean, default: false },
 
 //   userType: {
 //     type: String,
-//     required: true,
-//     enum: ['driver', 'admin']
+//     enum: ['driver', 'admin'],
+//     required: function() { 
+//       return this.token !== undefined; 
+//     }
 //   },
 //   token: {
 //     type: String,
-//     required: true
+//     required: function() { 
+//       return this.type === undefined || this.type.includes('login'); 
+//     }
 //   },
 //   deviceInfo: {
 //     type: String,
 //     default: 'Unknown'
 //   },
+//   ipAddress: { type: String }, 
+//   expiresAt: { type: Date }   
 // }, { timestamps: true });
 
-// // 24 hours ->  delete
 // sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
 
 // module.exports = mongoose.model('Session', sessionSchema);
@@ -44,13 +47,15 @@ const mongoose = require('mongoose');
 const sessionSchema = new mongoose.Schema({
   driverId: {
     type: mongoose.Schema.Types.ObjectId,
-    // ref: 'Driver',
-    required: false,                 // ← YE CHANGE: true se false
-    unique: true
+    ref: 'Driver',
+    required: true,                // Now required for proper querying
+    index: true                    // Indexed for performance
   },
   type: {
     type: String,
-    required: false                  // ← YE CHANGE: function hata ke false
+    required: true,                // 'login' or 'forgot_pin' — always set
+    enum: ['login', 'forgot_pin'], // Explicit allowed types
+    index: true
   },
   otp: { type: String },
   otpExpires: { type: Date },
@@ -62,13 +67,15 @@ const sessionSchema = new mongoose.Schema({
     type: String,
     enum: ['driver', 'admin'],
     required: function() { 
-      return this.token !== undefined; 
+      return this.type === 'login'; 
     }
   },
   token: {
     type: String,
+    sparse: true,                  
+    unique: true,                  
     required: function() { 
-      return this.type === undefined || this.type.includes('login'); 
+      return this.type === 'login'; 
     }
   },
   deviceInfo: {
@@ -77,8 +84,14 @@ const sessionSchema = new mongoose.Schema({
   },
   ipAddress: { type: String }, 
   expiresAt: { type: Date }   
-}, { timestamps: true });
+}, { 
+  timestamps: true 
+});
+
+sessionSchema.index({ driverId: 1, type: 1 }, { unique: true });
 
 sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+
+sessionSchema.index({ otpExpires: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Session', sessionSchema);

@@ -240,11 +240,11 @@ const journeySchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
-    status: {
-      type: String,
-      enum: ['initiated', 'completed', 'failed', 'missed', 'sent'],
-      default: 'initiated'
-    },
+    // status: {
+    //   type: String,
+    //   enum: ['initiated', 'completed', 'failed', 'missed', 'sent'],
+    //   default: 'initiated'
+    // },
     duration: {
       type: Number,
       default: 0

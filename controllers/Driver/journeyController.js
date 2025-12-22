@@ -1469,23 +1469,24 @@ exports.uploadProofSignature = async (req, res) => {
     const delivery = await Delivery.findById(deliveryId)
       .populate({
         path: 'journeyId',
-        select: 'deliveryProof'
+        select: 'deliveryProof status'
       });
 
-    if (!delivery) return errorResponse(res, 'Delivery not found', 404);
-
-    if (delivery.driverId.toString() !== req.user._id.toString()) {
-      return errorResponse(res, 'Unauthorized', 403);
+    if (!delivery) {
+      return errorResponse(res, 'Delivery not found', 404);
     }
 
-    // Allow signature in these statuses
-    if (!['picked_up', 'in_transit', 'arrived'].includes(delivery.status)) {
-      return errorResponse(res, 'Delivery not in valid state for signature', 400);
+    if (delivery.driverId.toString() !== req.user._id.toString()) {
+      return errorResponse(res, 'Unauthorized: You are not assigned to this delivery', 403);
+    }
+
+    const validStatuses = ['picked_up', 'in_transit', 'arrived'];
+    if (!validStatuses.includes(delivery.status)) {
+      return errorResponse(res, `Delivery not in valid state for signature. Current status: ${delivery.status}`, 400);
     }
 
     const signatureUrl = `/uploads/signatures/${req.file.filename}`;
 
-    // Update delivery proof
     delivery.deliveryProof = delivery.deliveryProof || {};
     delivery.deliveryProof.signature = signatureUrl;
     delivery.deliveryProof.signedBy = customerName || delivery.recipientName || 'Customer';
@@ -1499,23 +1500,35 @@ exports.uploadProofSignature = async (req, res) => {
       };
     }
 
-    // Update status
-    delivery.status = 'signature_obtained';
+    delivery.status = 'delivered';
+
     await delivery.save();
 
-    // Update journey proof
     if (delivery.journeyId) {
       delivery.journeyId.deliveryProof = delivery.journeyId.deliveryProof || {};
       delivery.journeyId.deliveryProof.signature = signatureUrl;
       delivery.journeyId.deliveryProof.signedBy = delivery.deliveryProof.signedBy;
       delivery.journeyId.deliveryProof.signedAt = new Date();
+      delivery.journeyId.deliveryProof.customerPhone = delivery.deliveryProof.customerPhone;
+
+      if (latitude && longitude) {
+        delivery.journeyId.deliveryProof.location = {
+          latitude: Number(latitude),
+          longitude: Number(longitude)
+        };
+      }
+
+      delivery.journeyId.status = 'signature_obtained';
+
       await delivery.journeyId.save();
     }
 
     return successResponse(res, 'Customer signature uploaded successfully!', {
       signatureUrl,
+      deliveryStatus: delivery.status,
+      journeyStatus: delivery.journeyId ? delivery.journeyId.status : null,
       nextStep: 'upload-proof-photos',
-      message: 'Now upload delivery proof photos'
+      message: 'Signature saved. Now please upload delivery proof photos.'
     });
 
   } catch (error) {
@@ -1523,6 +1536,7 @@ exports.uploadProofSignature = async (req, res) => {
     return errorResponse(res, 'Failed to upload signature', 500);
   }
 };
+
 // POST /api/delivery/:deliveryId/proof-photos
 exports.uploadProofPhotos = async (req, res) => {
   try {
@@ -1539,7 +1553,7 @@ exports.uploadProofPhotos = async (req, res) => {
       return errorResponse(res, 'Unauthorized', 403);
     }
 
-    if (delivery.status !== 'signature_obtained') {
+    if (delivery.status !== 'delivered') {
       return errorResponse(res, 'Signature must be uploaded first', 400);
     }
 

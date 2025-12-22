@@ -200,6 +200,7 @@ const bcrypt = require('bcryptjs');
 //     return errorResponse(res, 'Server error', 500);
 //   }
 // };
+
 exports.sendPinResetOtp = async (req, res) => {
   try {
     let { phone, emiratesId, countryCode: inputCountryCode } = req.body;
@@ -208,22 +209,19 @@ exports.sendPinResetOtp = async (req, res) => {
       return errorResponse(res, 'Phone number and Emirates ID are required', 400);
     }
 
-    // Clean phone - only digits
+    // Clean phone - remove all non-digits
     const cleanedPhone = phone.replace(/\D/g, '');
 
     if (cleanedPhone.length !== 10) {
       return errorResponse(res, 'Valid 10-digit phone number required', 400);
     }
 
-    // Use provided country code or default +91
+    // Default to +91 if no country code provided
     const countryCode = inputCountryCode?.trim() || '+91';
-
-    // Full international phone number
     const fullPhone = `${countryCode}${cleanedPhone}`;
-
     const emiratesIdClean = emiratesId.trim();
 
-    // Search driver with full phone (with country code)
+    // Find approved driver with matching phone and Emirates ID
     const driver = await Driver.findOne({
       phone: fullPhone,
       'governmentIds.emiratesId': emiratesIdClean,
@@ -234,42 +232,65 @@ exports.sendPinResetOtp = async (req, res) => {
       return errorResponse(res, 'No approved driver found with these details', 404);
     }
 
+    // Generate 4-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+    const otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes expiry
 
-    // Update or create PIN reset session
-    await Session.findOneAndUpdate(
-      { driverId: driver._id },
+    // Upsert a session document specifically for forgot_pin
+    // We match by both driverId AND type to avoid conflicts with login sessions
+    const result = await Session.findOneAndUpdate(
       {
         driverId: driver._id,
-        type: 'forgot_pin',                 // agar tumhare model mein type field hai
-        otp,
-        otpExpires,
-        verified: false,
-        newPin: null,
-        oldPinVerified: false
+        type: 'forgot_pin'  // Important: scope to forgot_pin only
       },
-      { upsert: true, setDefaultsOnInsert: true }
+      {
+        $set: {
+          otp,
+          otpExpires,
+          verified: false,
+          newPin: null,
+          oldPinVerified: false,
+          deviceInfo: req.headers['user-agent'] || 'Unknown',
+          ipAddress: req.ip || req.connection.remoteAddress
+        },
+        $setOnInsert: {
+          driverId: driver._id,
+          type: 'forgot_pin'
+        }
+      },
+      {
+        upsert: true,           // Create if doesn't exist
+        new: true,              // Return updated document
+        setDefaultsOnInsert: true
+      }
     );
 
     console.log(`PIN Reset OTP → ${driver.name} (${fullPhone}): ${otp}`);
 
-    // Mask last 4 digits for security
+    // Mask phone for response
     const maskedPhone = cleanedPhone.replace(/(\d{6})\d{4}/, '$1****');
     const maskedFullPhone = `${countryCode}${maskedPhone}`;
 
     return successResponse(res, 'OTP sent successfully!', {
       driverId: driver._id,
       name: driver.name,
-      phone: fullPhone,                   
-      maskedPhone: maskedFullPhone,       
-      countryCode: countryCode,
-      otp: otp 
+      phone: fullPhone,
+      maskedPhone: maskedFullPhone,
+      countryCode,
+      otp: otp,
+      expiresIn: '5 minutes',
+      message: `OTP sent to ${maskedFullPhone}`
     });
 
   } catch (error) {
+    // Handle duplicate key error gracefully (shouldn't happen with above fix)
+    if (error.code === 11000) {
+      console.error('Duplicate session conflict (should not occur):', error);
+      return errorResponse(res, 'Session conflict. Please try again.', 409);
+    }
+
     console.error('Send PIN Reset OTP Error:', error);
-    return errorResponse(res, 'Server error. Please try again.', 500);
+    return errorResponse(res, 'Server error. Please try again later.', 500);
   }
 };
 
