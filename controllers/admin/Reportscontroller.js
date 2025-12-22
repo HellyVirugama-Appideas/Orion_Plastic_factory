@@ -3,7 +3,7 @@ const Driver = require('../../models/Driver');
 const Expense = require('../../models/Expense');
 const Vehicle = require('../../models/Vehicle');
 const MaintenanceSchedule = require('../../models/MaintenanceSchedule');
-const ReportConfig = require('../../models/ReportConfig');
+const ReportConfig = require('../../models/Reportconfig');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 

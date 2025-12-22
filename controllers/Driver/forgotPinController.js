@@ -379,7 +379,7 @@ exports.verifyPinResetOtp = async (req, res) => {
     if (!session || session.otp !== otp || Date.now() > session.otpExpires) {
       return errorResponse(res, 'Invalid or expired OTP', 400);
     }
-
+ 
     session.verified = true;
     await session.save();
 

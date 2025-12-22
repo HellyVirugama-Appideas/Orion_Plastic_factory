@@ -1454,9 +1454,9 @@ exports.getCommunicationHistory = async (req, res) => {
     console.error('Get Communication History Error:', error.message);
     return errorResponse(res, error.message || 'Failed to get communication history', 500);
   }
-};
+}; 
 
-//  UPLOAD SIGNATURE 
+//  UPLOAD SIGNATURE  
 exports.uploadProofSignature = async (req, res) => {
   try {
     const { deliveryId } = req.params;
@@ -1526,7 +1526,7 @@ exports.uploadProofSignature = async (req, res) => {
     return successResponse(res, 'Customer signature uploaded successfully!', {
       signatureUrl,
       deliveryStatus: delivery.status,
-      journeyStatus: delivery.journeyId ? delivery.journeyId.status : null,
+      // journeyStatus: delivery.journeyId ? delivery.journeyId.status : null,
       nextStep: 'upload-proof-photos',
       message: 'Signature saved. Now please upload delivery proof photos.'
     });
@@ -1537,7 +1537,7 @@ exports.uploadProofSignature = async (req, res) => {
   }
 };
 
-// POST /api/delivery/:deliveryId/proof-photos
+//  upload proof-photos
 exports.uploadProofPhotos = async (req, res) => {
   try {
     const { deliveryId } = req.params;
@@ -1870,6 +1870,110 @@ exports.getActiveJourney = async (req, res) => {
 };
 
 //  GET JOURNEY DETAILS 
+// exports.getJourneyDetails = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+
+//     if (!/^[0-9a-fA-F]{24}$/.test(journeyId)) {
+//       return errorResponse(res, 'Invalid journey ID format', 400);
+//     }
+
+//     const journey = await Journey.findById(journeyId)
+//       .populate({
+//         path: 'deliveryId',
+//         select: 'trackingNumber status pickupLocation deliveryLocation recipientName recipientPhone packageDetails deliveryProof'
+//       })
+//       .populate({
+//         path: 'driverId',
+//         select: 'name phone vehicleNumber vehicleType profileImage rating'
+//       })
+//       .lean();
+
+//     if (!journey) {
+//       return errorResponse(res, 'Journey not found', 404);
+//     }
+
+//     const response = {
+//       journey: {
+//         id: journey._id,
+//         status: journey.status,
+//         startTime: journey.startTime,
+//         endTime: journey.endTime || null,
+//         duration: journey.totalDuration ? `${journey.totalDuration} mins` : 'Ongoing',
+//         distance: journey.totalDistance ? `${journey.totalDistance} km` : 'Calculating...',
+//         averageSpeed: journey.averageSpeed ? `${journey.averageSpeed} km/h` : 'N/A',
+//         startLocation: journey.startLocation,
+//         endLocation: journey.endLocation || null,
+//         finalRemarks: journey.finalRemarks
+//       },
+//       delivery: journey.deliveryId ? {
+//         trackingNumber: journey.deliveryId.trackingNumber,
+//         status: journey.deliveryId.status,
+//         recipient: journey.deliveryId.recipientName,
+//         phone: journey.deliveryId.recipientPhone,
+//         pickup: journey.deliveryId.pickupLocation,
+//         destination: journey.deliveryId.deliveryLocation,
+//         packageDetails: journey.deliveryId.packageDetails,
+//         proof: journey.deliveryId.deliveryProof
+//       } : null,
+//       driver: journey.driverId ? {
+//         id: journey.driverId._id,
+//         name: journey.driverId.name,
+//         phone: journey.driverId.phone,
+//         vehicle: `${journey.driverId.vehicleType} - ${journey.driverId.vehicleNumber}`,
+//         profileImage: journey.driverId.profileImage,
+//         rating: journey.driverId.rating
+//       } : null,
+//       checkpoints: journey.waypoints?.map((wp, idx) => ({
+//         number: idx + 1,
+//         location: wp.location,
+//         time: wp.timestamp,
+//         activity: wp.activity,
+//         remarks: wp.remarks
+//       })) || [],
+//       images: journey.images?.map((img, idx) => ({
+//         number: idx + 1,
+//         url: img.url,
+//         caption: img.caption,
+//         timestamp: img.timestamp,
+//         location: img.location,
+//         type: img.imageType
+//       })) || [],
+//       communications: journey.communicationLog?.map((comm, idx) => ({
+//         number: idx + 1,
+//         type: comm.type,
+//         contactName: comm.contactName,
+//         phoneNumber: comm.phoneNumber,
+//         timestamp: comm.timestamp,
+//         duration: comm.duration,
+//         status: comm.status
+//       })) || [],
+//       recordings: journey.recordings?.map((rec, idx) => ({
+//         number: idx + 1,
+//         type: rec.type,
+//         url: rec.url,
+//         timestamp: rec.timestamp,
+//         fileSize: rec.fileSize
+//       })) || [],
+//       navigation: journey.navigationHistory?.map((nav, idx) => ({
+//         number: idx + 1,
+//         destination: nav.destination,
+//         startedAt: nav.startedAt,
+//         completedAt: nav.completedAt,
+//         app: nav.navigationApp,
+//         estimatedDistance: nav.estimatedDistance,
+//         estimatedDuration: nav.estimatedDuration
+//       })) || []
+//     };
+
+//     return successResponse(res, 'Journey details retrieved successfully', response);
+
+//   } catch (error) {
+//     console.error('Get Journey Details Error:', error.message);
+//     return errorResponse(res, 'Failed to retrieve journey details', 500);
+//   }
+// };
+
 exports.getJourneyDetails = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -1893,18 +1997,53 @@ exports.getJourneyDetails = async (req, res) => {
       return errorResponse(res, 'Journey not found', 404);
     }
 
+    // === CALCULATE DURATION, DISTANCE, SPEED ON-THE-FLY IF MISSING ===
+    let durationMinutes = journey.totalDuration || 0;
+    let distanceKm = journey.totalDistance || 0;
+    let avgSpeed = journey.averageSpeed || 0;
+
+    const startTime = new Date(journey.startTime);
+    const endTime = journey.endTime ? new Date(journey.endTime) : new Date(); // use now if ongoing
+
+    // Calculate actual duration
+    const actualDurationMs = endTime - startTime;
+    durationMinutes = Math.round(actualDurationMs / 60000); // ms to minutes
+
+    // If journey is completed and totalDistance is missing/0, you may want to calculate it properly elsewhere
+    // But for now, show 0 if not tracked
+    if (journey.status === 'completed' && journey.totalDistance > 0) {
+      distanceKm = Number(journey.totalDistance.toFixed(2));
+      avgSpeed = durationMinutes > 0 
+        ? Number((journey.totalDistance / (durationMinutes / 60)).toFixed(1)) 
+        : 0;
+    }
+
+    // Format duration nicely
+    const hours = Math.floor(durationMinutes / 60);
+    const mins = durationMinutes % 60;
+    const durationFormatted = hours > 0 
+      ? `${hours}h ${mins}m` 
+      : `${mins}m`;
+
+    const isOngoing = !['completed', 'delivered', 'failed', 'cancelled', 'returned'].includes(journey.status);
+
+    // === BUILD RESPONSE ===
     const response = {
       journey: {
         id: journey._id,
         status: journey.status,
         startTime: journey.startTime,
         endTime: journey.endTime || null,
-        duration: journey.totalDuration ? `${journey.totalDuration} mins` : 'Ongoing',
-        distance: journey.totalDistance ? `${journey.totalDistance} km` : 'Calculating...',
-        averageSpeed: journey.averageSpeed ? `${journey.averageSpeed} km/h` : 'N/A',
+        duration: isOngoing ? 'Ongoing' : durationFormatted,
+        distance: journey.totalDistance > 0 
+          ? `${distanceKm} km` 
+          : (isOngoing ? 'Calculating...' : 'Not recorded'),
+        averageSpeed: avgSpeed > 0 
+          ? `${avgSpeed} km/h` 
+          : (isOngoing ? 'Calculating...' : 'N/A'),
         startLocation: journey.startLocation,
         endLocation: journey.endLocation || null,
-        finalRemarks: journey.finalRemarks
+        finalRemarks: journey.finalRemarks || null
       },
       delivery: journey.deliveryId ? {
         trackingNumber: journey.deliveryId.trackingNumber,
@@ -1914,15 +2053,15 @@ exports.getJourneyDetails = async (req, res) => {
         pickup: journey.deliveryId.pickupLocation,
         destination: journey.deliveryId.deliveryLocation,
         packageDetails: journey.deliveryId.packageDetails,
-        proof: journey.deliveryId.deliveryProof
+        proof: journey.deliveryId.deliveryProof || null
       } : null,
       driver: journey.driverId ? {
         id: journey.driverId._id,
         name: journey.driverId.name,
         phone: journey.driverId.phone,
         vehicle: `${journey.driverId.vehicleType} - ${journey.driverId.vehicleNumber}`,
-        profileImage: journey.driverId.profileImage,
-        rating: journey.driverId.rating
+        profileImage: journey.driverId.profileImage || null,
+        rating: journey.driverId.rating || 0
       } : null,
       checkpoints: journey.waypoints?.map((wp, idx) => ({
         number: idx + 1,
@@ -1934,9 +2073,9 @@ exports.getJourneyDetails = async (req, res) => {
       images: journey.images?.map((img, idx) => ({
         number: idx + 1,
         url: img.url,
-        caption: img.caption,
+        caption: img.caption || null,
         timestamp: img.timestamp,
-        location: img.location,
+        location: img.location || null,
         type: img.imageType
       })) || [],
       communications: journey.communicationLog?.map((comm, idx) => ({
@@ -1945,7 +2084,7 @@ exports.getJourneyDetails = async (req, res) => {
         contactName: comm.contactName,
         phoneNumber: comm.phoneNumber,
         timestamp: comm.timestamp,
-        duration: comm.duration,
+        duration: comm.duration || 0,
         status: comm.status
       })) || [],
       recordings: journey.recordings?.map((rec, idx) => ({
@@ -1959,7 +2098,6 @@ exports.getJourneyDetails = async (req, res) => {
         number: idx + 1,
         destination: nav.destination,
         startedAt: nav.startedAt,
-        completedAt: nav.completedAt,
         app: nav.navigationApp,
         estimatedDistance: nav.estimatedDistance,
         estimatedDuration: nav.estimatedDuration

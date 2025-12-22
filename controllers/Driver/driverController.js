@@ -139,7 +139,7 @@ exports.saveStep3 = async (req, res) => {
   }
 };
 
- // Final: Phone + OTP → Create Real Driver
+// Final: Phone + OTP → Create Real Driver
 // exports.finalSignup = async (req, res) => {
 //   try {
 //     const { tempId, phone } = req.body;
@@ -224,8 +224,8 @@ exports.finalSignup = async (req, res) => {
       { tempId },
       {
         $set: {
-          phone: fullPhone,           
-          countryCode: countryCode,   
+          phone: fullPhone,
+          countryCode: countryCode,
           otp,
           otpExpiresAt
         }
@@ -241,7 +241,7 @@ exports.finalSignup = async (req, res) => {
 
     return successResponse(res, 'OTP sent successfully!', {
       message: 'Check your phone for 4-digit code',
-      otp: otp  
+      otp: otp
     });
 
   } catch (error) {
@@ -525,7 +525,7 @@ exports.login = async (req, res) => {
 
     // YE LINE SAHI KARO — single quotes hata do!
     const driver = await Driver.findOne({
-      "governmentIds.emiratesId": emiratesIdClean,    
+      "governmentIds.emiratesId": emiratesIdClean,
       vehicleNumber: vehicleNumberClean,
       profileStatus: 'approved'
     });
@@ -534,7 +534,7 @@ exports.login = async (req, res) => {
       // Debug ke liye — yeh hata dena baad mein
       const all = await Driver.find({ profileStatus: 'approved' }).select('governmentIds.emiratesId vehicleNumber name');
       console.log("All approved drivers:", all);
-      
+
       return errorResponse(res, 'Invalid Emirates ID or Vehicle Number', 400);
     }
 
@@ -555,69 +555,177 @@ exports.login = async (req, res) => {
   }
 };
 
+/// step-2 pin verify
+// exports.verifyPin = async (req, res) => {
+//   try {
+//     const { driverId, pin } = req.body;
 
+//     // Validation
+//     if (!driverId || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+//       return errorResponse(res, 'Valid 4-digit PIN required', 400);
+//     }
+
+//     const driver = await Driver.findById(driverId).select('+pin'); // +pin because it's select: false by default
+//     if (!driver) {
+//       return errorResponse(res, 'Driver not found', 404);
+//     }
+
+//     // Check if approved
+//     if (driver.profileStatus !== 'approved') {
+//       return errorResponse(res, 'Account not approved by admin yet', 403);
+//     }
+
+//     // Verify PIN
+//     const isMatch = await driver.comparePin(pin);
+//     if (!isMatch) {
+//       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
+//       if (driver.pinAttempts >= 5) {
+//         driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock 30 min
+//       }
+//       await driver.save();
+//       return errorResponse(res, 'Incorrect PIN', 400);
+//     }
+
+//     // Reset attempts on success
+//     driver.pinAttempts = 0;
+//     driver.pinLockedUntil = null;
+//     await driver.save();
+
+//     // GENERATE BOTH TOKENS
+//     const accessToken = generateAccessToken(driver._id, 'driver');
+//     const refreshToken = generateRefreshToken(driver._id, 'driver');
+
+//     // Optional: Save refresh token in DB (recommended for logout feature)
+//     driver.refreshToken = refreshToken;
+//     driver.lastLoginAt = new Date();
+//     await driver.save();
+
+//     // Send to frontend
+//     return successResponse(res, 'Login successful!', {
+//       tokens: {
+//         accessToken,
+//         refreshToken,
+//         expiresIn: 24 * 60 * 60 // 24 hours in seconds
+//       },
+//       driver: {
+//         _id: driver._id,
+//         name: driver.name,
+//         phone: driver.phone,
+//         vehicleNumber: driver.vehicleNumber,
+//         emiratesId: driver.governmentIds?.emiratesId,
+//         profileImage: driver.profileImage || null,
+//         isAvailable: driver.isAvailable
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('PIN Verify Error:', error);
+//     return errorResponse(res, 'Login failed. Please try again.', 500);
+//   }
+// };
 
 /// step-2 pin verify
 exports.verifyPin = async (req, res) => {
   try {
     const { driverId, pin } = req.body;
 
-    // Validation
     if (!driverId || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
       return errorResponse(res, 'Valid 4-digit PIN required', 400);
     }
 
-    const driver = await Driver.findById(driverId).select('+pin'); // +pin because it's select: false by default
+    const driver = await Driver.findById(driverId)
+      .select('+pin +documents +governmentIds +pinAttempts +pinLockedUntil +profileStatus +vehicleNumber +vehicleType +rating');
+
     if (!driver) {
       return errorResponse(res, 'Driver not found', 404);
     }
 
-    // Check if approved
     if (driver.profileStatus !== 'approved') {
       return errorResponse(res, 'Account not approved by admin yet', 403);
     }
 
-    // Verify PIN
+    if (driver.pinLockedUntil && new Date() < driver.pinLockedUntil) {
+      const minutesLeft = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
+      return errorResponse(res, `PIN locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}`, 423);
+    }
+
     const isMatch = await driver.comparePin(pin);
     if (!isMatch) {
-      // Optional: Add PIN attempt counter
       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
       if (driver.pinAttempts >= 5) {
-        driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock 30 min
+        driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000);
       }
       await driver.save();
       return errorResponse(res, 'Incorrect PIN', 400);
     }
 
-    // Reset attempts on success
+    // Reset on success
     driver.pinAttempts = 0;
     driver.pinLockedUntil = null;
-    await driver.save();
+    driver.lastLoginAt = new Date();
 
-    // GENERATE BOTH TOKENS
     const accessToken = generateAccessToken(driver._id, 'driver');
     const refreshToken = generateRefreshToken(driver._id, 'driver');
-
-    // Optional: Save refresh token in DB (recommended for logout feature)
     driver.refreshToken = refreshToken;
-    driver.lastLoginAt = new Date();
+
     await driver.save();
 
-    // Send to frontend
+    // === EXTRACT FROM ARRAY BASED ON documentType ===
+    const docs = driver.documents || [];
+
+    let licenseNumber = null;
+    let licenseFront = null;
+    let licenseBack = null;
+    let rcNumber = null;
+    let rcFront = null;
+    let rcBack = null;
+
+    docs.forEach(doc => {
+      switch (doc.documentType) {
+        case 'license_front':
+          licenseFront = doc.fileUrl;
+          if (doc.documentNumber) licenseNumber = doc.documentNumber;
+          break;
+        case 'license_back':
+          licenseBack = doc.fileUrl;
+          break;
+        case 'vehicle_rc_front':
+          rcFront = doc.fileUrl;
+          if (doc.documentNumber) rcNumber = doc.documentNumber;
+          break;
+        case 'vehicle_rc_back':
+          rcBack = doc.fileUrl;
+          break;
+      }
+    });
+
     return successResponse(res, 'Login successful!', {
       tokens: {
         accessToken,
         refreshToken,
-        expiresIn: 24 * 60 * 60 // 24 hours in seconds
+        expiresIn: 24 * 60 * 60
       },
       driver: {
         _id: driver._id,
         name: driver.name,
         phone: driver.phone,
         vehicleNumber: driver.vehicleNumber,
-        emiratesId: driver.governmentIds?.emiratesId,
+        vehicleType: driver.vehicleType,
+        emiratesId: driver.governmentIds?.emiratesId || null,
         profileImage: driver.profileImage || null,
-        isAvailable: driver.isAvailable
+        isAvailable: driver.isAvailable,
+        rating: driver.rating || 0,
+
+        license: {
+          number: licenseNumber,
+          frontImage: licenseFront,
+          backImage: licenseBack
+        },
+        vehicleRegistration: {
+          number: rcNumber,
+          frontImage: rcFront,
+          backImage: rcBack
+        }
       }
     });
 
@@ -765,7 +873,7 @@ exports.updateLicense = async (req, res) => {
     }
 
     // Replace old license documents
-    driver.documents = driver.documents.filter(d => 
+    driver.documents = driver.documents.filter(d =>
       !['license_front', 'license_back'].includes(d.documentType)
     );
 
@@ -817,7 +925,7 @@ exports.updateRC = async (req, res) => {
     }
 
     // Remove old RC documents
-    driver.documents = driver.documents.filter(d => 
+    driver.documents = driver.documents.filter(d =>
       !['vehicle_rc_front', 'vehicle_rc_back'].includes(d.documentType)
     );
 
@@ -875,7 +983,7 @@ exports.updateLicense = async (req, res) => {
     }
 
     // Replace old license documents
-    driver.documents = driver.documents.filter(d => 
+    driver.documents = driver.documents.filter(d =>
       !['license_front', 'license_back'].includes(d.documentType)
     );
 
@@ -926,7 +1034,7 @@ exports.updateRC = async (req, res) => {
     }
 
     // Remove old RC documents
-    driver.documents = driver.documents.filter(d => 
+    driver.documents = driver.documents.filter(d =>
       !['vehicle_rc_front', 'vehicle_rc_back'].includes(d.documentType)
     );
 

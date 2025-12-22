@@ -131,6 +131,7 @@ const journeySchema = new mongoose.Schema({
       'delivered',
       'failed',
       'cancelled',
+      'completed',
       'returned'
     ],
     default: 'pending',

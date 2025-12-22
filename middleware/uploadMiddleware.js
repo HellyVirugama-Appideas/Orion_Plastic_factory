@@ -345,7 +345,7 @@ module.exports = {
   uploadDocument: upload.single('document'),
   uploadProfileImage: upload.single('profileImage'),
   uploadJourneyImage: uploadImageOnly.single('image'),
-  uploadEndJourneyImage: uploadImageOnly.single("image"),
+  uploadEndJourneyImage: upload.array("photos", 10),
   uploadSignature: uploadImageOnly.single('signature'),
   uploadMultipleDocuments: upload.array('documents', 15),
 
@@ -375,6 +375,7 @@ module.exports = {
   uploadExpenseReceipts: upload.fields([
     { name: 'fuel_receipt', maxCount: 1 },
     { name: 'meter_photo', maxCount: 1 },
+    { name: 'expense_bill', maxCount: 1 },
     { name: 'vehicle_photo', maxCount: 1 }
   ]),
 

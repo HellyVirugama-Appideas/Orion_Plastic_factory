@@ -101,7 +101,7 @@ router.post(
   uploadProofPhotos
 ),
 router.post(
-  "/journey/:journeyId/complete-delivery",
+  "/:journeyId/complete-delivery",
   authenticateDriver,
   isDriver,
   completeDelivery
