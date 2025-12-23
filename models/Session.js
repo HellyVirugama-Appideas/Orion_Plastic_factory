@@ -42,19 +42,97 @@
 
 // module.exports = mongoose.model('Session', sessionSchema);
 
+////////////////////////////////2
+
+// const mongoose = require('mongoose');
+
+// const sessionSchema = new mongoose.Schema({
+//   driverId: {
+//     type: mongoose.Schema.Types.ObjectId,
+//     ref: 'Driver',
+//     required: false,                
+//     index: true                  
+//   },
+//   adminId: {
+//     type: mongoose.Schema.Types.ObjectId,
+//     ref: 'Admin',
+//     required: false,
+//     index: true
+//   },
+//   type: {
+//     type: String,
+//     required: true,               
+//     enum: ['login', 'forgot_pin','login_session'],
+//     index: true
+//   },
+//   otp: { type: String },
+//   otpExpires: { type: Date },
+//   oldPinVerified: { type: Boolean, default: false },
+//   newPin: { type: String },
+//   verified: { type: Boolean, default: false },
+
+//   userType: {
+//     type: String,
+//     enum: ['driver', 'admin'],
+//    index : true
+//   },
+//   token: {
+//     type: String,
+//     sparse: true,                  
+//     unique: true,                  
+//     required: function() { 
+//       return this.type === 'login'|| this.type === 'login_session'; 
+//     }
+//   },
+//   deviceInfo: {
+//     type: String,
+//     default: 'Unknown'
+//   },
+//   ipAddress: { type: String }, 
+//   expiresAt: { type: Date }   
+// }, { 
+//   timestamps: true 
+// });
+
+// // sessionSchema.index({ driverId: 1, type: 1 }, { unique: true });
+// // sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 }); // auto delete old sessions
+// // sessionSchema.index({ otpExpires: 1 }, { expireAfterSeconds: 0 });
+
+// // ========== IMPORTANT: UNIQUE INDEX HATAYA (kyunki null values duplicate allow nahi karte) ==========
+// sessionSchema.index({ driverId: 1, type: 1 });           // ← unique nahi, normal index
+// sessionSchema.index({ adminId: 1, type: 1 });            // ← unique nahi, normal index
+// sessionSchema.index({ userType: 1, type: 1 });
+
+// // Token pe unique rakho (ye safe hai kyunki token hamesha unique hota hai)
+// sessionSchema.index({ token: 1 }, { unique: true, sparse: true });
+
+// // Auto cleanup
+// sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+// sessionSchema.index({ otpExpires: 1 }, { expireAfterSeconds: 0 });
+
+// module.exports = mongoose.model('Session', sessionSchema);
+
+
+
 const mongoose = require('mongoose');
 
 const sessionSchema = new mongoose.Schema({
   driverId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Driver',
-    required: true,                // Now required for proper querying
-    index: true                    // Indexed for performance
+    required: false,
+    index: true
+  },
+  adminId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    required: false,
+    index: true
   },
   type: {
     type: String,
-    required: true,                // 'login' or 'forgot_pin' — always set
-    enum: ['login', 'forgot_pin'], // Explicit allowed types
+    required: true,
+    enum: ['login', 'forgot_pin', 'login_session'],
     index: true
   },
   otp: { type: String },
@@ -66,32 +144,31 @@ const sessionSchema = new mongoose.Schema({
   userType: {
     type: String,
     enum: ['driver', 'admin'],
-    required: function() { 
-      return this.type === 'login'; 
-    }
+    required: true,
+    index: true
   },
   token: {
     type: String,
-    sparse: true,                  
-    unique: true,                  
+    sparse: true,
+    unique: true,
     required: function() { 
-      return this.type === 'login'; 
+      return this.type === 'login' || this.type === 'login_session';
     }
   },
-  deviceInfo: {
-    type: String,
-    default: 'Unknown'
-  },
-  ipAddress: { type: String }, 
-  expiresAt: { type: Date }   
-}, { 
-  timestamps: true 
-});
+  deviceInfo: { type: String, default: 'Unknown' },
+  ipAddress: { type: String },
+  expiresAt: { type: Date }
+}, { timestamps: true });
 
-sessionSchema.index({ driverId: 1, type: 1 }, { unique: true });
+sessionSchema.index({ driverId: 1, type: 1 });          
+sessionSchema.index({ adminId: 1, type: 1 });            
+sessionSchema.index({ userType: 1, type: 1 });
 
+
+sessionSchema.index({ token: 1 }, { unique: true, sparse: true });
+
+// Auto cleanup
 sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
-
 sessionSchema.index({ otpExpires: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Session', sessionSchema);

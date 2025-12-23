@@ -4,15 +4,48 @@ const chatController = require('../../controllers/admin/Chatcontroller');
 const reportsController = require('../../controllers/admin/Reportscontroller');
 const analyticsController = require('../../controllers/admin/Analyticscontroller');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
+const { uploadChatMedia, handleUploadError } = require('../../middleware/uploadMiddleware');
 
 // ==================== CHAT ROUTES ====================
 
-router.get('/chat/conversations', protectAdmin, isAdmin, chatController.getConversations);
-router.get('/chat/:conversationId/messages', protectAdmin, isAdmin, chatController.getMessages);
-router.post('/chat/send', protectAdmin, isAdmin, chatController.sendMessage);
-router.patch('/chat/:conversationId/read', protectAdmin, isAdmin, chatController.markAsRead);
-router.get('/chat/unread-count', protectAdmin, isAdmin, chatController.getUnreadCount);
-router.delete('/chat/message/:messageId', protectAdmin, isAdmin, chatController.deleteMessage);
+router.get(
+    '/chat/conversations',
+    protectAdmin,
+    isAdmin,
+    chatController.getConversations
+);
+router.get(
+    '/chat/:conversationId/messages',
+    protectAdmin,
+    isAdmin,
+    chatController.getMessages
+);
+router.post(
+    '/chat/send',
+    protectAdmin,
+    isAdmin,
+    uploadChatMedia,
+    handleUploadError,
+    chatController.sendMessage
+);
+
+router.patch(
+    "/chat/message/:messageId/edit",
+    protectAdmin,
+    isAdmin,
+    chatController.editMessage
+)
+
+router.delete(
+    "/chat/message/:messageId",
+    protectAdmin,
+    isAdmin,
+    chatController.deleteMessage
+)
+
+
+// router.patch('/chat/:conversationId/read', protectAdmin, isAdmin, chatController.markAsRead);
+// router.get('/chat/unread-count', protectAdmin, isAdmin, chatController.getUnreadCount);
 
 // ==================== REPORTS ROUTES ====================
 

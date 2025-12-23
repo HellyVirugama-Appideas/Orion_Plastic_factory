@@ -18,7 +18,7 @@ const chatMessageSchema = new mongoose.Schema({
   },
   receiverId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true,
+    required: false,
     refPath: 'receiverType'
   },
   receiverType: {
@@ -28,7 +28,7 @@ const chatMessageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ['text', 'image', 'audio', 'video', 'location', 'file'],
+    enum: ['text', 'image', 'video', 'audio', 'document', 'location'],
     default: 'text'
   },
   content: {
@@ -36,6 +36,8 @@ const chatMessageSchema = new mongoose.Schema({
     required: true
   },
   mediaUrl: String,
+  fileName: { type: String }, // document ka original name (e.g. invoice.pdf)
+  mimeType: { type: String }, // image/jpeg, application/pdf etc.
   location: {
     latitude: Number,
     longitude: Number,
@@ -58,7 +60,21 @@ const chatMessageSchema = new mongoose.Schema({
   metadata: {
     type: Map,
     of: String
-  }
+  },
+  // Edit & Delete features
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
+  editedAt: {
+    type: Date
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: { type: Date },
+  deletedForEveryone: { type: Boolean, default: false },
 }, {
   timestamps: true
 });
@@ -73,3 +89,4 @@ chatMessageSchema.index({ isRead: 1 });
 chatMessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7776000 });
 
 module.exports = mongoose.model('ChatMessage', chatMessageSchema);
+

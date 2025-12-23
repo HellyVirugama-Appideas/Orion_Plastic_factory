@@ -420,7 +420,7 @@ exports.adminSignin = async (req, res) => {
 
     // Create session
     await Session.create({
-      userId: admin._id,
+      adminId: admin._id,
       type: 'login_session',
       userType: 'admin',
       token: accessToken,
@@ -429,20 +429,22 @@ exports.adminSignin = async (req, res) => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
 
-    successResponse(res, 'Admin login successful', {
-      admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        phone: admin.phone,
-        department: admin.department,
-        employeeId: admin.employeeId,
-        permissions: admin.permissions,
-        isSuperAdmin: admin.isSuperAdmin
-      },
-      accessToken,
-      refreshToken
-    });
+    // successResponse(res, 'Admin login successful', {
+    //   admin: {
+    //     id: admin._id,
+    //     name: admin.name,
+    //     email: admin.email,
+    //     phone: admin.phone,
+    //     department: admin.department,
+    //     employeeId: admin.employeeId,
+    //     permissions: admin.permissions,
+    //     isSuperAdmin: admin.isSuperAdmin
+    //   },
+    //   accessToken,
+    //   refreshToken
+    // });
+
+     res.redirect('/admin');
 
   } catch (error) {
     console.error('Admin Signin Error:', error);
@@ -451,26 +453,44 @@ exports.adminSignin = async (req, res) => {
 };
 // Render login page
 exports.renderLogin = async (req, res) => {
-  res.render("auth/login", { error: null });
+  res.render("login", { error: null });
 };
 
+exports.getDashboard = async (req, res) => {
+    var data = {};
+    data.user = await User.find({ isDelete: false }).count();
+    data.vendor = await Vendor.find({ isDelete: false }).count();
+
+    // Calculate Total Earn Points (sum of all earnedPoints from accepted transactions)
+    const earnPointsResult = await Transaction.aggregate([
+        { $match: { status: 'accepted' } },
+        { $group: { _id: null, total: { $sum: '$earnedPoints' } } }
+    ]);
+    data.totalEarnPoints = earnPointsResult.length > 0 ? earnPointsResult[0].total : 0;
+
+    // Calculate Total Redeem Points (sum of all spentPoints from accepted transactions)
+    const redeemPointsResult = await Transaction.aggregate([
+        { $match: { status: 'accepted' } },
+        { $group: { _id: null, total: { $sum: '$spentPoints' } } }
+    ]);
+    data.totalRedeemPoints = redeemPointsResult.length > 0 ? redeemPointsResult[0].total : 0;
+
+    res.render('index', { data });
+};
 
 // Get Admin Profile
 exports.getAdminProfile = async (req, res) => {
   try {
-    // GALAT → req.user._id
-    // const admin = await Admin.findById(req.user._id);
-
-    // SAHI → req.admin._id (kyunki protectAdmin middleware req.admin set karta hai)
     const admin = await Admin.findById(req.admin._id);
 
     if (!admin) {
       return errorResponse(res, 'Admin not found', 404);
     }
 
-    successResponse(res, 'Admin profile retrieved successfully', {
-      admin: admin.toJSON()
-    });
+    // successResponse(res, 'Admin profile retrieved successfully', {
+    //   admin: admin.toJSON()
+    // });
+    res.render('profile', { admin: req.admin, photo: req.admin.photo });
 
   } catch (error) {
     console.error('Get Admin Profile Error:', error);

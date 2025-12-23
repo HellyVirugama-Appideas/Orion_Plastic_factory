@@ -53,7 +53,7 @@
 // });
 
 // // Make io globally accessible
-// global.io = io;
+//   = io;
 
 // // Connect DB
 // connectDB();
@@ -204,6 +204,7 @@ const cookieParser = require("cookie-parser");
 const session = require('express-session');
 const compression = require('compression');
 const helmet = require('helmet');
+const flash = require('connect-flash');
 
 // Import configurations
 const connectDB = require('./config/db');
@@ -289,6 +290,19 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// Express Messages middleware
+app.use(flash());
+app.use((req, res, next) => {
+    res.locals.messages = req.flash();
+    res.locals.dateOptions = {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+    };
+    res.locals.dateLocale = "en-US";
+    next();
+});
 
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
@@ -499,6 +513,12 @@ io.on("connection", (socket) => {
     }
   });
 
+  global.io.to('admin-room').emit('chat:message-deleted', {
+  conversationId,
+  messageId: message._id,
+  deletedForEveryone  
+});
+
   // ==================== NOTIFICATIONS ====================
 
   // Client subscribes to notifications
@@ -573,7 +593,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/chat", driverChatRoutes)
 
 // Admin Routes (Existing)
-app.use('/admin', adminRoutes);
+app.use('/admin/', adminRoutes);
 app.use("/admin/order", orderRoutes);
 app.use("/admin/vehicles", vehicleRoutes);
 app.use("/admin/regions", regionRoutes);
@@ -587,15 +607,8 @@ app.use("/admin/tracking", AdminTrackingRoutes);
 app.use("/admin/onboarding", onboardingRoutes)
 app.use('/admin/drivers',driverApprovalRoutes)
 
-// Routes
-app.get("/", (req, res) => {
-  try {
-    res.render("auth/login", { error: null });
-  } catch (error) {
-    console.error('Root route error:', error);
-    res.send('<h1>Orion Admin</h1><p>Please check your views/admin/login.ejs file</p>');
-  }
-});
+// app.all('/admin/*', (req, res) => res.status(404).render('404'));
+
 
 // Chat, Notifications, Reports, Analytics
 app.use('/api/admin', communicationRoutes);

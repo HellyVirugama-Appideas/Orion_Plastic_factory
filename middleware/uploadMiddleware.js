@@ -246,7 +246,8 @@ const fs = require('fs');
   'public/uploads/signatures',
   'public/uploads/maintenance',
   'public/uploads/expenses',
-  'public/uploads/onboarding'
+  'public/uploads/onboarding',
+  'public/uploads/chat'
 ].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -278,9 +279,36 @@ const allowOnboardingMedia = (req, file, cb) => {
   else cb(new Error('Only images & videos (mp4, mov, webm) allowed for onboarding!'), false);
 };
 
+// ==================== CHAT MEDIA FILTER ====================
+const allowChatMedia = (req, file, cb) => {
+  const allowedMimeTypes = [
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'video/quicktime', 'video/webm',
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg',
+    'application/pdf',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .doc, .docx
+    'text/plain'
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('File type not allowed in chat! Allowed: images, videos, audio, PDF, documents'), false);
+  }
+};
+
+// ==================== CHAT STORAGE ====================
+const chatStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'public/uploads/chat/');
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `chat-${unique}${path.extname(file.originalname)}`);
+  }
+});
 
 // DYNAMIC STORAGE (Smart Folder Detection)
-
 const smartStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     let folder = 'public/uploads/documents/';
@@ -307,7 +335,6 @@ const smartStorage = multer.diskStorage({
 });
 
 // ONBOARDING SPECIFIC STORAGE (Clean & Dedicated)
-
 const onboardingStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'public/uploads/onboarding/');
@@ -336,6 +363,12 @@ const uploadOnboarding = multer({
   storage: onboardingStorage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB (for video)
   fileFilter: allowOnboardingMedia
+});
+
+const uploadChatMedia = multer({
+  storage: chatStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB max for chat files
+  fileFilter: allowChatMedia
 });
 
 // EXPORTS — SAB KUCH YAHAN SE USE HOGA!
@@ -381,6 +414,9 @@ module.exports = {
 
   // ONBOARDING (SPLASH + TUTORIAL)
   uploadOnboardingMedia: uploadOnboarding.single('media'),
+
+  ///chat
+  uploadChatMedia: uploadChatMedia.single('media'),
 
   // Error Handler (Use in Routes)
   handleUploadError: (err, req, res, next) => {

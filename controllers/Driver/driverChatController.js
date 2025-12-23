@@ -1,53 +1,54 @@
 const ChatMessage = require('../../models/Chatmessage');
 const Driver = require('../../models/Driver');
 
-// Helper to generate conversation ID
-const generateConversationId = (userId1, userId2) => {
-  const ids = [userId1.toString(), userId2.toString()].sort();
-  return `${ids[0]}_${ids[1]}`;
-};
+// Helper to generate conversation ID (driver_admin)
+const generateConversationId = (driverId) => `${driverId}_admin`;
 
-// Get Driver's Conversations (with Admin)
+// Get Driver Conversations (only one: Support)
 exports.getDriverConversations = async (req, res) => {
   try {
-    const driverId = req.driver._id;
-
-    const conversations = await ChatMessage.aggregate([
-      {
-        $match: {
-          $or: [
-            { senderId: driverId, senderType: 'Driver' },
-            { receiverId: driverId, receiverType: 'Driver' }
-          ]
-        }
-      },
-      { $sort: { createdAt: -1 } },
-      {
-        $group: {
-          _id: '$conversationId',
-          lastMessage: { $first: '$$ROOT' },
-          unreadCount: {
-            $sum: {
-              $cond: [
-                { $and: [{ $eq: ['$receiverId', driverId] }, { $eq: ['$isRead', false] }] },
-                1, 0
-              ]
-            }
-          }
-        }
-      },
-      { $sort: { 'lastMessage.createdAt': -1 } }
-    ]);
-
-    // Only one participant: Admin
-    for (let conv of conversations) {
-      conv.participant = {
-        id: 'admin',
-        name: 'Admin Support',
-        type: 'admin',
-        profileImage: '/images/admin-avatar.png'
-      };
+    // CHANGE HERE: req.driver → req.user
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
+    const driverId = req.user._id;
+    const driver = req.user; // ab req.user me driver hai
+
+    const conversationId = generateConversationId(driverId);
+
+    const lastMessage = await ChatMessage.findOne({ conversationId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const unreadCount = await ChatMessage.countDocuments({
+      conversationId,
+      receiverId: driverId,
+      receiverType: 'Driver',
+      isRead: false
+    });
+
+    const conversations = [{
+      conversationId,
+      participant: {
+        id: 'admin',
+        name: 'Support',
+        type: 'admin',
+        profileImage: '/images/support-avatar.png'
+      },
+      lastMessage: lastMessage ? {
+        content: lastMessage.messageType === 'text' 
+          ? lastMessage.content 
+          : (lastMessage.messageType === 'image' ? 'Photo' : 'Media'),
+        createdAt: lastMessage.createdAt,
+        isFromMe: lastMessage.senderType === 'Driver'
+      } : null,
+      unreadCount,
+      driverInfo: {
+        name: driver.name,
+        vehicleNumber: driver.vehicleNumber || 'Not assigned'
+      }
+    }];
 
     return res.status(200).json({
       success: true,
@@ -60,15 +61,20 @@ exports.getDriverConversations = async (req, res) => {
   }
 };
 
-// Get Messages in Conversation
+// Get Messages
 exports.getDriverMessages = async (req, res) => {
   try {
+    // CHANGE HERE: req.driver → req.user
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const { conversationId } = req.params;
-    const driverId = req.driver._id;
+    const driverId = req.user._id;
 
     const messages = await ChatMessage.find({ conversationId })
       .sort({ createdAt: 1 })
-      .populate('senderId', 'name profileImage')
+      .populate('senderId', 'name profileImage vehicleNumber')
       .lean();
 
     // Mark as read
@@ -88,56 +94,163 @@ exports.getDriverMessages = async (req, res) => {
   }
 };
 
-// Send Message from Driver to Admin
+// Send Message from Driver
+// exports.sendMessageFromDriver = async (req, res) => {
+//   try {
+//     // CHANGE HERE: req.driver → req.user
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({ success: false, message: 'Unauthorized' });
+//     }
+
+//     const driver = req.user;
+//     const { content, messageType = 'text', mediaUrl, location } = req.body;
+
+//     if (!content && !mediaUrl) {
+//       return res.status(400).json({ success: false, message: 'Message content required' });
+//     }
+
+//     const conversationId = generateConversationId(driver._id);
+
+//     const message = await ChatMessage.create({
+//       conversationId,
+//       senderId: driver._id,
+//       senderType: 'Driver',
+//       receiverId: null,
+//       receiverType: 'Admin',
+//       messageType,
+//       content: content || (messageType === 'image' ? 'Photo' : 'Media'),
+//       mediaUrl,
+//       location,
+//       isDelivered: true,
+//       deliveredAt: new Date()
+//     });
+
+//     await message.populate('senderId', 'name profileImage vehicleNumber');
+
+//     // Real-time Socket.IO emit
+//     if (global.io) {
+//       global.io.to('admin-room').emit('chat:new-message', {
+//         conversationId,
+//         message: {
+//           ...message.toObject(),
+//           sender: {
+//             _id: driver._id,
+//             name: driver.name,
+//             phone: driver.phone,
+//             vehicleNumber: driver.vehicleNumber,
+//             profileImage: driver.profileImage
+//           }
+//         }
+//       });
+
+//       // Send back to driver instantly
+//       global.io.to(`driver-${driver._id}`).emit('chat:new-message', {
+//         conversationId,
+//         message: message.toObject()
+//       });
+//     }
+
+//     return res.status(201).json({
+//       success: true,
+//       message: 'Message sent successfully',
+//       data: { message }
+//     });
+
+//   } catch (error) {
+//     console.error('Driver Send Message Error:', error);
+//     return res.status(500).json({ success: false, message: 'Failed to send message' });
+//   }
+// };
+
+// controllers/Driver/driverChatController.js
+
 exports.sendMessageFromDriver = async (req, res) => {
   try {
-    const driver = req.driver;
-    const { content, messageType = 'text', mediaUrl, location } = req.body;
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-    const conversationId = generateConversationId(driver._id, 'admin');
+    const driver = req.user;
+    let { content, messageType = 'text', location } = req.body;
+
+    // Parse location if sent as string (common in form-data)
+    if (location && typeof location === 'string') {
+      try {
+        location = JSON.parse(location);
+      } catch (e) {
+        location = null;
+      }
+    }
+
+    let mediaUrl = null;
+    let fileName = null;
+    let mimeType = null;
+
+    // Agar file upload hui hai (image, pdf, video etc.)
+    if (req.file) {
+      mediaUrl = `/uploads/chat/${req.file.filename}`;
+      fileName = req.file.originalname;
+      mimeType = req.file.mimetype;
+
+      // Auto detect messageType from mime
+      if (mimeType.startsWith('image/')) messageType = 'image';
+      else if (mimeType.startsWith('video/')) messageType = 'video';
+      else if (mimeType.startsWith('audio/')) messageType = 'audio';
+      else if (mimeType === 'application/pdf') messageType = 'document';
+      else messageType = 'document';
+    }
+
+    // Validation
+    if (!content && !mediaUrl && messageType !== 'location') {
+      return res.status(400).json({ success: false, message: 'Message content or media required' });
+    }
+
+    const conversationId = generateConversationId(driver._id);
 
     const message = await ChatMessage.create({
       conversationId,
       senderId: driver._id,
       senderType: 'Driver',
-      receiverId: null, 
+      receiverId: null,
       receiverType: 'Admin',
       messageType,
-      content,
+      content: content || null,
       mediaUrl,
-      location,
+      fileName,
+      mimeType,
+      location: location || null,
       isDelivered: true,
       deliveredAt: new Date()
     });
 
     await message.populate('senderId', 'name profileImage vehicleNumber');
 
-    // Emit to Admin Panel
+    const messageObj = message.toObject();
+
+    // Real-time emit
     if (global.io) {
-      global.io.to('admin-room').emit('chat:new-message', {
+      const payload = {
         conversationId,
         message: {
-          ...message.toObject(),
-          senderId: {
+          ...messageObj,
+          sender: {
             _id: driver._id,
-            name: driver.name || driver.phone,
-            profileImage: driver.profileImage,
-            vehicleNumber: driver.vehicleNumber
+            name: driver.name,
+            phone: driver.phone,
+            vehicleNumber: driver.vehicleNumber,
+            profileImage: driver.profileImage
           }
         }
-      });
+      };
 
-      // Also emit to conversation room
-      global.io.to(`conversation-${conversationId}`).emit('chat:new-message', {
-        conversationId,
-        message
-      });
+      global.io.to('admin-room').emit('chat:new-message', payload);
+      global.io.to(`driver-${driver._id}`).emit('chat:new-message', payload);
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Message sent to admin',
-      data: { message }
+      message: 'Message sent successfully',
+      data: { message: messageObj }
     });
 
   } catch (error) {
@@ -146,4 +259,117 @@ exports.sendMessageFromDriver = async (req, res) => {
   }
 };
 
-module.exports = exports;
+// Edit Message
+exports.editMessage = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+    const { content } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ success: false, message: 'New content required' });
+    }
+
+    const message = await ChatMessage.findOne({
+      _id: messageId,
+      senderId: req.user._id,
+      senderType: 'Driver',
+      isDeleted: false
+    });
+
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found or not yours' });
+    }
+
+    message.content = content;
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    await message.populate('senderId', 'name profileImage vehicleNumber');
+
+    const conversationId = message.conversationId;
+
+    if (global.io) {
+      const payload = {
+        conversationId,
+        message: {
+          ...message.toObject(),
+          sender: {
+            _id: req.user._id,
+            name: req.user.name,
+            vehicleNumber: req.user.vehicleNumber,
+            profileImage: req.user.profileImage
+          }
+        }
+      };
+
+      global.io.to('admin-room').emit('chat:message-edited', payload);
+      global.io.to(`driver-${req.user._id}`).emit('chat:message-edited', payload);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Message edited',
+      data: { message }
+    });
+
+  } catch (error) {
+    console.error('Edit Message Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to edit message' });
+  }
+};
+
+// Delete Message
+exports.deleteMessage = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { messageId } = req.params;
+    const body = req.body || {}; // ← Safety
+    const deleteForEveryone = body.deleteForEveryone === true; // ← Explicitly boolean banao
+
+    const message = await ChatMessage.findOne({
+      _id: messageId,
+      senderId: req.user._id,
+      senderType: 'Driver'
+    });
+
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found or not yours' });
+    }
+
+    message.isDeleted = true;
+    message.deletedAt = new Date();
+    message.deletedForEveryone = deleteForEveryone;
+    await message.save();
+
+    const conversationId = message.conversationId;
+
+    if (global.io) {
+      const payload = {
+        conversationId,
+        messageId: message._id,
+        deletedForEveryone: deleteForEveryone  // ← Yahan variable sahi se use karo
+      };
+
+      global.io.to('admin-room').emit('chat:message-deleted', payload);
+      global.io.to(`driver-${req.user._id}`).emit('chat:message-deleted', payload);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: deleteForEveryone ? 'Message deleted for everyone' : 'Message deleted'
+    });
+
+  } catch (error) {
+    console.error('Delete Message Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete message' });
+  }
+};
+

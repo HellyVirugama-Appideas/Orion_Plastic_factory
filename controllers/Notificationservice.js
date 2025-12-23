@@ -5,7 +5,7 @@ const axios = require('axios');
 // Supports: FCM (Push), SMS, WhatsApp, Email
 
 class NotificationService {
-  
+
   // Main method to send notification via all requested channels
   static async sendNotification({
     recipientId,
