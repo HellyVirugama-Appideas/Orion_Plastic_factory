@@ -9,7 +9,7 @@ const { validateEmail, validatePassword, validateRequiredFields } = require('../
 
 
 // ========== Admin Authentication Routes ==========
-router.get('/', adminAuthController.renderLogin);
+router.get('/signin', adminAuthController.renderLogin);
 
 router.post(
   '/signup',
@@ -28,8 +28,8 @@ router.post(
 
 
 // Dashboard
-router.get('/dashboard',protectAdmin,isAdmin, adminDashboardController.renderDashboard);
-router.get('/', (req, res) => res.redirect('/admin/dashboard'));
+router.get('/',protectAdmin,isAdmin, adminDashboardController.renderDashboard);
+// router.get('/', (req, res) => res.redirect('/admin/dashboard'));
 
 router.get('/profile', protectAdmin,  adminAuthController.getAdminProfile);
 

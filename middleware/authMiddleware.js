@@ -310,25 +310,90 @@ exports.authenticateAny = async (req, res, next) => {
 // };
 
 
+// exports.protectAdmin = async (req, res, next) => {
+//   try {
+//     let token;
+
+//     if (req.headers.authorization?.startsWith('Bearer ')) {
+//       token = req.headers.authorization.split(' ')[1];
+//     }
+
+//     if (!token) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Not authorized, no token'
+//       });
+//     }
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     const admin = await Admin.findById(decoded.userId || decoded.id);
+
+//     if (!admin) {
+//       return res.status(401).json({
+//         success: false,
+//         message: 'Admin not found or invalid token'
+//       });
+//     }
+
+//     if (!admin.isActive) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'Admin account is deactivated'
+//       });
+//     }
+
+//     req.user = admin;
+//     req.user.role = 'admin';
+
+//     req.admin = admin;
+
+//     next();
+//   } catch (error) {
+//     return res.status(401).json({
+//       success: false,
+//       message: 'Invalid or expired token'
+//     });
+//   }
+// }; 
+
+// middleware/authMiddleware.js
+
 exports.protectAdmin = async (req, res, next) => {
   try {
     let token;
 
-    if (req.headers.authorization?.startsWith('Bearer ')) {
+    // 1. Header se token (API calls ke liye)
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
+    } 
+    // 2. Cookie se token (EJS dashboard ke liye) ← YE ADD KAR DO
+    else if (req.cookies.jwtAdmin) {
+      token = req.cookies.jwtAdmin;
     }
 
+    // Agar token nahi mila to unauthorized
     if (!token) {
+      // Agar EJS page hai to login pe redirect, warna JSON error
+      if (req.originalUrl.startsWith('/admin') && req.accepts('html')) {
+        return res.redirect('/admin/signin');
+      }
       return res.status(401).json({
         success: false,
         message: 'Not authorized, no token'
       });
     }
 
+    // Token verify
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const admin = await Admin.findById(decoded.userId || decoded.id);
+
+    // decoded me id ya userId hona chahiye
+    const admin = await Admin.findById(decoded.id || decoded.userId);
 
     if (!admin) {
+      if (req.accepts('html')) {
+        res.clearCookie('jwtAdmin');
+        return res.redirect('/admin/signin');
+      }
       return res.status(401).json({
         success: false,
         message: 'Admin not found or invalid token'
@@ -336,6 +401,10 @@ exports.protectAdmin = async (req, res, next) => {
     }
 
     if (!admin.isActive) {
+      res.clearCookie('jwtAdmin');
+      if (req.accepts('html')) {
+        return res.redirect('/admin/signin');
+      }
       return res.status(403).json({
         success: false,
         message: 'Admin account is deactivated'
@@ -344,17 +413,22 @@ exports.protectAdmin = async (req, res, next) => {
 
     req.user = admin;
     req.user.role = 'admin';
-
     req.admin = admin;
 
     next();
+
   } catch (error) {
+    console.error('Protect Admin Error:', error.message);
+    res.clearCookie('jwtAdmin');
+    if (req.accepts('html')) {
+      return res.redirect('/admin/signin');
+    }
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token'
     });
   }
-}; 
+};
 
 exports.isAdmin = (req, res, next) => {
   if (req.admin && req.admin.role === 'admin') {

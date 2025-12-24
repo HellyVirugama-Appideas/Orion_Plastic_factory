@@ -73,7 +73,7 @@
 // );
 
 // module.exports = router;
-
+ 
 
 const express = require('express');
 const router = express.Router();
@@ -88,6 +88,8 @@ router.post(
   '/fuel',
   authenticateDriver,
   isDriver,
+  uploadExpenseReceipts,
+  handleUploadError,
   expenseController.createFuelExpense
 );
 
@@ -96,6 +98,8 @@ router.post(
   '/vehicle',
   authenticateDriver,
   isDriver,
+  uploadExpenseReceipts,
+  handleUploadError,
   expenseController.createVehicleExpense
 );
 

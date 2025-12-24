@@ -123,8 +123,10 @@ const journeySchema = new mongoose.Schema({
     enum: [
       'pending',
       'assigned',
+      "started",
       'picked_up',
       'in_transit',
+      "in_progress",
       'arrived',
       'signature_obtained',
       'proof_uploaded',

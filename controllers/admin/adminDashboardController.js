@@ -338,9 +338,95 @@ const Driver = require('../../models/Driver');
 const Customer = require('../../models/Customer');
 
 // Render dashboard
+// exports.renderDashboard = async (req, res) => {
+//   try {
+//     // Fetch stats in parallel
+//     const [
+//       totalOrders,
+//       totalDeliveries,
+//       totalDrivers,
+//       totalCustomers,
+//       pendingOrders,
+//       activeDeliveries,
+//       availableDrivers,
+//       recentOrders,
+//       activeDeliveriesList,
+//       orderStatusBreakdown,
+//       deliveryStatusBreakdown
+//     ] = await Promise.all([
+//       Order.countDocuments(),
+//       Delivery.countDocuments(),
+//       Driver.countDocuments(),
+//       Customer.countDocuments(),
+//       Order.countDocuments({ status: 'pending' }),
+//       Delivery.countDocuments({ status: { $in: ['in_transit', 'out_for_delivery'] } }),
+//       Driver.countDocuments({ status: 'available' }),
+//       Order.find().populate('customerId').sort({ createdAt: -1 }).limit(10),
+//       Delivery.find({ status: { $in: ['in_transit', 'out_for_delivery'] } })
+//         .populate('driverId orderId')
+//         .limit(10),
+//       Order.aggregate([
+//         { $group: { _id: '$status', count: { $sum: 1 } } }
+//       ]),
+//       Delivery.aggregate([
+//         { $group: { _id: '$status', count: { $sum: 1 } } }
+//       ])
+//     ]);
+
+//     // Calculate today's revenue
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+//     const todayRevenue = await Order.aggregate([
+//       {
+//         $match: {
+//           status: 'delivered',
+//           updatedAt: { $gte: today }
+//         }
+//       },
+//       {
+//         $group: {
+//           _id: null,
+//           total: { $sum: '$totalAmount' }
+//         }
+//       }
+//     ]);
+
+//     res.render('index', {
+//       title: 'Dashboard',
+//       user: req.admin,
+//       stats: {
+//         totalOrders,
+//         totalDeliveries,
+//         totalDrivers,
+//         totalCustomers,
+//         pendingOrders,
+//         activeDeliveries,
+//         availableDrivers,
+//         todayRevenue: todayRevenue[0]?.total || 0
+//       },
+//       recentOrders,
+//       activeDeliveries: activeDeliveriesList,
+//       orderStatusBreakdown,
+//       deliveryStatusBreakdown
+//     });
+//   } catch (error) {
+//     console.error('Dashboard render error:', error);
+//     res.render('index', {
+//       title: 'Dashboard',
+//       user: req.admin,
+//       stats: {},
+//       recentOrders: [],
+//       activeDeliveries: [],
+//       orderStatusBreakdown: [],
+//       deliveryStatusBreakdown: [],
+//       error: 'Failed to load dashboard data'
+//     });
+//   }
+// };
+// Render dashboard
 exports.renderDashboard = async (req, res) => {
   try {
-    // Fetch stats in parallel
+    // Fetch stats in parallel (tumhara code same)
     const [
       totalOrders,
       totalDeliveries,
@@ -373,7 +459,6 @@ exports.renderDashboard = async (req, res) => {
       ])
     ]);
 
-    // Calculate today's revenue
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayRevenue = await Order.aggregate([
@@ -391,9 +476,13 @@ exports.renderDashboard = async (req, res) => {
       }
     ]);
 
-    res.render('admin/dashboard/index', {
+    // YE LINE ADD KARO – sidenavbar ko current url batao
+    const currentUrl = req.originalUrl || req.url;
+
+    res.render('index', {
       title: 'Dashboard',
       user: req.admin,
+      url: currentUrl,  // ← YE ADD KARO (sidenavbar ke liye)
       stats: {
         totalOrders,
         totalDeliveries,
@@ -411,9 +500,13 @@ exports.renderDashboard = async (req, res) => {
     });
   } catch (error) {
     console.error('Dashboard render error:', error);
-    res.render('admin/dashboard/index', {
+    
+    const currentUrl = req.originalUrl || req.url;
+    
+    res.render('index', {
       title: 'Dashboard',
       user: req.admin,
+      url: currentUrl,  // ← error case me bhi pass kar do
       stats: {},
       recentOrders: [],
       activeDeliveries: [],
@@ -423,7 +516,6 @@ exports.renderDashboard = async (req, res) => {
     });
   }
 };
-
 
 // Render orders list
 exports.renderOrdersList = async (req, res) => {

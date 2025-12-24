@@ -41,7 +41,7 @@ exports.addOrUpdateScreen = async (req, res) => {
   }
 };
 
-// Get All Screens (Mobile App Use Karega)
+// Get All Screens 
 exports.getAllScreens = async (req, res) => {
   try {
     const splash = await OnboardingScreen.findOne({ type: 'splash' });
@@ -117,7 +117,7 @@ exports.updateScreen = async (req, res) => {
     res.json({
       success: true,
       message: 'Screen updated successfully',
-      data: screen
+      data: screen 
     });
 
   } catch (error) {

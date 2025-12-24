@@ -444,39 +444,23 @@ exports.adminSignin = async (req, res) => {
     //   refreshToken
     // });
 
-     res.redirect('/admin');
+    res.cookie('jwtAdmin', accessToken, {
+      expires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      httpOnly: true,
+    });
+    res.redirect('/admin');
 
   } catch (error) {
     console.error('Admin Signin Error:', error);
     errorResponse(res, error.message || 'Login failed', 500);
   }
 };
+
 // Render login page
 exports.renderLogin = async (req, res) => {
   res.render("login", { error: null });
 };
 
-exports.getDashboard = async (req, res) => {
-    var data = {};
-    data.user = await User.find({ isDelete: false }).count();
-    data.vendor = await Vendor.find({ isDelete: false }).count();
-
-    // Calculate Total Earn Points (sum of all earnedPoints from accepted transactions)
-    const earnPointsResult = await Transaction.aggregate([
-        { $match: { status: 'accepted' } },
-        { $group: { _id: null, total: { $sum: '$earnedPoints' } } }
-    ]);
-    data.totalEarnPoints = earnPointsResult.length > 0 ? earnPointsResult[0].total : 0;
-
-    // Calculate Total Redeem Points (sum of all spentPoints from accepted transactions)
-    const redeemPointsResult = await Transaction.aggregate([
-        { $match: { status: 'accepted' } },
-        { $group: { _id: null, total: { $sum: '$spentPoints' } } }
-    ]);
-    data.totalRedeemPoints = redeemPointsResult.length > 0 ? redeemPointsResult[0].total : 0;
-
-    res.render('index', { data });
-};
 
 // Get Admin Profile
 exports.getAdminProfile = async (req, res) => {

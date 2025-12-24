@@ -69,14 +69,14 @@ router.post(
 )
 
 router.post(
-  "/:journeyId/checkpoints",
+  "/checkpoint/:journeyId",
   authenticateDriver,
   isDriver,
   addCheckpoint
 )
 
 router.post(
-  "/:journeyId/image",
+  "/image/:journeyId",
   authenticateDriver,
   isDriver,
   uploadJourneyImage,
@@ -85,7 +85,7 @@ router.post(
 )
 
 router.post(
-  "/:deliveryId/signature",
+  "/signature/:deliveryId",
   authenticateDriver,
   isDriver,
   uploadSignature,
@@ -93,7 +93,7 @@ router.post(
   uploadProofSignature
 )
 router.post(
-  "/:deliveryId/proof-photos",
+  "/proof-photos/:deliveryId",
   authenticateDriver,
   isDriver,
   uploadEndJourneyImage,
@@ -101,7 +101,7 @@ router.post(
   uploadProofPhotos
 ),
 router.post(
-  "/:journeyId/complete-delivery",
+  "/complete-delivery/:journeyId",
   authenticateDriver,
   isDriver,
   completeDelivery
@@ -115,14 +115,14 @@ router.post(
 )
 
 router.post(
-  "/:journeyId/cancel",
+  "/cancel/:journeyId",
   authenticateDriver,
   isDriver,
   cancelJourney
 )
 
 router.post(
-  "/:journeyId/call",
+  "/call/:journeyId",
   authenticateDriver,
   isDriver,
   initiateCall
@@ -136,14 +136,14 @@ router.put(
 )
 
 router.post(
-  "/:journeyId/whatsapp",
+  "/whatsapp/:journeyId",
   authenticateDriver,
   isDriver,
   initiateWhatsApp
 )
 
 router.get(
-  "/:journeyId/communications",
+  "/communications/:journeyId",
   authenticateDriver,
   isDriver,
   getCommunicationHistory
@@ -151,14 +151,14 @@ router.get(
 
 ////
 router.get(
-  "/:journeyId/navigate",
+  "/navigate/:journeyId",
   authenticateDriver,
   isDriver,
   getNavigation
 )
 
 router.post(
-  "/:journeyId/recordings",
+  "/recordings/:journeyId",
   authenticateDriver,
   isDriver,
   uploadRecording

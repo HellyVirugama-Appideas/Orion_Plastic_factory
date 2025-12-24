@@ -41,13 +41,29 @@ const router = express.Router();
 const onboardingController = require('../../controllers/admin/onboardingController');
 const { uploadOnboardingMedia } = require('../../middleware/uploadMiddleware');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
+const OnboardingScreen = require("../../models/OnboardingScreen")
 
+router.get('/', protectAdmin, isAdmin, async (req, res) => {
+  const screens = await OnboardingScreen.find().sort({ type: 1, order: 1 });
+  res.render('list', { screens });
+});
 
+router.get('/add', protectAdmin, isAdmin, (req, res) => {
+  res.render('add-edit', { screen: null });
+});
+
+router.get('/edit/:id', protectAdmin, isAdmin, async (req, res) => {
+  const screen = await OnboardingScreen.findById(req.params.id);
+  if (!screen) return res.redirect('/admin/onboarding');
+  res.render('add-edit', { screen });
+});
+
+// 
 router.post('/add',protectAdmin,isAdmin, uploadOnboardingMedia, onboardingController.addOrUpdateScreen);
 router.get('/list',protectAdmin,isAdmin, onboardingController.getAdminScreens);
 router.put('/:id',protectAdmin,isAdmin, uploadOnboardingMedia, onboardingController.updateScreen);
 router.delete('/:id',protectAdmin,isAdmin, onboardingController.deleteScreen);
-
+ 
 router.get('/public', onboardingController.getAllScreens);
 
 module.exports = router;

@@ -47,7 +47,7 @@ router.get(
 )
 
 router.get(
-  "/:deliveryId/details",
+  "/details/:deliveryId",
   authenticateDriver,
   isDriver,
   deliveryController.getDeliveryDetails

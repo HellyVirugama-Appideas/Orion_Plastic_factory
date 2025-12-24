@@ -11,11 +11,23 @@ const jwtConfig = require('../config/jwt');
 // };
 
 // utils/jwtHelper.js
+// exports.generateAccessToken = (userId, role) => {
+//   return jwt.sign(
+//     { userId, role }, 
+//     process.env.JWT_SECRET,   
+//     { expiresIn: process.env.JWT_EXPIRE || '7d' }
+//   );
+// };
+
+// jwtHelper.js
 exports.generateAccessToken = (userId, role) => {
   return jwt.sign(
-    { userId, role }, 
-    process.env.JWT_SECRET,   
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    {
+      id: userId,        
+      role: role
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '90d' }
   );
 };
 
