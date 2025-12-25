@@ -331,11 +331,12 @@
 // };
 
 
-
+const mongoose = require("mongoose");
 const Order = require('../../models/Order');
 const Delivery = require('../../models/Delivery');
 const Driver = require('../../models/Driver');
 const Customer = require('../../models/Customer');
+const Vehicle = require("../../models/Vehicle")
 
 // Render dashboard
 // exports.renderDashboard = async (req, res) => {
@@ -738,95 +739,207 @@ exports.renderLiveTracking = async (req, res) => {
   }
 };
 
-// Render drivers list
+
+// NEW: Render Drivers List Page (EJS)
 exports.renderDriversList = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
-    
-    const filter = {};
+
+    // Build filter query (same as your getAllDrivers API)
+    const query = {};
     if (req.query.search) {
-      filter.$or = [
+      query.$or = [
         { name: { $regex: req.query.search, $options: 'i' } },
         { email: { $regex: req.query.search, $options: 'i' } },
-        { phoneNumber: { $regex: req.query.search, $options: 'i' } }
+        { phone: { $regex: req.query.search, $options: 'i' } },
+        { licenseNumber: { $regex: req.query.search, $options: 'i' } },
+        { vehicleNumber: { $regex: req.query.search, $options: 'i' } }
       ];
     }
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
-    
-    const [drivers, totalDrivers] = await Promise.all([
-      Driver.find(filter)
+    if (req.query.status === 'active') query.isActive = true;
+    if (req.query.status === 'inactive') query.isActive = false;
+    if (req.query.isBlocked === 'true') query['blockStatus.isBlocked'] = true;
+    if (req.query.isBlocked === 'false') query['blockStatus.isBlocked'] = false;
+
+    const [drivers, total] = await Promise.all([
+      Driver.find(query)
+        .select('-password -pin -resetPinToken -resetPinExpires')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      Driver.countDocuments(filter)
+      Driver.countDocuments(query)
     ]);
-    
-    const totalPages = Math.ceil(totalDrivers / limit);
-    
-    res.render('admin/drivers/list', {
-      title: 'Drivers',
+
+    const totalPages = Math.ceil(total / limit);
+
+    res.render('list', {  
+      title: 'Drivers Management',
       user: req.admin,
       drivers,
-      currentPage: page,
-      totalPages,
-      filters: req.query
+      pagination: {
+        currentPage: page,
+        totalPages,
+        total
+      },
+      filters: req.query,
+      url: req.originalUrl
     });
   } catch (error) {
-    console.error('Drivers list error:', error);
-    res.status(500).render('admin/drivers/list', {
-      title: 'Drivers',
+    console.error('Render Drivers List Error:', error);
+    res.status(500).render('list', {  
+      title: 'Drivers Management',
       user: req.admin,
       drivers: [],
-      currentPage: 1,
-      totalPages: 1,
+      pagination: { currentPage: 1, totalPages: 1, total: 0 },
       filters: {},
-      error: 'Failed to load drivers'
+      url: req.originalUrl,
+      error: 'Failed to load drivers list'
     });
   }
-};
+}
 
-// Render driver details
 exports.renderDriverDetails = async (req, res) => {
   try {
-    const driver = await Driver.findById(req.params.id);
-    
+    const driverId = req.params.driverId || req.params.id;
+    console.log('[DETAILS] Requested ID:', driverId);
+
+    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      return res.redirect('/admin/drivers?error=Invalid driver ID');
+    }
+
+    const driver = await Driver.findById(driverId)
+      .select('-password -pin -resetPinToken -resetPinExpires')
+      .lean();
+
     if (!driver) {
       return res.redirect('/admin/drivers?error=Driver not found');
     }
-    
-    // Get driver's delivery stats
-    const [totalDeliveries, completedDeliveries, activeDeliveries, recentDeliveries] = await Promise.all([
-      Delivery.countDocuments({ driverId: driver._id }),
-      Delivery.countDocuments({ driverId: driver._id, status: 'delivered' }),
-      Delivery.find({ driverId: driver._id, status: { $in: ['assigned', 'picked_up', 'in_transit', 'out_for_delivery'] } })
-        .populate('orderId'),
-      Delivery.find({ driverId: driver._id })
-        .populate('orderId')
-        .sort({ createdAt: -1 })
-        .limit(10)
-    ]);
-    
-    res.render('admin/drivers/details', {
-      title: `Driver - ${driver.name}`,
+
+    // Base URL - IMPORTANT: do NOT add /uploads/ here if it's already in .env
+    const baseUrl = process.env.IMAGE_URL || 'http://localhost:5001/uploads/documents';
+    // If .env has IMAGE_URL=http://localhost:5001/uploads/  → it's correct, no extra slash
+
+    // Normalize documents
+    if (driver.documents && Array.isArray(driver.documents)) {
+      const docs = driver.documents;
+
+      // Fix double slash and use correct documentType from your DB
+      driver.licenseFront = docs.find(d => d.documentType === 'license_front')?.fileUrl 
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'license_front').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+        : null;
+
+      driver.licenseBack = docs.find(d => d.documentType === 'license_back')?.fileUrl 
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'license_back').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+        : null;
+
+      // Updated documentType names from your DB
+      driver.rcFront = docs.find(d => d.documentType === 'vehicle_rc_front')?.fileUrl 
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'vehicle_rc_front').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+        : null;
+
+      driver.rcBack = docs.find(d => d.documentType === 'vehicle_rc_back')?.fileUrl 
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'vehicle_rc_back').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+        : null;
+
+      console.log('[DETAILS] Fixed Document URLs:', {
+        licenseFront: driver.licenseFront,
+        licenseBack: driver.licenseBack,
+        rcFront: driver.rcFront,
+        rcBack: driver.rcBack
+      });
+    }
+
+    // Rest of your code (vehicle, deliveries, stats, render)...
+    const assignedVehicle = await Vehicle.findOne({ assignedDriver: driverId })
+      .select('vehicleNumber registrationNumber vehicleType currentMeterReading status')
+      .lean() || null;
+
+    const recentDeliveries = await Delivery.find({ driverId: driver._id })
+      .populate('orderId')
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const stats = {
+      totalDeliveries: await Delivery.countDocuments({ driverId }),
+      completed: await Delivery.countDocuments({ driverId, status: 'delivered' }),
+      active: await Delivery.countDocuments({
+        driverId,
+        status: { $in: ['in_transit', 'out_for_delivery', 'assigned'] }
+      })
+    };
+
+    res.render('details', {
+      title: `Driver - ${driver.name || 'Details'}`,
       user: req.admin,
       driver,
-      stats: {
-        totalDeliveries,
-        completedDeliveries,
-        activeDeliveries: activeDeliveries.length
-      },
-      activeDeliveries,
-      recentDeliveries
+      assignedVehicle,
+      recentDeliveries,
+      stats,
+      url: req.originalUrl
     });
+
   } catch (error) {
-    console.error('Driver details error:', error);
-    res.redirect('/admin/drivers?error=Failed to load driver');
+    console.error('[DETAILS] CRITICAL ERROR:', error);
+    res.redirect('/admin/drivers?error=Failed to load driver details');
   }
 };
+
+exports.toggleDriverProfileStatus = async (req, res) => {
+  try {
+    const { driverId, status } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      req.flash('error', 'Invalid driver ID');
+      return res.redirect(`/admin/drivers/view/${driverId}`);
+    }
+
+    const driver = await Driver.findById(driverId);
+    if (!driver) {
+      req.flash('error', 'Driver not found');
+      return res.redirect('/admin/drivers');
+    }
+
+    const newStatus = status === '1' ? 'approved' : 'rejected';
+
+    // Optional: You can add extra check before approving
+    if (newStatus === 'approved') {
+      const allVerified = driver.documents.every(doc => doc.status === 'verified');
+      if (!allVerified) {
+        req.flash('error', 'Cannot approve: Not all documents are verified yet!');
+        return res.redirect(`/admin/drivers/view/${driverId}`);
+      }
+    }
+
+    driver.profileStatus = newStatus;
+    await driver.save();
+
+    // Optional: Send notification to driver via FCM
+    if (driver.fcmToken) {
+      const message = newStatus === 'approved'
+        ? "Congratulations! Your profile has been approved ✓ You can now start accepting deliveries."
+        : "Your profile has been rejected. Please check documents and re-submit.";
+
+      await sendFCMNotification({
+        token: driver.fcmToken,
+        title: newStatus === 'approved' ? "Profile Approved!" : "Profile Rejected",
+        body: message,
+        data: { type: "profile_status_update", status: newStatus }
+      });
+    }
+
+    req.flash('success', `Driver profile status updated to ${newStatus.toUpperCase()}`);
+    res.redirect(`/admin/drivers/view/${driverId}`);
+
+  } catch (error) {
+    console.error('Profile status toggle error:', error);
+    req.flash('error', 'Failed to update profile status');
+    res.redirect(`/admin/drivers/view/${driverId}`);
+  }
+};
+
 
 // Render customers list
 exports.renderCustomersList = async (req, res) => {
@@ -897,4 +1010,4 @@ exports.getActiveDeliveries = async (req, res) => {
     console.error('Get active deliveries error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch deliveries' });
   }
-};
+};  

@@ -4304,9 +4304,10 @@ span.badge
 
     box-sizing: border-box;
     min-width: 3rem;
-    height: 22px;
+    /* height: 22px; */
     margin-left: 14px;
-    padding: 0 6px;
+    padding: 10px;
+    border-radius: 5px;
 
     text-align: center;
 
@@ -4363,9 +4364,9 @@ nav ul a span.badge
 
 table span.badge
 {
-    display: inline-block;
+    /* display: inline-block; */
     float: none;
-
+    padding: 10px;
     margin-left: auto;
 }
 

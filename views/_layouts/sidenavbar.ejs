@@ -69,12 +69,12 @@
                       class="menu-title <%= url.startsWith('/admin/user') ? 'theme-text' : 'black-text' %> ">Users</span>
                   </a>
                 </li>
-                <li class="bold <%= url.startsWith('/admin/vendor') ? 'active' : '' %>">
-                  <a class="waves-effect waves-cyan" href="/admin/vendor">
+                <li class="bold <%= url.startsWith('/admin/drivers') ? 'active' : '' %>">
+                  <a class="waves-effect waves-cyan" href="/admin/drivers">
                     <i
-                      class="material-icons <%= url.startsWith('/admin/vendor') ? 'theme-text' : 'black-text' %> ">people</i>
+                      class="material-icons <%= url.startsWith('/admin/drivers') ? 'theme-text' : 'black-text' %> ">people</i>
                     <span
-                      class="menu-title <%= url.startsWith('/admin/vendor') ? 'theme-text' : 'black-text' %> ">Vendors</span>
+                      class="menu-title <%= url.startsWith('/admin/drivers') ? 'theme-text' : 'black-text' %> ">Drivers</span>
                   </a>
                 </li>
 
@@ -86,13 +86,13 @@
                       class="menu-title <%= url.startsWith('/admin/discount') ? 'theme-text' : 'black-text' %> ">Vendor
                       Discounts</span>
                   </a>
-                </li>
+                </li> 
 
-                <li>
+                <!-- <li>
                   <a href="/admin/onboarding" class="<%= url.startsWith('/admin/splash-screen') ? 'active' : '' %>">
                     <span>Splash Screen</span>
                   </a>
-                </li>
+                </li> -->
 
                 <li class="bold <%= url.startsWith('/admin/category') ? 'active' : '' %>">
                   <a class="waves-effect waves-cyan" href="/admin/category">
@@ -146,12 +146,11 @@
                         <span>Intro Screen</span>
                       </a>
                     </li>
-                    <li>
-                      <a href="/admin/splash-screen"
-                        class="<%= url.startsWith('/admin/splash-screen') ? 'active' : '' %>">
-                        <span>Splash Screen</span>
-                      </a>
-                    </li>
+                 <li>
+                  <a href="/admin/onboarding" class="<%= url.startsWith('/admin/splash-screen') ? 'active' : '' %>">
+                    <span>Splash Screen</span>
+                  </a>
+                </li>
                     <li>
                       <a href="/admin/cms/faq" class="<%= url.startsWith('/admin/cms/faq') ? 'active' : '' %>">
                         <span>FAQ's</span>

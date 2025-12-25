@@ -1,75 +1,169 @@
+// const express = require('express');
+// const router = express.Router();
+// const Driver = require("../../models/Driver")
+// const driverManagementController = require('../../controllers/admin/driverManagementController');
+// const { checkPermission } = require('../../middleware/roleMiddleware');
+// const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
+// const adminDashboardController = require("../../controllers/admin/adminDashboardController");
+// const { uploadDocument, handleUploadError } = require('../../middleware/uploadMiddleware');
+
+
+// // Get all drivers with filters
+// // router.get(
+// //   '/',
+// //   protectAdmin,
+// //   isAdmin,
+// //   checkPermission('drivers', 'read'),
+// //   driverManagementController.getAllDrivers
+// // );
+// //////////////////////////
+// // List page (already correct if mounted under /admin/drivers)
+// router.get('/', protectAdmin, isAdmin, checkPermission('drivers', 'read'), adminDashboardController.renderDriversList
+// );
+
+
+// // Details page - fix to match /admin/drivers/:id
+// router.get('/view/:driverId', protectAdmin, isAdmin, checkPermission('drivers', 'read'), adminDashboardController.renderDriverDetails);
+
+// // Block driver
+// router.post(
+//   '/:driverId/block',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'update'),
+//   driverManagementController.blockDriver
+// );
+
+// // Unblock driver
+// router.post(
+//   '/:driverId/unblock',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'update'),
+//   driverManagementController.unblockDriver
+// );
+// router.get("/:driverId", protectAdmin, isAdmin, driverManagementController.getDriverDetails)
+
+
+// // Update driver details
+// router.put(
+//   '/:driverId',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'update'),
+//   driverManagementController.updateDriverDetails
+// );
+
+// // Update bank details
+// router.patch(
+//   '/:driverId/bank-details',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'update'),
+//   driverManagementController.updateBankDetails
+// );
+
+// // Get driver performance
+// router.get(
+//   '/:driverId/performance',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'read'),
+//   driverManagementController.getDriverPerformance
+// );
+
+
+// // Get driver statistics
+// router.get(
+//   '/stats/overview',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'read'),
+//   driverManagementController.getDriverStatistics
+// );
+
+// router.get(
+//   '/create',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'create'),
+//   driverManagementController.getCreateDriver
+// );
+
+// // Create Driver - Submit (POST)
+// router.post(
+//   '/create',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('drivers', 'create'),
+//   driverManagementController.createDriver
+// );
+
+
+
+// module.exports = router;
+
+
+
+
 const express = require('express');
 const router = express.Router();
+const Driver = require("../../models/Driver")
 const driverManagementController = require('../../controllers/admin/driverManagementController');
 const { checkPermission } = require('../../middleware/roleMiddleware');
-const { protectAdmin,isAdmin } = require('../../middleware/authMiddleware');
+const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
+const adminDashboardController = require("../../controllers/admin/adminDashboardController");
+const { uploadDocument, handleUploadError, uploadDriverDocuments, uploadUpdateDriverDocuments } = require('../../middleware/uploadMiddleware');
+const { getDriversDocumentsPage, verifySingleDocument, rejectSingleDocument, getSingleDriverDocumentsPage } = require('../../controllers/admin/documentVerificationController');
 
+// Specific routes FIRST (fixed order)
+router.get('/create', protectAdmin, isAdmin, checkPermission('drivers', 'create'), driverManagementController.getCreateDriver);
 
-// Get all drivers with filters
-router.get(
-  '/',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'read'),
-  driverManagementController.getAllDrivers
-);
+router.post('/create', protectAdmin, isAdmin, uploadDriverDocuments, handleUploadError, checkPermission('drivers', 'create'), driverManagementController.createDriver);
 
-// Block driver
+// Other specific routes
+router.get('/view/:driverId', protectAdmin, isAdmin, checkPermission('drivers', 'read'), adminDashboardController.renderDriverDetails);
+
+// Toggle driver profile status (approve / reject)
+router.get('/profile-status/:driverId/:status', protectAdmin, adminDashboardController.toggleDriverProfileStatus);
+
+router.post('/:driverId/block', protectAdmin, isAdmin, checkPermission('drivers', 'update'), driverManagementController.blockDriver);
+
+router.post('/:driverId/unblock', protectAdmin, isAdmin, checkPermission('drivers', 'update'), driverManagementController.unblockDriver);
+
+// Dynamic route LAST (catches everything else)
+router.get('/:driverId', protectAdmin, isAdmin, driverManagementController.getDriverDetails);
+
+router.get('/edit/:driverId', protectAdmin, isAdmin, checkPermission('drivers', 'update'), driverManagementController.getEditDriverForm);
+// router.post('/edit/:driverId', protectAdmin, isAdmin, uploadDriverDocuments, handleUploadError, checkPermission('drivers', 'update'), driverManagementController.updateDriverDetails);
 router.post(
-  '/:driverId/block',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'update'),
-  driverManagementController.blockDriver
-);
-
-// Unblock driver
-router.post(
-  '/:driverId/unblock',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'update'),
-  driverManagementController.unblockDriver
-);
-router.get("/:driverId",protectAdmin,isAdmin, driverManagementController.getDriverDetails)
-
-
-// Update driver details
-router.put(
-  '/:driverId',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'update'),
+  '/edit/:driverId', 
+  protectAdmin, 
+  isAdmin, 
+  uploadUpdateDriverDocuments,  
+  handleUploadError, 
+  checkPermission('drivers', 'update'), 
   driverManagementController.updateDriverDetails
 );
 
-// Update bank details
-router.patch(
-  '/:driverId/bank-details',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'update'),
-  driverManagementController.updateBankDetails
-);
 
-// Get driver performance
-router.get(
-  '/:driverId/performance',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'read'),
-  driverManagementController.getDriverPerformance
-);
+router.post('/delete/:driverId', protectAdmin, isAdmin, checkPermission('drivers', 'delete'), driverManagementController.deleteDriver);
+// router.delete('/delete/:driverId', protectAdmin, isAdmin, checkPermission('drivers', 'delete'), driverManagementController.deleteDriver);
 
+router.patch('/:driverId/bank-details', protectAdmin, isAdmin, checkPermission('drivers', 'update'), driverManagementController.updateBankDetails);
 
-// Get driver statistics
-router.get(
-  '/stats/overview',
-  protectAdmin,
-  isAdmin,
-  checkPermission('drivers', 'read'),
-  driverManagementController.getDriverStatistics
-);
+router.get('/:driverId/performance', protectAdmin, isAdmin, checkPermission('drivers', 'read'), driverManagementController.getDriverPerformance);
+
+// List page (root)
+router.get('/', protectAdmin, isAdmin, checkPermission('drivers', 'read'), adminDashboardController.renderDriversList);
+
+// Statistics
+router.get('/stats/overview', protectAdmin, isAdmin, checkPermission('drivers', 'read'), driverManagementController.getDriverStatistics);
+
+router.get('/documents/:driverId', protectAdmin, isAdmin, getSingleDriverDocumentsPage);
+// routes
+router.get('/document/:driverId/:documentId/verify', protectAdmin, isAdmin, verifySingleDocument);
+router.post('/document/:driverId/:documentId/reject', protectAdmin, isAdmin, rejectSingleDocument);
+
 
 module.exports = router;
-

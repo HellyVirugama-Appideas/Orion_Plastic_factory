@@ -242,6 +242,8 @@ const driverChatRoutes = require("./routes/Driver/driverChatRoutes")
 const onboardingRoutes = require("./routes/admin/onboardingRoutes")
 
 const driverApprovalRoutes= require("./routes/admin/driverApprovalRoutes")
+const methodOverride = require('method-override');
+
 
 // Middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -279,6 +281,8 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+app.use(methodOverride('_method'));
 
 // Session for admin panel
 app.use(session({
@@ -586,18 +590,18 @@ app.use("/api/deliveries", deliveryRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/journey", journeyRoutes);
-app.use("/api/routes", routeRoutes); 
+app.use("/api/routes", routeRoutes);  
 app.use("/api/remark", remarkRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/chat", driverChatRoutes)
 
 // Admin Routes (Existing)
-app.use('/admin/', adminRoutes);
+app.use('/admin', adminRoutes);
 app.use("/admin/order", orderRoutes);
 app.use("/admin/vehicles", vehicleRoutes);
 app.use("/admin/regions", regionRoutes);
-app.use("/admin/driver", driverManagementRoutes);
+app.use("/admin/drivers", driverManagementRoutes);  
 app.use("/admin/customers", customerRoutes);
 app.use("/admin/deliveries", deliveryAdminRoutes);
 app.use("/admin/remarks", remarkAdminRoutes);

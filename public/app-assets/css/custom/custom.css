@@ -123,10 +123,6 @@ label {
     background-color: #2C2C2C;
 }
 
-.btn-edit:hover {
-    color: #fff;
-}
-
 .btn-delete:hover {
     background-color: #c91111;
     color: #fff;

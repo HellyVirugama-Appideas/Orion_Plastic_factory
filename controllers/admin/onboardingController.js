@@ -31,11 +31,14 @@ exports.addOrUpdateScreen = async (req, res) => {
 
     await screen.save();
 
-    res.status(201).json({
-      success: true,
-      message: 'Screen added successfully',
-      data: screen
-    });
+    // res.status(201).json({
+    //   success: true,
+    //   message: 'Screen added successfully',
+    //   data: screen
+    // });
+
+    res.redirect("/admin/onboarding")
+
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -114,11 +117,13 @@ exports.updateScreen = async (req, res) => {
 
     const screen = await OnboardingScreen.findByIdAndUpdate(id, updates, { new: true });
 
-    res.json({
-      success: true,
-      message: 'Screen updated successfully',
-      data: screen 
-    });
+    // res.json({
+    //   success: true,
+    //   message: 'Screen updated successfully',
+    //   data: screen 
+    // });
+
+    res.redirect("/admin/onboarding")
 
   } catch (error) {
     console.error('Update Screen Error:', error);
@@ -133,7 +138,8 @@ exports.deleteScreen = async (req, res) => {
     if (screen?.mediaUrl) {
       fs.unlinkSync(path.join(__dirname, '../../public', screen.mediaUrl));
     }
-    res.json({ success: true, message: 'Deleted' });
+    // res.json({ success: true, message: 'Deleted' });
+    res.redirect("/admin/onboarding")
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

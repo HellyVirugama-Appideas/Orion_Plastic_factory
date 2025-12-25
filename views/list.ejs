@@ -1,51 +1,273 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="loading" lang="en" data-textdirection="ltr">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Onboarding Screens</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <%- include('_layouts/head') %>
+        <title>Drivers Management | <%= title %>
+        </title>
+
+        <link rel="stylesheet" type="text/css" href="/app-assets/vendors/data-tables/css/jquery.dataTables.min.css">
+        <link rel="stylesheet" type="text/css"
+            href="/app-assets/vendors/data-tables/extensions/responsive/css/responsive.dataTables.min.css">
+        <link rel="stylesheet" type="text/css" href="/app-assets/vendors/data-tables/css/select.dataTables.min.css">
+        <link rel="stylesheet" type="text/css" href="/app-assets/css/pages/data-tables.css">
+
+        <style>
+            table tr td,
+            th {
+                text-align: center;
+            }
+
+            [type='checkbox']+span:not(.lever):before {
+                border-color: black;
+            }
+
+            [type='checkbox']:checked+span:not(.lever):before {
+                border-right-color: black;
+                border-bottom-color: black;
+            }
+        </style>
 </head>
-<body>
-  <div class="container mt-5">
-    <h1 class="mb-4">Onboarding Screens Management</h1>
-    
-    <a href="/admin/onboarding/add" class="btn btn-primary mb-3">Add New Screen</a>
 
-    <div class="row">
-      <% screens.forEach(screen => { %>
-        <div class="col-md-4 mb-4">
-          <div class="card">
-            <% if (screen.mediaUrl) { %>
-              <% if (screen.mediaType === 'video') { %>
-                <video class="card-img-top" controls style="height: 300px; object-fit: cover;">
-                  <source src="<%= screen.mediaUrl %>" type="video/mp4">
-                  Your browser does not support the video tag.
-                </video>
-              <% } else { %>
-                <img src="<%= screen.mediaUrl %>" class="card-img-top" alt="media" style="height: 300px; object-fit: cover;">
-              <% } %>
-            <% } else { %>
-              <div class="bg-light text-center py-5">No Media</div>
-            <% } %>
+<body
+    class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
+    data-open="click" data-menu="vertical-dark-menu" data-col="2-columns">
 
-            <div class="card-body">
-              <h5 class="card-title"><%= screen.type.toUpperCase() %> Screen</h5>
-              <p><strong>Title:</strong> <%= screen.title || 'N/A' %></p>
-              <p><strong>Order:</strong> <%= screen.order %></p>
-              <p><strong>Button Text:</strong> <%= screen.buttonText %></p>
+    <%- include('_layouts/sidenavbar') %>
 
-              <div class="mt-3">
-                <a href="/admin/onboarding/edit/<%= screen._id %>" class="btn btn-warning btn-sm">Edit</a>
-                <form action="/admin/onboarding/delete/<%= screen._id %>" method="POST" style="display:inline;">
-                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
-                </form>
-              </div>
+        <div id="main">
+            <div class="row">
+                <div class="pt-1 pb-0" id="breadcrumbs-wrapper">
+                    <div class="container">
+                        <div class="row">
+                            <%- include('messages', { messages: messages }) %>
+                                <div class="col s12 m6 l6">
+                                    <h6 class="breadcrumbs-title"><span>Manage Drivers</span></h6>
+                                </div>
+                                <div class="col s12 m6 l6 right-align-md"
+                                    style="display: flex; justify-content: flex-end; gap: 10px;">
+                                    <a class="btn pull-right btn-add btn-breadcrumbs white-text"
+                                        href="/admin/drivers/create">Create Driver</a>
+                                    <!-- <a class="btn gradient-45deg-purple-deep-orange modal-trigger" href="#modal">Send Notification</a> -->
+                                </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
+
+            <div class="col s12">
+                <div class="container">
+                    <div class="section section-data-tables">
+                        <!-- Page Length Options -->
+                        <div class="row">
+                            <div class="col s12">
+                                <div class="card">
+                                    <div class="card-content">
+                                        <div class="row">
+                                            <div class="col s12 overflow">
+                                                <table id="page-length-option" class="display">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Sr</th>
+                                                            <th style="width: 60px; text-align: center;">
+                                                                <label
+                                                                    style="margin: 0; display: flex; align-items: center; justify-content: center;">
+                                                                    <input type="checkbox" id="selectAll" />
+                                                                    <span style="margin-left: 4px;">All</span>
+                                                                </label>
+                                                            </th>
+                                                            <th>Profile</th>
+                                                            <th>Name</th>
+                                                            <th>Phone</th>
+                                                            <th>Email</th>
+                                                            <th>Vehicle Number</th>
+                                                            <th>Status</th>
+                                                            <th>Blocked</th>
+                                                            <th>Created Date</th>
+                                                            <th>Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <% if (drivers && drivers.length> 0) { %>
+                                                            <% drivers.forEach((driver, index)=> { %>
+                                                                <tr>
+                                                                    <td>
+                                                                        <%= index + 1 %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <label>
+                                                                            <input type="checkbox"
+                                                                                name="selectedUsers[]"
+                                                                                value="<%= driver._id %>" />
+                                                                            <span></span>
+                                                                        </label>
+                                                                    </td>
+                                                                    <td>
+                                                                        <img src="<%= driver.profileImage || '/img/avatar.png' %>"
+                                                                            alt="Profile"
+                                                                            style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;" />
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= driver.name || 'N/A' %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= driver.phone || 'N/A' %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= driver.email || 'N/A' %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <%= driver.vehicleNumber || 'Not Assigned' %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <span
+                                                                            class="badge <%= driver.isActive ? 'green' : 'red' %>">
+                                                                            <%= driver.isActive ? 'Active' : 'Inactive'
+                                                                                %>
+                                                                        </span>
+                                                                    </td>
+                                                                    <!-- Replace this column -->
+                                                                    <td>
+                                                                        <span class="badge" style="
+            background-color:
+            <%= driver.profileStatus === 'approved'
+                ? 'rgb(212, 240, 216)'
+                : driver.profileStatus === 'rejected'
+                ? 'rgb(240, 212, 212)'
+                : driver.profileStatus === 'pending'
+                ? 'orange'
+                : 'rgba(163, 149, 149, 0.263)' %>;
+            
+            color:
+            <%= driver.profileStatus === 'approved'
+                ? 'green'
+                : driver.profileStatus === 'rejected'
+                ? 'red'
+                : driver.profileStatus === 'pending'
+                ? '#fff'
+                : '#000' %>;
+
+            border-radius: 5px;
+        ">
+                                                                            <%= driver.profileStatus==='approved'
+                                                                                ? 'Approved' :
+                                                                                driver.profileStatus==='rejected'
+                                                                                ? 'Rejected' :
+                                                                                driver.profileStatus==='pending'
+                                                                                ? 'Pending' : 'Under Review' %>
+                                                                        </span>
+                                                                    </td>
+
+
+                                                                    <td>
+                                                                        <% let formattedDate='-' ; if (driver.createdAt)
+                                                                            { const createdAt=new
+                                                                            Date(driver.createdAt); const
+                                                                            day=String(createdAt.getUTCDate()).padStart(2, '0'
+                                                                            ); const
+                                                                            month=String(createdAt.getUTCMonth() +
+                                                                            1).padStart(2, '0' ); const
+                                                                            year=createdAt.getUTCFullYear(); const
+                                                                            hours=String(createdAt.getUTCHours()).padStart(2, '0'
+                                                                            ); const
+                                                                            minutes=String(createdAt.getUTCMinutes()).padStart(2, '0'
+                                                                            ); formattedDate=`${day}-${month}-${year}
+                                                                            ${hours}:${minutes}`; } %>
+                                                                            <%= formattedDate %>
+                                                                    </td>
+                                                                    <td>
+                                                                        <a href="/admin/drivers/view/<%= driver._id %>"
+                                                                            class="waves-effect waves-light accent-2 btn-edit">
+                                                                            <i class="material-icons">visibility</i>
+                                                                        </a>
+                                                                        &nbsp;&nbsp;
+                                                                        <a href="/admin/drivers/edit/<%= driver._id %>"
+                                                                            class="btn-floating waves-effect waves-light accent-2 btn-edit">
+                                                                            <i class="material-icons">edit</i>
+                                                                        </a>
+                                                                        &nbsp;&nbsp;
+                                                                        <!-- <a href="/admin/drivers/delete/<%= driver._id %>"
+                                                                            class="btn-floating waves-effect waves-light accent-2 btn-delete"
+                                                                            onclick="return confirm('Are you sure want to delete this driver?');">
+                                                                            <i class="material-icons">delete</i>
+                                                                        </a> -->
+
+                                                                        <!-- In action buttons section -->
+                                                                        <a href="#"
+                                                                            class="btn-floating waves-effect waves-light accent-2 btn-delete"
+                                                                            onclick="confirmDelete('<%= driver._id %>', '<%= driver.name %>')"
+                                                                            style="margin-left: 10px;">
+                                                                            <i class="material-icons">delete</i>
+                                                                        </a>
+                                                                    </td>
+                                                                </tr>
+                                                                <% }) %>
+                                                                    <% } else { %>
+                                                                        <tr>
+                                                                            <td colspan="10"
+                                                                                class="center-align grey-text">No
+                                                                                drivers found matching your criteria
+                                                                            </td>
+                                                                        </tr>
+                                                                        <% } %>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pagination (same as vendor example) -->
+                        <% if (pagination && pagination.totalPages> 1) { %>
+                            <div class="right-align mt-2">
+                                Page <%= pagination.currentPage %> of <%= pagination.totalPages %>
+                                        <% if (pagination.currentPage> 1) { %>
+                                            <a href="?page=<%= pagination.currentPage - 1 %>&<%= new URLSearchParams(filters).toString() %>"
+                                                class="btn-flat">Prev</a>
+                                            <% } %>
+                                                <% if (pagination.currentPage < pagination.totalPages) { %>
+                                                    <a href="?page=<%= pagination.currentPage + 1 %>&<%= new URLSearchParams(filters).toString() %>"
+                                                        class="btn-flat">Next</a>
+                                                    <% } %>
+                            </div>
+                            <% } %>
+                    </div>
+                </div>
+            </div>
         </div>
-      <% }) %>
-    </div>
-  </div>
+
+        <%- include('_layouts/commonJs') %>
+
+            <script src="/app-assets/vendors/data-tables/js/jquery.dataTables.min.js"></script>
+            <script src="/app-assets/js/scripts/data-tables.js"></script>
+
+            <script>
+                // Select All Checkbox
+                document.addEventListener('DOMContentLoaded', function () {
+                    const selectAll = document.getElementById('selectAll');
+                    const checkboxes = document.querySelectorAll('input[name="selectedUsers[]"]');
+
+                    selectAll.addEventListener('change', function () {
+                        checkboxes.forEach(cb => cb.checked = this.checked);
+                    });
+
+                    // Initialize Materialize selects
+                    M.FormSelect.init(document.querySelectorAll('select'));
+                });
+                function confirmDelete(driverId, driverName) {
+                    if (confirm(`Are you sure you want to delete driver "${driverName}"? This action cannot be undone.`)) {
+                        // Create form and submit POST request
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `/admin/drivers/delete/${driverId}`;
+
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                }
+            </script>
 </body>
+
 </html>

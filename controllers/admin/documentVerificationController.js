@@ -61,7 +61,7 @@
 //       .skip((page - 1) * limit);
 
 //     const total = await Document.countDocuments({ status: 'pending' });
- 
+
 //     successResponse(res, 'Pending documents retrieved successfully', {
 //       documents,
 //       pagination: {
@@ -152,7 +152,7 @@
 //     // Check if all driver documents are verified
 //     const driver = await Driver.findById(document.driverId);
 //     const allDocuments = await Document.find({ driverId: driver._id });
-    
+
 //     const allVerified = allDocuments.every(doc => doc.status === 'verified');
 //     const hasRejected = allDocuments.some(doc => doc.status === 'rejected');
 
@@ -229,7 +229,7 @@
 
 //     // Check if all required documents are uploaded and verified
 //     const documents = await Document.find({ driverId });
-    
+
 //     const requiredDocTypes = ['license', 'insurance', 'registration'];
 //     const uploadedDocTypes = documents.map(doc => doc.documentType);
 //     const missingDocs = requiredDocTypes.filter(type => !uploadedDocTypes.includes(type));
@@ -275,7 +275,7 @@
 // };
 
 
-
+const mongoose = require("mongoose")
 const Driver = require('../../models/Driver');
 const Admin = require('../../models/Admin');
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
@@ -289,7 +289,7 @@ exports.getAllDocuments = async (req, res) => {
     if (status) query['documents.status'] = status;
     if (documentType) query['documents.documentType'] = documentType;
     if (driverId) query._id = driverId;
-    
+
     const drivers = await Driver.find(query)
       .select('name phone email licenseNumber vehicleNumber documents profileStatus')
       .sort({ createdAt: -1 })
@@ -474,7 +474,7 @@ exports.rejectDocument = async (req, res) => {
     if (!driver) return errorResponse(res, 'Document not found', 404);
 
     const doc = driver.documents.id(documentId);
-    doc.status = 'rejected';0
+    doc.status = 'rejected'; 0
     doc.verifiedAt = new Date();
     doc.rejectionReason = rejectionReason;
 
@@ -486,7 +486,7 @@ exports.rejectDocument = async (req, res) => {
     errorResponse(res, 'Rejection failed', 500);
   }
 };
- 
+
 // Approve/Reject Driver Profile
 exports.approveDriverProfile = async (req, res) => {
   try {
@@ -518,5 +518,134 @@ exports.rejectDriverProfile = async (req, res) => {
     successResponse(res, 'Driver rejected');
   } catch (error) {
     errorResponse(res, 'Rejection failed', 500);
+  }
+};
+
+// Render page with SINGLE driver's documents
+exports.getSingleDriverDocumentsPage = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+
+    // ID valid hai ya nahi check karo
+    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      req.flash('error', 'Invalid driver ID');
+      return res.redirect('/admin/drivers');
+    }
+
+    // Sirf ek driver fetch karo
+    const driver = await Driver.findById(driverId)
+      .select('name phone email profileStatus documents')
+      .lean();
+
+    if (!driver) {
+      req.flash('error', 'Driver not found');
+      return res.redirect('/admin/drivers');
+    }
+
+    // View ko waise hi render karo, bas drivers array mein sirf ek driver bhejo
+    res.render('driver-documents', {
+      title: `Documents - ${driver.name}`,
+      user: req.admin,
+      url: req.originalUrl,
+      drivers: [driver]   // ← array with only 1 driver
+    });
+
+  } catch (err) {
+    console.error('Error loading single driver documents:', err);
+    req.flash('error', 'Failed to load driver documents');
+    res.redirect('/admin/drivers');
+  }
+};
+exports.verifySingleDocument = async (req, res) => {
+  try {
+    const { driverId, documentId } = req.params;
+
+    // Basic validation
+    if (!mongoose.Types.ObjectId.isValid(driverId) || !mongoose.Types.ObjectId.isValid(documentId)) {
+      req.flash('error', 'Invalid ID format');
+      return res.redirect('/admin/drivers/documents');
+    }
+
+    // Find driver with this exact document
+    const driver = await Driver.findOne({
+      _id: driverId,
+      'documents._id': documentId
+    });
+
+    if (!driver) {
+      req.flash('error', 'Driver or document not found');
+      return res.redirect('/admin/drivers/documents');
+    }
+
+    const doc = driver.documents.id(documentId);
+    doc.status = 'verified';
+    doc.verifiedBy = req.admin._id;
+    doc.verifiedAt = new Date();
+    doc.rejectionReason = null;
+
+    await driver.save();
+
+    // Update profile status logic (same as before)
+    const allVerified = driver.documents.every(d => d.status === 'verified');
+    const hasRejected = driver.documents.some(d => d.status === 'rejected');
+
+    if (allVerified) driver.profileStatus = 'approved';
+    else if (hasRejected) driver.profileStatus = 'rejected';
+    else driver.profileStatus = 'pending_verification';
+
+    await driver.save();
+
+    // FCM notification (same as before)
+
+    req.flash('success', 'Document verified successfully');
+    res.redirect(`/admin/drivers/documents/${driverId}`); // back to same driver's documents
+
+  } catch (err) {
+    console.error(err);
+    req.flash('error', 'Verification failed');
+    res.redirect('/admin/drivers/documents');
+  }
+};
+
+// rejectSingleDocument – similar changes
+exports.rejectSingleDocument = async (req, res) => {
+  try {
+    const { driverId, documentId } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(driverId) || !mongoose.Types.ObjectId.isValid(documentId)) {
+      throw new Error('Invalid ID format');
+    }
+
+    if (!rejectionReason?.trim()) {
+      throw new Error('Rejection reason is required');
+    }
+
+    const driver = await Driver.findOne({
+      _id: driverId,
+      'documents._id': documentId
+    });
+
+    if (!driver) throw new Error('Driver or document not found');
+
+    const doc = driver.documents.id(documentId);
+    doc.status = 'rejected';
+    doc.verifiedBy = req.admin._id;
+    doc.verifiedAt = new Date();
+    doc.rejectionReason = rejectionReason.trim();
+
+    await driver.save();
+
+    driver.profileStatus = 'rejected';
+    await driver.save();
+
+    // FCM notification (same)
+
+    req.flash('success', 'Document rejected');
+    res.redirect(`/admin/drivers/documents/${driverId}`);
+
+  } catch (err) {
+    req.flash('error', err.message || 'Rejection failed');
+    res.redirect('/admin/drivers/documents');
   }
 };

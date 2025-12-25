@@ -73,7 +73,7 @@ router.get('/dashboard', protectAdmin, adminDashboardController.renderDashboard)
 // );
 
 // ========== Driver Management Routes ==========
-router.get('/drivers', adminDashboardController.renderDriversList);
+
 // router.get('/drivers/create', driverController.renderCreateDriver);
 
 // router.get(

@@ -1,70 +1,102 @@
 // const express = require('express');
 // const router = express.Router();
 // const onboardingController = require('../../controllers/admin/onboardingController');
+// const { uploadOnboardingMedia } = require('../../middleware/uploadMiddleware');
 // const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
-// const multer = require('multer');
-// const path = require('path');
+// const OnboardingScreen = require("../../models/OnboardingScreen")
 
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     cb(null, 'public/uploads/onboarding/');
-//   },
-//   filename: (req, file, cb) => {
-//     cb(null, 'onboarding-' + Date.now() + path.extname(file.originalname));
-//   }
-// }); 
-
-// const upload = multer({
-//   storage,
-//   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-//   fileFilter: (req, file, cb) => {
-//     const allowed = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/quicktime'];
-//     if (allowed.includes(file.mimetype)) cb(null, true);
-//     else cb(new Error('Invalid file type'));
-//   }
+// router.get('/', protectAdmin, isAdmin, async (req, res) => {
+//   const screens = await OnboardingScreen.find().sort({ type: 1, order: 1 });
+//   // res.render('list', { screens });
+//   res.render('list', { 
+//     screens,
+//     url: req.originalUrl,         
+//     title: 'Onboarding Screens'  
+//   });
 // });
 
-// router.post('/add',  upload.single('media'), onboardingController.addOrUpdateScreen);
-// router.get('/list',  onboardingController.getAdminScreens);
-// router.put('/:id',  upload.single('media'), onboardingController.updateScreen);
-// router.delete('/:id',  onboardingController.deleteScreen);
+// router.get('/add', protectAdmin, isAdmin, (req, res) => {
+//   // res.render('add-edit', { screen: null });
+//   res.render('add-edit', { 
+//     screen: null,
+//     url: req.originalUrl,
+//     title: 'Add Onboarding Screen'
+//   });
+// });
 
-// // Public API for Mobile App
+// router.get('/edit/:id', protectAdmin, isAdmin, async (req, res) => {
+//   const screen = await OnboardingScreen.findById(req.params.id);
+//   if (!screen) return res.redirect('/admin/onboarding');
+//   // res.render('add-edit', { screen });
+//   res.render('add-edit', { 
+//     screen,
+//     url: req.originalUrl,
+//     title: 'Edit Onboarding Screen'
+//   });
+// });
+
+// // 
+// router.post('/add',protectAdmin,isAdmin, uploadOnboardingMedia, onboardingController.addOrUpdateScreen);
+// router.get('/list',protectAdmin,isAdmin, onboardingController.getAdminScreens);
+// router.put('/:id',protectAdmin,isAdmin, uploadOnboardingMedia, onboardingController.updateScreen);
+// router.delete('/:id',protectAdmin,isAdmin, onboardingController.deleteScreen);
+ 
 // router.get('/public', onboardingController.getAllScreens);
 
 // module.exports = router;
-
-
 
 const express = require('express');
 const router = express.Router();
 const onboardingController = require('../../controllers/admin/onboardingController');
 const { uploadOnboardingMedia } = require('../../middleware/uploadMiddleware');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
-const OnboardingScreen = require("../../models/OnboardingScreen")
+const OnboardingScreen = require("../../models/OnboardingScreen");
 
+// List all screens (Main page)
 router.get('/', protectAdmin, isAdmin, async (req, res) => {
   const screens = await OnboardingScreen.find().sort({ type: 1, order: 1 });
-  res.render('list', { screens });
+  
+  res.render('splash_screen', { 
+    screens,
+    url: req.originalUrl,
+    title: 'Onboarding Screens Management'
+  });
 });
 
+// Add new screen page
 router.get('/add', protectAdmin, isAdmin, (req, res) => {
-  res.render('add-edit', { screen: null });
+  res.render('splash_screen_add', { 
+    url: req.originalUrl,
+    title: 'Add Onboarding Screen'
+  });
 });
 
+// Edit existing screen page
 router.get('/edit/:id', protectAdmin, isAdmin, async (req, res) => {
   const screen = await OnboardingScreen.findById(req.params.id);
   if (!screen) return res.redirect('/admin/onboarding');
-  res.render('add-edit', { screen });
+  
+  res.render('splash_screen_edit', { 
+    screen,
+    url: req.originalUrl,
+    title: 'Edit Onboarding Screen'
+  });
 });
 
-// 
-router.post('/add',protectAdmin,isAdmin, uploadOnboardingMedia, onboardingController.addOrUpdateScreen);
-router.get('/list',protectAdmin,isAdmin, onboardingController.getAdminScreens);
-router.put('/:id',protectAdmin,isAdmin, uploadOnboardingMedia, onboardingController.updateScreen);
-router.delete('/:id',protectAdmin,isAdmin, onboardingController.deleteScreen);
- 
+// API / Form Actions
+router.post('/add', protectAdmin, isAdmin, uploadOnboardingMedia, onboardingController.addOrUpdateScreen);
+
+// Update route (using POST + _method=PUT or change to POST if you prefer)
+// router.put('/:id', protectAdmin, isAdmin, uploadOnboardingMedia, onboardingController.updateScreen);
+
+router.post('/:id', protectAdmin, isAdmin, uploadOnboardingMedia, onboardingController.updateScreen);
+
+// Other routes remain same
+router.get('/list', protectAdmin, isAdmin, onboardingController.getAdminScreens);
+// router.delete('/:id/delete', protectAdmin, isAdmin, onboardingController.deleteScreen);
+
+router.post('/:id/delete', protectAdmin, isAdmin, onboardingController.deleteScreen);
+
 router.get('/public', onboardingController.getAllScreens);
 
 module.exports = router;
-

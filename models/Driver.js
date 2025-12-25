@@ -230,6 +230,7 @@ const driverSchema = new mongoose.Schema({
     trim: true,
     sparse: true,
     unique: true,
+    default: null,
     match: [/^[A-Z0-9\s-]+$/, 'Invalid registration number format']
   },
 
@@ -246,13 +247,17 @@ const driverSchema = new mongoose.Schema({
   vehicleType: {
     type: String,
     enum: ['car', 'bike', 'auto', 'truck', 'van', 'tempo'],
-    default: null
+    default: null,
+    required: false
   },
   vehicleNumber: {
     type: String,
     unique: true,
     sparse: true,
-    uppercase: true
+    uppercase: true,
+    trim: true,
+    unique: true,
+    default: null
   },
   vehicleModel: { type: String, default: null },
   vehicleColor: { type: String, default: null },

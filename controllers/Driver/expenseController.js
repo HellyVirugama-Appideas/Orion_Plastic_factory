@@ -194,52 +194,241 @@ exports.getPreviousMeterReading = async (req, res) => {
 //   }
 // };
 
+// exports.createFuelExpense = async (req, res) => {
+//   try {
+//     const {
+//       vehicleNumber,
+//       vehicleType,
+//       fuelQuantity,
+//       pricePerLitre,
+//       totalFuelCost,
+//       fuelType,
+//       currentMeterReading,
+//       stationName,
+//       stationAddress,
+//       stationLatitude,
+//       stationLongitude,
+//       description,
+//       category,
+//       journeyId,
+//       deliveryId,
+//       expenseDate,  
+//       expenseTime  
+//     } = req.body;
+
+//     const files = req.files || {};
+
+//     // Validation
+//     if (!vehicleNumber ) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Vehicle number and type are required'
+//       });
+//     }
+
+//     if (!fuelQuantity || !pricePerLitre) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Fuel quantity and price per litre are required'
+//       });
+//     }
+
+//     if (!currentMeterReading) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Current meter reading is required'
+//       });
+//     }
+
+//     const driver = await Driver.findById(req.user._id);
+//     if (!driver) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Driver profile not found'
+//       });
+//     }
+
+//     // Get previous meter reading automatically
+//     const lastExpense = await Expense.findOne({
+//       driver: driver._id,
+//       'vehicle.vehicleNumber': vehicleNumber,
+//       expenseType: 'fuel'
+//     }).sort({ 'meterReading.current': -1 });
+
+//     const previousMeterReading = lastExpense ? lastExpense.meterReading.current : 0;
+
+//     // Calculate total if not provided (for verification)
+//     const calculatedTotal = parseFloat((fuelQuantity * pricePerLitre).toFixed(2));
+//     const finalTotalCost = totalFuelCost || calculatedTotal;
+
+//     // Parse custom date and time, default to now
+//     let finalExpenseDate = Date.now();
+//     if (expenseDate) {
+//       const dateTimeStr = expenseTime ? `${expenseDate}T${expenseTime}:00` : `${expenseDate}T00:00:00`;
+//       finalExpenseDate = new Date(dateTimeStr);
+//       if (isNaN(finalExpenseDate.getTime())) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Invalid expense date or time format'
+//         });
+//       }
+//     }
+
+//     // Create expense
+//     const expense = new Expense({
+//       expenseType: 'fuel',
+//       driver: driver._id,
+
+//       // Vehicle info
+//       vehicle: {
+//         vehicleNumber: vehicleNumber.toUpperCase(),
+//         vehicleType,
+//         model: driver.vehicleModel || 'N/A'
+//       },
+
+//       // Journey/Delivery reference
+//       journey: journeyId || null,
+//       delivery: deliveryId || null,
+
+//       // Fuel details
+//       fuelDetails: {
+//         quantity: parseFloat(fuelQuantity),
+//         pricePerLitre: parseFloat(pricePerLitre),
+//         totalFuelCost: finalTotalCost,
+//         fuelType: fuelType || 'petrol',
+//         stationName: stationName || '',
+//         stationAddress: stationAddress || '',
+//         stationLocation: {
+//           latitude: stationLatitude || null,
+//           longitude: stationLongitude || null
+//         }
+//       },
+
+//       // Meter reading 
+//       meterReading: {
+//         current: parseFloat(currentMeterReading),
+//         previous: previousMeterReading,
+//         difference: parseFloat(currentMeterReading) - previousMeterReading
+//       },
+
+//       // Additional info
+//       description: description || '',
+//       category: category || 'operational',
+
+//       approvalWorkflow: {
+//         submittedBy: driver._id,
+//         submittedAt: Date.now()
+//       },
+
+//       expenseDate: finalExpenseDate
+//     });
+
+//     // Handle optional file uploads during creation
+//     const uploadedReceipts = [];
+
+//     // Fuel Receipt Photo
+//     if (files.fuel_receipt && files.fuel_receipt[0]) {
+//       uploadedReceipts.push({
+//         type: 'fuel_receipt',
+//         url: `/uploads/expenses/${files.fuel_receipt[0].filename}`,
+//         filename: files.fuel_receipt[0].filename
+//       });
+//     }
+
+//     // Meter Reading Photo
+//     if (files.meter_photo && files.meter_photo[0]) {
+//       uploadedReceipts.push({
+//         type: 'meter_photo',
+//         url: `/uploads/expenses/${files.meter_photo[0].filename}`,
+//         filename: files.meter_photo[0].filename
+//       });
+//     }
+
+//     // Payment Receipt Photo
+//     if (files.payment_receipt && files.payment_receipt[0]) {
+//       expense.paymentReceiptPhoto.push({
+//         url: `/uploads/expenses/${files.payment_receipt[0].filename}`,
+//         filename: files.payment_receipt[0].filename
+//       });
+//     }
+
+//     if (uploadedReceipts.length > 0) {
+//       expense.receipts = [...expense.receipts, ...uploadedReceipts];
+//     }
+
+//     await expense.save();
+
+//     await expense.populate('driver', 'name email phone vehicleNumber vehicleType');
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Fuel expense created successfully. You can upload more receipts if needed.',
+//       data: {
+//         expense,
+//         nextStep: uploadedReceipts.length > 0 ? 'submitted' : 'uploadReceipts',
+//         uploadUrl: `/api/driver/expenses/${expense._id}/receipts`
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Create fuel expense error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to create fuel expense',
+//       error: error.message
+//     });
+//   }
+// };
+
+
 exports.createFuelExpense = async (req, res) => {
   try {
-    const {
-      vehicleNumber,
-      vehicleType,
-      fuelQuantity,
-      pricePerLitre,
-      totalFuelCost,
-      fuelType,
-      currentMeterReading,
-      stationName,
-      stationAddress,
-      stationLatitude,
-      stationLongitude,
-      description,
-      category,
-      journeyId,
-      deliveryId,
-      expenseDate,  
-      expenseTime  
-    } = req.body;
+    // 1. Form-data se saare fields safely lete hain
+    const fuelQuantityStr     = req.body.fuelQuantity;
+    const pricePerLitreStr    = req.body.pricePerLitre;
+    const totalFuelCostStr    = req.body.totalFuelCost;
+    const currentMeterReadingStr = req.body.currentMeterReading;
+    const fuelType            = req.body.fuelType || 'petrol';
+    const stationName         = req.body.stationName || '';
+    const stationAddress      = req.body.stationAddress || '';
+    const stationLatitudeStr  = req.body.stationLatitude;
+    const stationLongitudeStr = req.body.stationLongitude;
+    const description         = req.body.description || '';
+    const category            = req.body.category || 'operational';
+    const journeyId           = req.body.journeyId || null;
+    const deliveryId          = req.body.deliveryId || null;
+    const expenseDate         = req.body.expenseDate;
+    const expenseTime         = req.body.expenseTime;
 
     const files = req.files || {};
 
-    // Validation
-    if (!vehicleNumber || !vehicleType) {
+    // 2. Required numeric fields validation
+    const fuelQuantity       = fuelQuantityStr ? parseFloat(fuelQuantityStr) : NaN;
+    const pricePerLitre      = pricePerLitreStr ? parseFloat(pricePerLitreStr) : NaN;
+    const currentMeterReading = currentMeterReadingStr ? parseFloat(currentMeterReadingStr) : NaN;
+
+    if (isNaN(fuelQuantity) || fuelQuantity <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Vehicle number and type are required'
+        message: 'Fuel quantity is required and must be a positive number'
       });
     }
 
-    if (!fuelQuantity || !pricePerLitre) {
+    if (isNaN(pricePerLitre) || pricePerLitre <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Fuel quantity and price per litre are required'
+        message: 'Price per litre is required and must be a positive number'
       });
     }
 
-    if (!currentMeterReading) {
+    if (isNaN(currentMeterReading) || currentMeterReading < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Current meter reading is required'
+        message: 'Current meter reading is required and must be valid'
       });
     }
 
+    // 3. Get logged-in driver from token
     const driver = await Driver.findById(req.user._id);
     if (!driver) {
       return res.status(404).json({
@@ -248,86 +437,83 @@ exports.createFuelExpense = async (req, res) => {
       });
     }
 
-    // Get previous meter reading automatically
+    // 4. Vehicle number automatically driver profile se le lo
+    if (!driver.vehicleNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'No vehicle number found in your profile. Please update your profile first.'
+      });
+    }
+
+    const vehicleNumber = driver.vehicleNumber.toString().trim().toUpperCase();
+
+    // 5. Previous meter reading (same vehicle ke liye)
     const lastExpense = await Expense.findOne({
       driver: driver._id,
       'vehicle.vehicleNumber': vehicleNumber,
       expenseType: 'fuel'
-    }).sort({ 'meterReading.current': -1 });
+    }).sort({ 'meterReading.current': -1 }).select('meterReading.current');
 
     const previousMeterReading = lastExpense ? lastExpense.meterReading.current : 0;
 
-    // Calculate total if not provided (for verification)
+    // 6. Total cost calculate karo
     const calculatedTotal = parseFloat((fuelQuantity * pricePerLitre).toFixed(2));
-    const finalTotalCost = totalFuelCost || calculatedTotal;
+    const finalTotalCost = totalFuelCostStr ? parseFloat(totalFuelCostStr) : calculatedTotal;
 
-    // Parse custom date and time, default to now
-    let finalExpenseDate = Date.now();
+    // 7. Date handling
+    let finalExpenseDate = new Date();
     if (expenseDate) {
-      const dateTimeStr = expenseTime ? `${expenseDate}T${expenseTime}:00` : `${expenseDate}T00:00:00`;
+      const timePart = expenseTime ? expenseTime : '00:00';
+      const dateTimeStr = `${expenseDate}T${timePart}:00`;
       finalExpenseDate = new Date(dateTimeStr);
       if (isNaN(finalExpenseDate.getTime())) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid expense date or time format'
+          message: 'Invalid date/time format. Use YYYY-MM-DD and optional HH:MM'
         });
       }
     }
 
-    // Create expense
+    // 8. Expense create karo
     const expense = new Expense({
       expenseType: 'fuel',
       driver: driver._id,
-
-      // Vehicle info
       vehicle: {
-        vehicleNumber: vehicleNumber.toUpperCase(),
-        vehicleType,
+        vehicleNumber,
         model: driver.vehicleModel || 'N/A'
       },
-
-      // Journey/Delivery reference
-      journey: journeyId || null,
-      delivery: deliveryId || null,
-
-      // Fuel details
+      journey: journeyId,
+      delivery: deliveryId,
       fuelDetails: {
-        quantity: parseFloat(fuelQuantity),
-        pricePerLitre: parseFloat(pricePerLitre),
+        quantity: fuelQuantity,
+        pricePerLitre: pricePerLitre,
         totalFuelCost: finalTotalCost,
-        fuelType: fuelType || 'petrol',
-        stationName: stationName || '',
-        stationAddress: stationAddress || '',
+        fuelType,
+        stationName,
+        stationAddress,
         stationLocation: {
-          latitude: stationLatitude || null,
-          longitude: stationLongitude || null
+          latitude: stationLatitudeStr ? parseFloat(stationLatitudeStr) : null,
+          longitude: stationLongitudeStr ? parseFloat(stationLongitudeStr) : null
         }
       },
-
-      // Meter reading 
       meterReading: {
-        current: parseFloat(currentMeterReading),
+        current: currentMeterReading,
         previous: previousMeterReading,
-        difference: parseFloat(currentMeterReading) - previousMeterReading
+        difference: currentMeterReading - previousMeterReading
       },
-
-      // Additional info
-      description: description || '',
-      category: category || 'operational',
-
+      description,
+      category,
       approvalWorkflow: {
         submittedBy: driver._id,
-        submittedAt: Date.now()
+        submittedAt: new Date()
       },
-
       expenseDate: finalExpenseDate
     });
 
-    // Handle optional file uploads during creation
+    // 9. File handling
     const uploadedReceipts = [];
 
-    // Fuel Receipt Photo
-    if (files.fuel_receipt && files.fuel_receipt[0]) {
+    if (files.fuel_receipt?.[0]) {
       uploadedReceipts.push({
         type: 'fuel_receipt',
         url: `/uploads/expenses/${files.fuel_receipt[0].filename}`,
@@ -335,8 +521,7 @@ exports.createFuelExpense = async (req, res) => {
       });
     }
 
-    // Meter Reading Photo
-    if (files.meter_photo && files.meter_photo[0]) {
+    if (files.meter_photo?.[0]) {
       uploadedReceipts.push({
         type: 'meter_photo',
         url: `/uploads/expenses/${files.meter_photo[0].filename}`,
@@ -344,8 +529,8 @@ exports.createFuelExpense = async (req, res) => {
       });
     }
 
-    // Payment Receipt Photo
-    if (files.payment_receipt && files.payment_receipt[0]) {
+    if (files.payment_receipt?.[0]) {
+      if (!expense.paymentReceiptPhoto) expense.paymentReceiptPhoto = [];
       expense.paymentReceiptPhoto.push({
         url: `/uploads/expenses/${files.payment_receipt[0].filename}`,
         filename: files.payment_receipt[0].filename
@@ -353,20 +538,25 @@ exports.createFuelExpense = async (req, res) => {
     }
 
     if (uploadedReceipts.length > 0) {
-      expense.receipts = [...expense.receipts, ...uploadedReceipts];
+      expense.receipts = uploadedReceipts;
     }
 
+    // 10. Save & response
     await expense.save();
+    await expense.populate('driver', 'name phone vehicleNumber');
 
-    await expense.populate('driver', 'name email phone vehicleNumber vehicleType');
-
+    // 11. Frontend ko vehicle number bhej dete hain (pre-filled ke liye useful)
     res.status(201).json({
       success: true,
-      message: 'Fuel expense created successfully. You can upload more receipts if needed.',
+      message: 'Fuel expense created successfully!',
       data: {
         expense,
+        vehicleNumber,               // ← Ye line important hai! Frontend isse use kar sakta hai
+        
+        totalAmount: finalTotalCost,
+        receiptsUploaded: uploadedReceipts.length,
         nextStep: uploadedReceipts.length > 0 ? 'submitted' : 'uploadReceipts',
-        uploadUrl: `/api/driver/expenses/${expense._id}/receipts`
+        uploadMoreUrl: `/api/driver/expenses/${expense._id}/receipts`
       }
     });
 
@@ -508,49 +698,190 @@ exports.createFuelExpense = async (req, res) => {
 //   }
 // };
 
+// exports.createVehicleExpense = async (req, res) => {
+//   try {
+//     const {
+//       vehicleNumber,
+      
+//       expenseAmount,
+//       expenseType, 
+//       currentMeterReading,
+//       additionalNotes,
+//       description,
+//       category,
+//       journeyId,
+//       deliveryId,
+
+//       // New: Custom date and time
+//       expenseDate,  // Format: YYYY-MM-DD
+//       expenseTime   // Format: HH:MM (24-hour)
+//     } = req.body;
+
+//     const files = req.files || {};
+
+//     // Validation
+//     if (!vehicleNumber) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Vehicle number and type are required'
+//       });
+//     }
+
+//     if (!expenseAmount) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Expense amount is required'
+//       });
+//     }
+
+//     if (!currentMeterReading) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Current meter reading is required'
+//       });
+//     }
+
+//     const driver = await Driver.findById(req.user._id);
+//     if (!driver) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Driver profile not found'
+//       });
+//     }
+
+//     // Get previous meter reading
+//     const lastExpense = await Expense.findOne({
+//       driver: driver._id,
+//       'vehicle.vehicleNumber': vehicleNumber
+//     }).sort({ 'meterReading.current': -1 });
+
+//     const previousMeterReading = lastExpense ? lastExpense.meterReading.current : 0;
+
+//     // Parse custom date and time, default to now
+//     let finalExpenseDate = Date.now();
+//     if (expenseDate) {
+//       const dateTimeStr = expenseTime ? `${expenseDate}T${expenseTime}:00` : `${expenseDate}T00:00:00`;
+//       finalExpenseDate = new Date(dateTimeStr);
+//       if (isNaN(finalExpenseDate.getTime())) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Invalid expense date or time format'
+//         });
+//       }
+//     }
+
+//     // Create vehicle expense
+//     const expense = new Expense({
+//       expenseType: expenseType || 'vehicle',
+//       driver: driver._id,
+
+//       vehicle: {
+//         vehicleNumber: vehicleNumber.toUpperCase(),
+//         model: driver.vehicleModel || 'N/A'
+//       },
+
+//       journey: journeyId || null,
+//       delivery: deliveryId || null,
+
+//       // Vehicle expense details
+//       vehicleExpenseDetails: {
+//         expenseAmount: parseFloat(expenseAmount),
+//         expenseType: expenseType || 'maintenance',
+//         additionalNotes: additionalNotes || ''
+//       },
+
+//       // Meter reading
+//       meterReading: {
+//         current: parseFloat(currentMeterReading),
+//         previous: previousMeterReading,
+//         difference: parseFloat(currentMeterReading) - previousMeterReading
+//       },
+
+//       description: description || '',
+//       additionalNotes: additionalNotes || '',
+//       category: category || 'operational',
+
+//       approvalWorkflow: {
+//         submittedBy: driver._id,
+//         submittedAt: Date.now()
+//       },
+
+//       expenseDate: finalExpenseDate
+//     });
+
+//     const uploadedReceipts = [];
+
+//     // Expense Bill
+//     if (files.expense_bill && files.expense_bill[0]) {
+//       uploadedReceipts.push({
+//         type: 'expense_bill',
+//         url: `/uploads/expenses/${files.expense_bill[0].filename}`,
+//         filename: files.expense_bill[0].filename
+//       });
+//     }
+
+//     if (uploadedReceipts.length > 0) {
+//       expense.receipts = [...expense.receipts, ...uploadedReceipts];
+//     }
+
+//     await expense.save();
+//     await expense.populate('driver', 'name email phone vehicleNumber');
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Vehicle expense created successfully. You can upload more receipts if needed.',
+//       data: {
+//         expense,
+//         nextStep: uploadedReceipts.length > 0 ? 'submitted' : 'uploadReceipts',
+//         uploadUrl: `/api/driver/expenses/${expense._id}/receipts`
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Create vehicle expense error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to create vehicle expense',
+//       error: error.message
+//     });
+//   }
+// };
+
 exports.createVehicleExpense = async (req, res) => {
   try {
-    const {
-      vehicleNumber,
-      vehicleType,
-      expenseAmount,
-      expenseType, 
-      currentMeterReading,
-      additionalNotes,
-      description,
-      category,
-      journeyId,
-      deliveryId,
-
-      // New: Custom date and time
-      expenseDate,  // Format: YYYY-MM-DD
-      expenseTime   // Format: HH:MM (24-hour)
-    } = req.body;
+    // ========== FORM-DATA SAFE EXTRACTION ==========
+    const expenseAmountStr      = req.body.expenseAmount;
+    const expenseType           = req.body.expenseType || 'maintenance';
+    const currentMeterReadingStr = req.body.currentMeterReading;
+    const additionalNotes       = req.body.additionalNotes || '';
+    const description           = req.body.description || '';
+    const category              = req.body.category || 'operational';
+    const journeyId             = req.body.journeyId || null;
+    const deliveryId            = req.body.deliveryId || null;
+    const expenseDate           = req.body.expenseDate;         // YYYY-MM-DD
+    const expenseTime           = req.body.expenseTime;         // HH:MM
 
     const files = req.files || {};
 
-    // Validation
-    if (!vehicleNumber || !vehicleType) {
+    // ========== VALIDATION & NUMBER CONVERSION ==========
+    const expenseAmount = expenseAmountStr ? parseFloat(expenseAmountStr) : NaN;
+    const currentMeterReading = currentMeterReadingStr ? parseFloat(currentMeterReadingStr) : NaN;
+
+    if (isNaN(expenseAmount) || expenseAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Vehicle number and type are required'
+        message: 'Expense amount is required and must be greater than 0'
       });
     }
 
-    if (!expenseAmount) {
+    if (isNaN(currentMeterReading) || currentMeterReading < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Expense amount is required'
+        message: 'Current meter reading is required and must be valid'
       });
     }
 
-    if (!currentMeterReading) {
-      return res.status(400).json({
-        success: false,
-        message: 'Current meter reading is required'
-      });
-    }
-
+    // ========== GET DRIVER & AUTO-FILL VEHICLE NUMBER ==========
     const driver = await Driver.findById(req.user._id);
     if (!driver) {
       return res.status(404).json({
@@ -559,71 +890,80 @@ exports.createVehicleExpense = async (req, res) => {
       });
     }
 
-    // Get previous meter reading
+    if (!driver.vehicleNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'No vehicle number found in your profile. Please update profile first.'
+      });
+    }
+
+    const vehicleNumber = driver.vehicleNumber.toString().trim().toUpperCase();
+
+    // ========== PREVIOUS METER READING ==========
     const lastExpense = await Expense.findOne({
       driver: driver._id,
       'vehicle.vehicleNumber': vehicleNumber
-    }).sort({ 'meterReading.current': -1 });
+    })
+      .sort({ 'meterReading.current': -1 })
+      .select('meterReading.current');
 
     const previousMeterReading = lastExpense ? lastExpense.meterReading.current : 0;
 
-    // Parse custom date and time, default to now
-    let finalExpenseDate = Date.now();
+    // ========== DATE HANDLING ==========
+    let finalExpenseDate = new Date();
     if (expenseDate) {
-      const dateTimeStr = expenseTime ? `${expenseDate}T${expenseTime}:00` : `${expenseDate}T00:00:00`;
+      const timePart = expenseTime ? expenseTime : '00:00';
+      const dateTimeStr = `${expenseDate}T${timePart}:00`;
       finalExpenseDate = new Date(dateTimeStr);
+
       if (isNaN(finalExpenseDate.getTime())) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid expense date or time format'
+          message: 'Invalid date/time format. Use YYYY-MM-DD and optional HH:MM'
         });
       }
     }
 
-    // Create vehicle expense
+    // ========== CREATE EXPENSE DOCUMENT ==========
     const expense = new Expense({
       expenseType: expenseType || 'vehicle',
       driver: driver._id,
 
       vehicle: {
-        vehicleNumber: vehicleNumber.toUpperCase(),
-        vehicleType,
+        vehicleNumber,
         model: driver.vehicleModel || 'N/A'
       },
 
-      journey: journeyId || null,
-      delivery: deliveryId || null,
+      journey: journeyId,
+      delivery: deliveryId,
 
-      // Vehicle expense details
       vehicleExpenseDetails: {
-        expenseAmount: parseFloat(expenseAmount),
-        expenseType: expenseType || 'maintenance',
-        additionalNotes: additionalNotes || ''
+        expenseAmount,
+        expenseType,
+        additionalNotes
       },
 
-      // Meter reading
       meterReading: {
-        current: parseFloat(currentMeterReading),
+        current: currentMeterReading,
         previous: previousMeterReading,
-        difference: parseFloat(currentMeterReading) - previousMeterReading
+        difference: currentMeterReading - previousMeterReading
       },
 
-      description: description || '',
-      additionalNotes: additionalNotes || '',
-      category: category || 'operational',
+      description,
+      category,
 
       approvalWorkflow: {
         submittedBy: driver._id,
-        submittedAt: Date.now()
+        submittedAt: new Date()
       },
 
       expenseDate: finalExpenseDate
     });
 
+    // ========== FILE HANDLING ==========
     const uploadedReceipts = [];
 
-    // Expense Bill
-    if (files.expense_bill && files.expense_bill[0]) {
+    if (files.expense_bill?.[0]) {
       uploadedReceipts.push({
         type: 'expense_bill',
         url: `/uploads/expenses/${files.expense_bill[0].filename}`,
@@ -632,19 +972,25 @@ exports.createVehicleExpense = async (req, res) => {
     }
 
     if (uploadedReceipts.length > 0) {
-      expense.receipts = [...expense.receipts, ...uploadedReceipts];
+      expense.receipts = uploadedReceipts;
     }
 
+    // ========== SAVE & RESPONSE ==========
     await expense.save();
-    await expense.populate('driver', 'name email phone vehicleNumber vehicleType');
+    await expense.populate('driver', 'name phone vehicleNumber');
 
     res.status(201).json({
       success: true,
-      message: 'Vehicle expense created successfully. You can upload more receipts if needed.',
+      message: 'Vehicle expense created successfully!',
       data: {
         expense,
+        vehicleNumber,                // ← Frontend can use this (pre-filled)
+        
+        expenseAmount,
+        meterDifference: currentMeterReading - previousMeterReading,
+        receiptsUploaded: uploadedReceipts.length,
         nextStep: uploadedReceipts.length > 0 ? 'submitted' : 'uploadReceipts',
-        uploadUrl: `/api/driver/expenses/${expense._id}/receipts`
+        uploadMoreUrl: `/api/driver/expenses/${expense._id}/receipts`
       }
     });
 
@@ -922,7 +1268,7 @@ exports.getExpenseById = async (req, res) => {
       _id: expenseId,
       driver: driver._id
     })
-      .populate('driver', 'name email phone vehicleNumber vehicleType')
+      .populate('driver', 'name email phone vehicleNumber')
       .populate('journey', 'startTime endTime distance status')
       .populate('delivery', 'trackingNumber orderId status')
       .populate('approvalWorkflow.adminApproval.approvedBy', 'name')

@@ -286,7 +286,7 @@ const expenseSchema = new mongoose.Schema({
     vehicleType: {
       type: String,
       enum: ['car', 'bike', 'truck', 'van', 'auto'],
-      required: true
+      required: false
     },
     model: String
   },
