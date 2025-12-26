@@ -433,39 +433,87 @@ exports.getCreateDriver = async (req, res) => {
 //       pin
 //     } = req.body;
 
-//     // Required check (only what you want)
+//     // Validation - Required fields
 //     if (!fullName || !contactNumber || !licenseNumber) {
-//       return res.redirect('/admin/drivers/create?error=Full Name, phone, and license number are required');
+//       req.flash('error', 'Full Name, phone, and license number are required');
+//       return res.redirect('/admin/drivers/create');
 //     }
 
-//     // Format phone as per model validation (+91 + 10 digits)
-//     const fullPhone = `${contactCountryCode || '+91'}${contactNumber.replace(/\D/g, '')}`;
+//     // ✅ Emirates ID is required
+//     if (!emiratesId || emiratesId.trim() === '') {
+//       req.flash('error', 'Emirates ID is required');
+//       return res.redirect('/admin/drivers/create');
+//     }
 
-//     // Map emiratesId to governmentIds.emiratesId
+//     // Format phone number
+//     const code = contactCountryCode || '+91';
+//     const number = contactNumber.replace(/\D/g, '');
+
+//     // Validate phone length for Indian numbers
+//     if (code === '+91' && number.length !== 10) {
+//       req.flash('error', 'Indian phone number must be exactly 10 digits');
+//       return res.redirect('/admin/drivers/create');
+//     }
+
+//     const fullPhone = `${code}${number}`;
+
+//     // ✅ Map emiratesId properly (NOT null)
 //     const governmentIds = {
-//       emiratesId: emiratesId || null  // or make it optional if you want
+//       emiratesId: emiratesId.trim()
 //     };
 
-//     // File paths
-//     const basePath = '/uploads/drivers/';
-//     const licenseFront = req.files?.['licenseFront']?.[0]?.filename ? `${basePath}${req.files['licenseFront'][0].filename}` : null;
-//     const licenseBack = req.files?.['licenseBack']?.[0]?.filename ? `${basePath}${req.files['licenseBack'][0].filename}` : null;
-//     const rcFront = req.files?.['rcFront']?.[0]?.filename ? `${basePath}${req.files['rcFront'][0].filename}` : null;
-//     const rcBack = req.files?.['rcBack']?.[0]?.filename ? `${basePath}${req.files['rcBack'][0].filename}` : null;
+//     // ✅ FIX: Build documents array instead of top-level fields
+//     const documents = [];
+    
+//     if (req.files?.licenseFront?.[0]) {
+//       documents.push({
+//         documentType: 'license_front',
+//         fileUrl: req.files.licenseFront[0].filename, // Store only filename
+//         uploadedAt: new Date(),
+//         verificationStatus: 'pending'
+//       });
+//     }
 
+//     if (req.files?.licenseBack?.[0]) {
+//       documents.push({
+//         documentType: 'license_back',
+//         fileUrl: req.files.licenseBack[0].filename,
+//         uploadedAt: new Date(),
+//         verificationStatus: 'pending'
+//       });
+//     }
+
+//     if (req.files?.rcFront?.[0]) {
+//       documents.push({
+//         documentType: 'vehicle_rc_front',
+//         fileUrl: req.files.rcFront[0].filename,
+//         uploadedAt: new Date(),
+//         verificationStatus: 'pending'
+//       });
+//     }
+
+//     if (req.files?.rcBack?.[0]) {
+//       documents.push({
+//         documentType: 'vehicle_rc_back',
+//         fileUrl: req.files.rcBack[0].filename,
+//         uploadedAt: new Date(),
+//         verificationStatus: 'pending'
+//       });
+//     }
+
+//     console.log('[CREATE-DRIVER] Documents array:', documents);
+
+//     // Create new driver
 //     const newDriver = new Driver({
 //       name: fullName,
-//       phone: fullPhone,                    // Now +917898523695 format
+//       phone: fullPhone,
 //       licenseNumber,
 //       vehicleNumber: vehicleNumber || null,
 //       registrationNumber: registrationNumber || null,
-//       governmentIds,                       // ← this satisfies the required emiratesId
+//       governmentIds,
 //       region: region || null,
 //       pin: pin || undefined,
-//       licenseFront,
-//       licenseBack,
-//       rcFront,
-//       rcBack,
+//       documents, // ✅ Store as array
 //       isActive: true,
 //       isAvailable: true,
 //       profileStatus: 'pending_verification',
@@ -473,20 +521,29 @@ exports.getCreateDriver = async (req, res) => {
 
 //     await newDriver.save();
 
-//     res.redirect('/admin/drivers?success=Driver created successfully');
+//     console.log('[CREATE-DRIVER] Successfully created:', newDriver._id);
+//     req.flash('success', 'Driver created successfully!');
+//     res.redirect(`/admin/drivers/view/${newDriver._id}`);
 
 //   } catch (error) {
 //     console.error('[CREATE-DRIVER] ERROR:', error);
+    
 //     let errorMsg = 'Failed to create driver';
-//     if (error.name === 'ValidationError') {
+    
+//     if (error.code === 11000) {
+//       const field = Object.keys(error.keyPattern || {})[0];
+//       errorMsg = `Duplicate ${field}: This value already exists`;
+//     } else if (error.name === 'ValidationError') {
 //       errorMsg = Object.values(error.errors).map(err => err.message).join(', ');
+//     } else if (error.message) {
+//       errorMsg = error.message;
 //     }
-//     res.redirect(`/admin/drivers/create?error=${encodeURIComponent(errorMsg)}`);
+
+//     req.flash('error', errorMsg);
+//     res.redirect('/admin/drivers/create');
 //   }
 // };
 
-// POST - Create New Driver (Admin Only) - With File Uploads
-// POST - Create New Driver (Admin Only) - With File Uploads
 exports.createDriver = async (req, res) => {
   try {
     console.log('[CREATE-DRIVER] Body:', req.body);
@@ -504,23 +561,19 @@ exports.createDriver = async (req, res) => {
       pin
     } = req.body;
 
-    // Validation - Required fields
     if (!fullName || !contactNumber || !licenseNumber) {
       req.flash('error', 'Full Name, phone, and license number are required');
       return res.redirect('/admin/drivers/create');
     }
 
-    // ✅ Emirates ID is required
-    if (!emiratesId || emiratesId.trim() === '') {
+    if (!emiratesId?.trim()) {
       req.flash('error', 'Emirates ID is required');
       return res.redirect('/admin/drivers/create');
     }
 
-    // Format phone number
     const code = contactCountryCode || '+91';
     const number = contactNumber.replace(/\D/g, '');
 
-    // Validate phone length for Indian numbers
     if (code === '+91' && number.length !== 10) {
       req.flash('error', 'Indian phone number must be exactly 10 digits');
       return res.redirect('/admin/drivers/create');
@@ -528,47 +581,50 @@ exports.createDriver = async (req, res) => {
 
     const fullPhone = `${code}${number}`;
 
-    // ✅ Map emiratesId properly (NOT null)
-    const governmentIds = {
-      emiratesId: emiratesId.trim()
+    const documents = [];
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://yourdomain.com' 
+      : 'http://localhost:5001';
+
+    const documentBasePath = '/uploads/documents/';
+
+    const addDocument = (fieldName, docType) => {
+      if (req.files?.[fieldName]?.[0]) {
+        const file = req.files[fieldName][0];
+        const fileUrl = documentBasePath + file.filename;
+
+        documents.push({
+          documentType: docType,
+          fileUrl: fileUrl,                   
+          fullUrl: `${baseUrl}${fileUrl}`,    
+          uploadedAt: new Date(),
+          verificationStatus: 'pending'
+        });
+      }
     };
 
-    // Handle file uploads
-    const basePath = '/uploads/documents/';
-    const licenseFront = req.files?.licenseFront?.[0] 
-      ? `${basePath}${req.files.licenseFront[0].filename}` 
-      : null;
-    const licenseBack = req.files?.licenseBack?.[0] 
-      ? `${basePath}${req.files.licenseBack[0].filename}` 
-      : null;
-    const rcFront = req.files?.rcFront?.[0] 
-      ? `${basePath}${req.files.rcFront[0].filename}` 
-      : null;
-    const rcBack = req.files?.rcBack?.[0] 
-      ? `${basePath}${req.files.rcBack[0].filename}` 
-      : null;
+    addDocument('licenseFront', 'license_front');
+    addDocument('licenseBack', 'license_back');
+    addDocument('rcFront', 'vehicle_rc_front');
+    addDocument('rcBack', 'vehicle_rc_back');
 
-    console.log('[CREATE-DRIVER] Document paths:', {
-      licenseFront,
-      licenseBack,
-      rcFront,
-      rcBack
+    const consoleDetails = {};
+    documents.forEach(doc => {
+      consoleDetails[doc.documentType] = `${baseUrl}${doc.fileUrl}`;
     });
 
-    // Create new driver
+    console.log('[CREATE-DRIVER] Fixed Document URLs:', consoleDetails);
+
     const newDriver = new Driver({
       name: fullName,
       phone: fullPhone,
       licenseNumber,
       vehicleNumber: vehicleNumber || null,
       registrationNumber: registrationNumber || null,
-      governmentIds,  // ✅ emiratesId is now guaranteed to have a value
+      governmentIds: { emiratesId: emiratesId.trim() },
       region: region || null,
       pin: pin || undefined,
-      licenseFront,
-      licenseBack,
-      rcFront,
-      rcBack,
+      documents,
       isActive: true,
       isAvailable: true,
       profileStatus: 'pending_verification',
@@ -582,7 +638,6 @@ exports.createDriver = async (req, res) => {
 
   } catch (error) {
     console.error('[CREATE-DRIVER] ERROR:', error);
-    
     let errorMsg = 'Failed to create driver';
     
     if (error.code === 11000) {
@@ -631,8 +686,9 @@ exports.getEditDriverForm = async (req, res) => {
     req.flash('error', 'Failed to load edit form');
     res.redirect('/admin/drivers');
   }
-};
+}; 
 
+// UPDATE DRIVER
 exports.updateDriverDetails = async (req, res) => {
   try {
     const { driverId } = req.params;
@@ -642,13 +698,11 @@ exports.updateDriverDetails = async (req, res) => {
 
     const updates = { ...req.body };
 
-    // ✅ FIX: Map fullName to name
     if (updates.fullName) {
       updates.name = updates.fullName;
       delete updates.fullName;
     }
 
-    // Clean empty strings to null for unique fields
     const uniqueFields = ['registrationNumber', 'vehicleNumber', 'licenseNumber'];
     uniqueFields.forEach(field => {
       if (updates[field] === '' || updates[field] === undefined) {
@@ -656,21 +710,18 @@ exports.updateDriverDetails = async (req, res) => {
       }
     });
 
-    // Also clean region if empty
     if (updates.region === '') {
       updates.region = null;
     }
 
-    // Remove forbidden fields
     ['password', 'pin', 'role', 'blockStatus', 'performance', 'fcmToken'].forEach(f => delete updates[f]);
 
-    // Phone formatting
     if (updates.contactCountryCode || updates.contactNumber) {
       const code = updates.contactCountryCode || '+91';
       const number = (updates.contactNumber || '').replace(/\D/g, '');
 
       if (code === '+91' && number.length !== 10) {
-        throw new Error('Indian phone must be exactly 10 digits');
+        throw new Error('Indian phone number must be exactly 10 digits');
       }
 
       updates.phone = `${code}${number}`;
@@ -678,43 +729,81 @@ exports.updateDriverDetails = async (req, res) => {
       delete updates.contactNumber;
     }
 
-    // Emirates ID
     if (updates.emiratesId !== undefined) {
-      updates.governmentIds = { ...(updates.governmentIds || {}), emiratesId: updates.emiratesId || null };
+      updates.governmentIds = {
+        ...(updates.governmentIds || {}),
+        emiratesId: updates.emiratesId?.trim() || null
+      };
       delete updates.emiratesId;
     }
 
-    // ✅ FIX: Handle document uploads with correct path
-    // Handle document uploads (only if new file provided)
-    if (req.files) {
+    if (req.files && Object.keys(req.files).length > 0) {
       console.log('[UPDATE-DRIVER] Processing files:', Object.keys(req.files));
 
-      if (req.files.licenseFront?.[0]) {
-        updates.licenseFront = `/uploads/drivers/${req.files.licenseFront[0].filename}`;
-        console.log('[UPDATE-DRIVER] New licenseFront:', updates.licenseFront);
+      const currentDriver = await Driver.findById(driverId).select('documents');
+      let documents = currentDriver?.documents || [];
+
+      documents = documents.filter(doc => doc && doc.documentType);
+
+      const baseUrl = process.env.NODE_ENV === 'production'
+        ? 'https://yourdomain.com'
+        : 'http://localhost:5001';
+
+      const documentBasePath = '/uploads/documents/';
+
+      const documentMapping = {
+        licenseFront: 'license_front',
+        licenseBack: 'license_back',
+        rcFront: 'vehicle_rc_front',
+        rcBack: 'vehicle_rc_back'
+      };
+
+      const consoleDetails = {};
+
+      for (const [fieldName, docType] of Object.entries(documentMapping)) {
+        if (req.files[fieldName]?.[0]) {
+          const file = req.files[fieldName][0];
+          const relativePath = documentBasePath + file.filename;
+
+          const existingIndex = documents.findIndex(d => d.documentType === docType);
+
+          if (existingIndex >= 0) {
+            documents[existingIndex] = {
+              documentType: docType,                   
+              fileUrl: relativePath,
+              uploadedAt: new Date(),
+              verificationStatus: 'pending'
+            };
+          } else {
+            documents.push({
+              documentType: docType,                  
+              fileUrl: relativePath,
+              uploadedAt: new Date(),
+              verificationStatus: 'pending'
+            });
+          }
+
+          consoleDetails[docType] = `${baseUrl}${relativePath}`;
+          console.log(`[UPDATE-DRIVER] ${existingIndex >= 0 ? 'Updated' : 'Added'} ${docType}: ${file.filename}`);
+        }
       }
-      if (req.files.licenseBack?.[0]) {
-        updates.licenseBack = `/uploads/drivers/${req.files.licenseBack[0].filename}`;
-        console.log('[UPDATE-DRIVER] New licenseBack:', updates.licenseBack);
+
+      // Show nice console output like in create driver
+      if (Object.keys(consoleDetails).length > 0) {
+        console.log('[UPDATE-DRIVER] Fixed Document URLs:', consoleDetails);
       }
-      if (req.files.rcFront?.[0]) {
-        updates.rcFront = `/uploads/drivers/${req.files.rcFront[0].filename}`;
-        console.log('[UPDATE-DRIVER] New rcFront:', updates.rcFront);
-      }
-      if (req.files.rcBack?.[0]) {
-        updates.rcBack = `/uploads/drivers/${req.files.rcBack[0].filename}`;
-        console.log('[UPDATE-DRIVER] New rcBack:', updates.rcBack);
-      }
+
+      updates.documents = documents;
     }
 
     console.log('[UPDATE-DRIVER] Final updates:', updates);
 
-    // Update with $set
+    // Perform the update
     const driver = await Driver.findByIdAndUpdate(
       driverId,
       { $set: updates },
       { new: true, runValidators: true }
-    ).select('-password -pin');
+    ).select('-password -pin -__v');
 
     if (!driver) {
       req.flash('error', 'Driver not found');
@@ -726,14 +815,17 @@ exports.updateDriverDetails = async (req, res) => {
     res.redirect(`/admin/drivers/view/${driverId}`);
 
   } catch (error) {
-    console.error('UPDATE ERROR:', error);
+    console.error('[UPDATE-DRIVER] ERROR:', error);
 
-    let msg = error.message || 'Update failed';
+    let msg = error.message || 'Failed to update driver';
+
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0];
       msg = `Duplicate ${field}: This value already exists`;
     } else if (error.name === 'ValidationError') {
-      msg = Object.values(error.errors).map(e => e.message).join(', ');
+      msg = Object.values(error.errors)
+        .map(e => e.message)
+        .join(', ');
     }
 
     req.flash('error', msg);

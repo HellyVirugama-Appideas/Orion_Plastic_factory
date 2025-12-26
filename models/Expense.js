@@ -265,7 +265,18 @@ const expenseSchema = new mongoose.Schema({
   expenseType: {
     type: String,
     required: true,
-    enum: ['fuel', 'maintenance', 'vehicle', 'toll', 'parking', 'repair', 'other'],
+    enum: [
+      'fuel', 
+      'maintenance', 
+      'vehicle',
+      'washing', 
+      'toll', 
+      'parking', 
+      'repair',
+      'general',
+      'insurance',
+      'other'
+    ],
     default: 'fuel',
     index: true
   },

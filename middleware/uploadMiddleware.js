@@ -202,6 +202,8 @@
 //     next();
 //   }
 // };
+
+
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -326,6 +328,15 @@ const driverStorage = multer.diskStorage({
   }
 });
 
+// CUSTOMER DOCUMENTS STORAGE (Dedicated - same folder as driver)
+const customerStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'public/uploads/documents/'),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `${file.fieldname}-${unique}${path.extname(file.originalname)}`);
+  }
+});
+
 // ==================== MULTER INSTANCES ====================
 
 const upload = multer({
@@ -376,6 +387,19 @@ const uploadUpdateDriverDocuments = multer({
   { name: 'rcBack', maxCount: 1 }
 ]);
 
+// Customer Documents - UPDATE (optional files)
+const uploadUpdateCustomerDocuments = multer({
+  storage: customerStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: allowImagesAndPdf
+}).fields([
+  { name: 'gstCertificate', maxCount: 1 },
+  { name: 'panCard', maxCount: 1 },
+  { name: 'shopLicense', maxCount: 1 },
+  { name: 'otherDoc', maxCount: 1 }
+]);
+
+
 // ==================== EXPORTS ====================
 
 module.exports = {
@@ -390,6 +414,8 @@ module.exports = {
   // Driver Documents
   uploadDriverDocuments,           // For CREATE (required)
   uploadUpdateDriverDocuments,     // For UPDATE (optional)
+
+  uploadUpdateCustomerDocuments,
 
   // Maintenance Documents
   uploadMaintenanceDocuments: upload.fields([

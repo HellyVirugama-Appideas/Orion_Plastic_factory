@@ -1,5 +1,7 @@
+const mongoose = require("mongoose")
 const Customer = require('../../models/Customer');
 const Region = require('../../models/Region');
+const Delivery = require("../../models/Delivery")
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
 const csv = require('csv-parser');
 const { Parser } = require('json2csv');
@@ -7,10 +9,103 @@ const fs = require('fs');
 const path = require('path');
 
 //  CREATE CUSTOMER 
+// exports.createCustomer = async (req, res) => {
+//   try {
+//     const {
+//       customerType,
+//       name,
+//       companyName,
+//       email,
+//       phone,
+//       alternatePhone,
+//       gstNumber,
+//       panNumber,
+//       locations,
+//       billingAddress,
+//       paymentTerms,
+//       creditLimit,
+//       preferences,
+//       tags,
+//       category,
+//       notes
+//     } = req.body;
+
+//     // Check if customer already exists
+//     const existingCustomer = await Customer.findOne({
+//       $or: [
+//         { email: email.toLowerCase() },
+//         { phone }
+//       ]
+//     });
+
+//     if (existingCustomer) {
+//       if (existingCustomer.email === email.toLowerCase()) {
+//         return errorResponse(res, 'Email already exists', 400);
+//       }
+//       if (existingCustomer.phone === phone) {
+//         return errorResponse(res, 'Phone number already exists', 400);
+//       }
+//     }
+
+//     // Auto-assign regions based on zipcodes
+//     if (locations && locations.length > 0) {
+//       for (let location of locations) {
+//         if (location.zipcode && location.regionAutoAssigned !== false) {
+//           const region = await Region.findByZipcode(location.zipcode);
+//           if (region) {
+//             location.regionId = region._id;
+//             location.regionAutoAssigned = true;
+//           }
+//         }
+//       }
+//     }
+
+//     // Create customer
+//     const customer = await Customer.create({
+//       customerType,
+//       name,
+//       companyName,
+//       email: email.toLowerCase(),
+//       phone,
+//       alternatePhone,
+//       gstNumber: gstNumber?.toUpperCase(),
+//       panNumber: panNumber?.toUpperCase(),
+//       locations: locations || [],
+//       billingAddress,
+//       paymentTerms: paymentTerms || 'cod',
+//       creditLimit: creditLimit || 0,
+//       preferences: preferences || {},
+//       tags: tags || [],
+//       category: category || 'regular',
+//       notes,
+//       createdBy: req.user._id
+//     });
+
+//     return successResponse(res, 'Customer created successfully', {
+//       customer
+//     }, 201);
+
+//   } catch (error) {
+//     console.error('Create Customer Error:', error);
+//     if (error.name === 'ValidationError') {
+//       const messages = Object.values(error.errors).map(err => err.message);
+//       return errorResponse(res, messages.join(', '), 400);
+//     }
+//     if (error.code === 11000) {
+//       return errorResponse(res, 'Duplicate customer details', 400);
+//     }
+//     return errorResponse(res, 'Failed to create customer', 500);
+//   }
+// };
+
+// CREATE CUSTOMER (Admin Only) - With Document Uploads
 exports.createCustomer = async (req, res) => {
   try {
+    console.log('[CREATE-CUSTOMER] Body:', req.body);
+    console.log('[CREATE-CUSTOMER] Files:', req.files ? Object.keys(req.files) : 'No files');
+
     const {
-      customerType,
+      customerType = 'individual',
       name,
       companyName,
       email,
@@ -18,81 +113,188 @@ exports.createCustomer = async (req, res) => {
       alternatePhone,
       gstNumber,
       panNumber,
-      locations,
-      billingAddress,
-      paymentTerms,
-      creditLimit,
-      preferences,
-      tags,
-      category,
-      notes
+      paymentTerms = 'cod',
+      creditLimit = 0,
+      category = 'regular',
+      status = 'active',
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      zipcode,
+      locationName,
+      contactPersonName,
+      contactPersonPhone,
+      contactPersonEmail,
+      specialInstructions
     } = req.body;
 
-    // Check if customer already exists
-    const existingCustomer = await Customer.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { phone }
-      ]
+    // Validation - Required fields
+    if (!name || !email || !phone || !addressLine1 || !city || !state || !zipcode) {
+      req.flash('error', 'Name, email, phone, and billing address are required');
+      return res.redirect('/admin/customers/create');
+    }
+
+    // Phone validation (10 digits)
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length !== 10) {
+      req.flash('error', 'Phone number must be exactly 10 digits');
+      return res.redirect('/admin/customers/create');
+    }
+
+    // Zipcode validation (6 digits)
+    if (!/^\d{6}$/.test(zipcode)) {
+      req.flash('error', 'Zipcode must be exactly 6 digits');
+      return res.redirect('/admin/customers/create');
+    }
+
+    // Email validation
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    if (!emailRegex.test(email)) {
+      req.flash('error', 'Valid email is required');
+      return res.redirect('/admin/customers/create');
+    }
+
+    // ========== BUILD LOCATION (Primary Location) ==========
+    let locations = [];
+    if (locationName || addressLine1 || city || state || zipcode) {
+      locations.push({
+        locationName: locationName?.trim() || `${name}'s Location`,
+        addressLine1: addressLine1?.trim(),
+        addressLine2: addressLine2?.trim() || '',
+        city: city?.trim(),
+        state: state?.trim(),
+        zipcode: zipcode?.trim(),
+        country: 'India',
+        isPrimary: true,
+        isActive: true
+      });
+    }
+
+    // ========== CONTACT PERSON ==========
+    const contactPerson = {};
+    if (contactPersonName || contactPersonPhone || contactPersonEmail) {
+      contactPerson.name = contactPersonName?.trim();
+      contactPerson.phone = contactPersonPhone?.replace(/\D/g, '');
+      contactPerson.email = contactPersonEmail;
+      contactPerson.designation = 'Primary Contact';
+    }
+
+    // ========== DOCUMENTS HANDLING (Same as Driver) ==========
+    const documents = [];
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://yourdomain.com'
+      : 'http://localhost:5001';
+    const documentBasePath = '/uploads/documents/';
+
+    const documentMapping = {
+      gstCertificate: 'gst_certificate',
+      panCard: 'pan_card',
+      shopLicense: 'shop_license',
+      otherDoc: 'other_document'
+    };
+
+    const addDocument = (fieldName, docType) => {
+      if (req.files?.[fieldName]?.[0]) {
+        const file = req.files[fieldName][0];
+        const relativePath = documentBasePath + file.filename;
+
+        documents.push({
+          documentType: docType,
+          fileUrl: relativePath,
+          uploadedAt: new Date()
+        });
+
+        console.log(`[CREATE-CUSTOMER] Added ${docType}:`, relativePath);
+      }
+    };
+
+    addDocument('gstCertificate', 'gst_certificate');
+    addDocument('panCard', 'pan_card');
+    addDocument('shopLicense', 'shop_license');
+    addDocument('otherDoc', 'other_document');
+
+    // Console log full URLs
+    const consoleDetails = {};
+    documents.forEach(doc => {
+      consoleDetails[doc.documentType] = `${baseUrl}${doc.fileUrl}`;
     });
-
-    if (existingCustomer) {
-      if (existingCustomer.email === email.toLowerCase()) {
-        return errorResponse(res, 'Email already exists', 400);
-      }
-      if (existingCustomer.phone === phone) {
-        return errorResponse(res, 'Phone number already exists', 400);
-      }
+    if (documents.length > 0) {
+      console.log('[CREATE-CUSTOMER] Fixed Document URLs:', consoleDetails);
     }
 
-    // Auto-assign regions based on zipcodes
-    if (locations && locations.length > 0) {
-      for (let location of locations) {
-        if (location.zipcode && location.regionAutoAssigned !== false) {
-          const region = await Region.findByZipcode(location.zipcode);
-          if (region) {
-            location.regionId = region._id;
-            location.regionAutoAssigned = true;
-          }
-        }
-      }
-    }
-
-    // Create customer
-    const customer = await Customer.create({
+    // ========== CREATE CUSTOMER ==========
+    const newCustomer = new Customer({
       customerType,
-      name,
-      companyName,
-      email: email.toLowerCase(),
-      phone,
-      alternatePhone,
-      gstNumber: gstNumber?.toUpperCase(),
-      panNumber: panNumber?.toUpperCase(),
-      locations: locations || [],
-      billingAddress,
-      paymentTerms: paymentTerms || 'cod',
-      creditLimit: creditLimit || 0,
-      preferences: preferences || {},
-      tags: tags || [],
-      category: category || 'regular',
-      notes,
-      createdBy: req.user._id
+      name: name.trim(),
+      companyName: companyName?.trim() || null,
+      email: email.toLowerCase().trim(),
+      phone: cleanPhone,
+      alternatePhone: alternatePhone?.replace(/\D/g, '') || null,
+      gstNumber: gstNumber?.trim() || null,
+      panNumber: panNumber?.trim() || null,
+      locations,
+      billingAddress: {
+        addressLine1: addressLine1?.trim(),
+        addressLine2: addressLine2?.trim() || '',
+        city: city?.trim(),
+        state: state?.trim(),
+        zipcode: zipcode?.trim(),
+        country: 'India'
+      },
+      paymentTerms,
+      creditLimit: parseFloat(creditLimit) || 0,
+      category,
+      status,
+      documents,
+      preferences: {
+        feedbackNotification: true,
+        smsNotification: true,
+        emailNotification: true,
+        specialInstructions: specialInstructions?.trim() || ''
+      },
+      contactPerson,
+      isActive: status === 'active'
     });
 
-    return successResponse(res, 'Customer created successfully', {
-      customer
-    }, 201);
+    await newCustomer.save();
+
+    console.log('[CREATE-CUSTOMER] Successfully created:', newCustomer.customerId);
+    req.flash('success', `Customer ${newCustomer.customerId} created successfully!`);
+    res.redirect(`/admin/customers/view/${newCustomer.customerId}`);
 
   } catch (error) {
-    console.error('Create Customer Error:', error);
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return errorResponse(res, messages.join(', '), 400);
-    }
+    console.error('[CREATE-CUSTOMER] ERROR:', error);
+
+    let errorMsg = 'Failed to create customer';
+
     if (error.code === 11000) {
-      return errorResponse(res, 'Duplicate customer details', 400);
+      const field = Object.keys(error.keyPattern || {})[0];
+      errorMsg = `Duplicate ${field} already exists`;
+    } else if (error.name === 'ValidationError') {
+      errorMsg = Object.values(error.errors).map(err => err.message).join(', ');
+    } else if (error.message) {
+      errorMsg = error.message;
     }
-    return errorResponse(res, 'Failed to create customer', 500);
+
+    req.flash('error', errorMsg);
+    res.redirect('/admin/customers/create');
+  }
+};
+
+// Get Create Customer Form (EJS)
+exports.getCreateCustomer = async (req, res) => {
+  try {
+    res.render('create-customer', {
+      title: 'Create New Customer',
+      url: req.originalUrl,
+      errors: req.flash('error'),
+      success: req.flash('success')
+    });
+  } catch (error) {
+    console.error('[GET-CREATE-CUSTOMER] ERROR:', error);
+    req.flash('error', 'Failed to load form');
+    res.redirect('/admin/customers');
   }
 };
 
@@ -146,20 +348,199 @@ exports.getAllCustomers = async (req, res) => {
       Customer.countDocuments(query)
     ]);
 
-    return successResponse(res, 'Customers retrieved successfully', {
+    res.render('customers', {
+      title: 'Customers Management',
       customers,
+      url: req.originalUrl,
       pagination: {
-        total,
         page: parseInt(page),
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / parseInt(limit)),
+        total
+      },
+      filters: req.query,
+      messages: {
+        success: req.flash('success'),
+        error: req.flash('error')
       }
     });
 
   } catch (error) {
     console.error('Get All Customers Error:', error);
-    return errorResponse(res, 'Failed to retrieve customers', 500);
+    req.flash('error', 'Failed to retrieve customers');
+    res.redirect('/admin/customers');
   }
 };
+
+// exports.viewCustomer = async (req, res) => {
+//   try {
+//     const customerId = req.params.customerId || req.params.id;
+//     console.log('[CUSTOMER-DETAILS] Requested ID:', customerId);
+
+//     if (!mongoose.Types.ObjectId.isValid(customerId)) {
+//       return res.redirect('/admin/customers?error=Invalid customer ID');
+//     }
+
+//     // Fetch customer with important fields
+//     const customer = await Customer.findById(customerId)
+//       .select('-__v') // remove unnecessary fields
+//       .lean();
+
+//     if (!customer) {
+//       return res.redirect('/admin/customers?error=Customer not found');
+//     }
+
+//     // Base URL for documents (same as driver)
+//     const baseUrl = process.env.IMAGE_URL || 'http://localhost:5001/uploads/documents';
+
+//     // Normalize customer documents (same logic as driver)
+//     if (customer.documents && Array.isArray(customer.documents)) {
+//       const docs = customer.documents;
+
+//       customer.gstCertificate = docs.find(d => d.documentType === 'gst_certificate')?.fileUrl
+//         ? `${baseUrl}/${docs.find(d => d.documentType === 'gst_certificate').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+//         : null;
+
+//       customer.panCard = docs.find(d => d.documentType === 'pan_card')?.fileUrl
+//         ? `${baseUrl}/${docs.find(d => d.documentType === 'pan_card').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+//         : null;
+
+//       customer.shopLicense = docs.find(d => d.documentType === 'shop_license')?.fileUrl
+//         ? `${baseUrl}/${docs.find(d => d.documentType === 'shop_license').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+//         : null;
+
+//       customer.otherDoc = docs.find(d => d.documentType === 'other_document')?.fileUrl
+//         ? `${baseUrl}/${docs.find(d => d.documentType === 'other_document').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+//         : null;
+
+//       console.log('[CUSTOMER-DETAILS] Fixed Document URLs:', {
+//         gstCertificate: customer.gstCertificate,
+//         panCard: customer.panCard,
+//         shopLicense: customer.shopLicense,
+//         otherDoc: customer.otherDoc
+//       });
+//     }
+
+//     // Get primary location
+//     const primaryLocation = customer.locations?.find(loc => loc.isPrimary) || customer.locations?.[0] || {};
+
+//     // Recent deliveries (last 10)
+//     const recentDeliveries = await Delivery.find({ customerId: customer._id })
+//       .populate('orderId')
+//       .sort({ createdAt: -1 })
+//       .limit(10)
+//       .lean();
+
+//     // Basic stats
+//     const stats = {
+//       totalOrders: await Delivery.countDocuments({ customerId: customer._id }),
+//       completed: await Delivery.countDocuments({ customerId: customer._id, status: 'delivered' }),
+//       pending: await Delivery.countDocuments({ customerId: customer._id, status: { $in: ['pending', 'processing'] } }),
+//       totalSpent: customer.stats?.totalSpent || 0,
+//       lastOrderDate: customer.stats?.lastOrderDate ? new Date(customer.stats.lastOrderDate).toLocaleDateString() : 'Never'
+//     };
+
+//     res.render('customer_view', {
+//       title: `Customer - ${customer.name || customer.companyName || 'Details'}`,
+//       user: req.admin,
+//       customer,
+//       primaryLocation,
+//       recentDeliveries,
+//       stats,
+//       url: req.originalUrl,
+//     });
+
+//   } catch (error) {
+//     console.error('[CUSTOMER-DETAILS] CRITICAL ERROR:', error);
+//     res.redirect('/admin/customers?error=Failed to load customer details');
+//   }
+// };
+
+
+exports.viewCustomer = async (req, res) => {
+  try {
+    const customerId = req.params.customerId || req.params.id;
+    console.log('[CUSTOMER-DETAILS] Requested ID:', customerId);
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      req.flash('error', 'Invalid customer ID');
+      return res.redirect('/admin/customers');
+    }
+
+    const customer = await Customer.findById(customerId)
+      .select('-__v')
+      .lean();
+
+    if (!customer) {
+      req.flash('error', 'Customer not found');
+      return res.redirect('/admin/customers');
+    }
+
+    const baseUrl = process.env.IMAGE_URL || 'http://localhost:5001';
+
+    // Fix document URLs (same as driver)
+    if (customer.documents?.length) {
+      const docs = customer.documents;
+      customer.gstCertificate = docs.find(d => d.documentType === 'gst_certificate')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'gst_certificate').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+        : null;
+
+      customer.panCard = docs.find(d => d.documentType === 'pan_card')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'pan_card').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+        : null;
+
+      customer.shopLicense = docs.find(d => d.documentType === 'shop_license')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'shop_license').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+        : null;
+
+      customer.otherDoc = docs.find(d => d.documentType === 'other_document')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'other_document').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
+        : null;
+
+      console.log('[CUSTOMER-DETAILS] Fixed Document URLs:', {
+        gstCertificate: customer.gstCertificate,
+        panCard: customer.panCard,
+        shopLicense: customer.shopLicense,
+        otherDoc: customer.otherDoc
+      });
+    }
+
+    const primaryLocation = customer.locations?.find(loc => loc.isPrimary) ||
+                           customer.locations?.[0] || {};
+
+    const recentDeliveries = await Delivery.find({ customerId: customer._id })
+      .populate('orderId')
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const stats = {
+      totalOrders: await Delivery.countDocuments({ customerId: customer._id }),
+      completed: await Delivery.countDocuments({ customerId: customer._id, status: 'delivered' }),
+      pending: await Delivery.countDocuments({ customerId: customer._id, status: { $in: ['pending', 'processing'] } }),
+      totalSpent: customer.stats?.totalSpent || 0,
+      lastOrderDate: customer.stats?.lastOrderDate 
+        ? new Date(customer.stats.lastOrderDate).toLocaleDateString() 
+        : 'Never'
+    };
+
+    res.render('customer_view', {
+      title: `Customer - ${customer.name || customer.companyName || 'Details'}`,
+      user: req.admin,
+      customer,
+      primaryLocation,
+      recentDeliveries,
+      stats,
+      url: req.originalUrl,
+      baseUrl
+    });
+
+  } catch (error) {
+    console.error('[CUSTOMER-DETAILS] CRITICAL ERROR:', error);
+    req.flash('error', 'Failed to load customer details');
+    res.redirect('/admin/customers');
+  }
+};
+
 
 //  GET CUSTOMER BY ID 
 exports.getCustomerById = async (req, res) => {
@@ -189,34 +570,159 @@ exports.getCustomerById = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const updates = req.body;
+    console.log('[UPDATE-CUSTOMER] ID:', customerId);
+    console.log('[UPDATE-CUSTOMER] Body:', req.body);
+    console.log('[UPDATE-CUSTOMER] Files:', req.files ? Object.keys(req.files) : 'No files');
 
-    // Remove fields that shouldn't be updated directly
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      req.flash('error', 'Invalid customer ID');
+      return res.redirect(`/admin/customers/${customerId}/edit`);
+    }
+
+    const updates = { ...req.body };
+
+    // Protected fields - never allow update
     delete updates.customerId;
     delete updates.stats;
     delete updates.createdBy;
+    delete updates.createdAt;
 
-    const customer = await Customer.findByIdAndUpdate(
-      customerId,
-      updates,
-      { new: true, runValidators: true }
-    );
-
-    if (!customer) {
-      return errorResponse(res, 'Customer not found', 404);
+    // Clean phone numbers
+    if (updates.phone) {
+      updates.phone = updates.phone.replace(/\D/g, '');
+      if (updates.phone.length !== 10) {
+        req.flash('error', 'Phone number must be exactly 10 digits');
+        return res.redirect(`/admin/customers/${customerId}/edit`);
+      }
     }
 
-    return successResponse(res, 'Customer updated successfully', {
-      customer
+    if (updates.alternatePhone) {
+      updates.alternatePhone = updates.alternatePhone.replace(/\D/g, '');
+    }
+
+    // Documents handling (same as create)
+    if (req.files && Object.keys(req.files).length > 0) {
+      console.log('[UPDATE-CUSTOMER] Processing files:', Object.keys(req.files));
+
+      const currentCustomer = await Customer.findById(customerId).select('documents');
+      let documents = currentCustomer?.documents || [];
+
+      // Clean invalid docs
+      documents = documents.filter(doc => doc && doc.documentType);
+
+      const baseUrl = process.env.NODE_ENV === 'production'
+        ? 'https://yourdomain.com'
+        : 'http://localhost:5001';
+      const documentBasePath = '/uploads/documents/';
+
+      const documentMapping = {
+        gstCertificate: 'gst_certificate',
+        panCard: 'pan_card',
+        shopLicense: 'shop_license',
+        otherDoc: 'other_document'
+      };
+
+      const consoleDetails = {};
+
+      for (const [fieldName, docType] of Object.entries(documentMapping)) {
+        if (req.files[fieldName]?.[0]) {
+          const file = req.files[fieldName][0];
+          const relativePath = documentBasePath + file.filename;
+
+          const existingIndex = documents.findIndex(d => d.documentType === docType);
+
+          if (existingIndex >= 0) {
+            // Update existing
+            documents[existingIndex] = {
+              documentType: docType,
+              fileUrl: relativePath,
+              uploadedAt: new Date()
+            };
+          } else {
+            // Add new
+            documents.push({
+              documentType: docType,
+              fileUrl: relativePath,
+              uploadedAt: new Date()
+            });
+          }
+
+          consoleDetails[docType] = `${baseUrl}${relativePath}`;
+          console.log(`[UPDATE-CUSTOMER] ${existingIndex >= 0 ? 'Updated' : 'Added'} ${docType}: ${file.filename}`);
+        }
+      }
+
+      if (Object.keys(consoleDetails).length > 0) {
+        console.log('[UPDATE-CUSTOMER] Fixed Document URLs:', consoleDetails);
+      }
+
+      updates.documents = documents;
+    }
+
+    // Update customer
+    const updatedCustomer = await Customer.findByIdAndUpdate(
+      customerId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!updatedCustomer) {
+      req.flash('error', 'Customer not found');
+      return res.redirect(`/admin/customers/${customerId}/edit`);
+    }
+
+    console.log('[UPDATE-CUSTOMER] Successfully updated:', updatedCustomer.customerId);
+    req.flash('success', `Customer ${updatedCustomer.customerId} updated successfully!`);
+    res.redirect(`/admin/customers/view/${customerId}`);
+
+  } catch (error) {
+    console.error('[UPDATE-CUSTOMER] ERROR:', error);
+
+    let errorMsg = 'Failed to update customer';
+
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0];
+      errorMsg = `Duplicate ${field}: This value already exists`;
+    } else if (error.name === 'ValidationError') {
+      errorMsg = Object.values(error.errors).map(err => err.message).join(', ');
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+
+    req.flash('error', errorMsg);
+    res.redirect(`/admin/customers/${req.params.customerId}/edit`);
+  }
+};
+
+// GET - Render Edit Form
+exports.getEditCustomer = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      req.flash('error', 'Invalid customer ID');
+      return res.redirect('/admin/customers');
+    }
+
+    const customer = await Customer.findById(customerId).lean();
+
+    if (!customer) {
+      req.flash('error', 'Customer not found');
+      return res.redirect('/admin/customers');
+    }
+
+    res.render('customer_edit', {
+      title: `Edit Customer - ${customer.customerId}`,
+      customer,
+      url: req.originalUrl,
+      errors: req.flash('error'),
+      success: req.flash('success')
     });
 
   } catch (error) {
-    console.error('Update Customer Error:', error);
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return errorResponse(res, messages.join(', '), 400);
-    }
-    return errorResponse(res, 'Failed to update customer', 500);
+    console.error('[GET-EDIT-CUSTOMER] ERROR:', error);
+    req.flash('error', 'Failed to load edit form');
+    res.redirect('/admin/customers');
   }
 };
 
@@ -225,23 +731,62 @@ exports.deleteCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    const customer = await Customer.findById(customerId);
-
-    if (!customer) {
-      return errorResponse(res, 'Customer not found', 404);
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      req.flash('error', 'Invalid customer ID');
+      return res.redirect('/admin/customers');
     }
 
-    // Soft delete - change status
-    customer.status = 'inactive';
-    await customer.save();
+    // Find and permanently delete the customer
+    const customer = await Customer.findByIdAndDelete(customerId);
 
-    return successResponse(res, 'Customer deleted successfully', {
-      customerId: customer._id
+    if (!customer) {
+      req.flash('error', 'Customer not found');
+      return res.redirect('/admin/customers');
+    }
+
+    // Optional: Prevent deletion if customer has active deliveries
+    // Uncomment if you want to block delete on active orders
+    /*
+    const activeDeliveries = await Delivery.countDocuments({
+      customerId: customer._id,
+      status: { $nin: ['delivered', 'cancelled', 'failed'] }
     });
 
+    if (activeDeliveries > 0) {
+      req.flash('error', 'Cannot delete customer with active deliveries. Complete or cancel them first.');
+      // Re-insert customer since we already deleted it (edge case)
+      await new Customer(customer).save();
+      return res.redirect('/admin/customers');
+    }
+    */
+
+    // Optional: Delete uploaded document files from disk (same as driver)
+    if (customer.documents && customer.documents.length > 0) {
+      customer.documents.forEach(doc => {
+        if (doc.fileUrl) {
+          const filePath = path.join(__dirname, '../../public', doc.fileUrl);
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+              console.log(`[DELETE-CUSTOMER] Deleted file: ${doc.fileUrl}`);
+            } catch (err) {
+              console.error(`[DELETE-CUSTOMER] Failed to delete file: ${doc.fileUrl}`, err);
+            }
+          }
+        }
+      });
+    }
+
+    console.log(`[DELETE-CUSTOMER] Permanently deleted: ${customer.customerId} (${customer.name || customer.companyName})`);
+
+    req.flash('success', `Customer ${customer.customerId} - ${customer.name || customer.companyName || 'N/A'} deleted successfully`);
+    res.redirect('/admin/customers');
+
   } catch (error) {
-    console.error('Delete Customer Error:', error);
-    return errorResponse(res, 'Failed to delete customer', 500);
+    console.error('[DELETE-CUSTOMER] ERROR:', error);
+    req.flash('error', 'Failed to delete customer. Please try again.');
+    res.redirect('/admin/customers');
   }
 };
 
@@ -781,7 +1326,7 @@ exports.bulkExport = async (req, res) => {
         feedbackNotification: customer.preferences?.feedbackNotification || false,
         notes: customer.notes || '',
         createdAt: customer.createdAt
-      }; 
+      };
     });
 
     // Define CSV fields

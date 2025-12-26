@@ -5,37 +5,32 @@ const { isAdmin, protectAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/roleMiddleware');
 const multer = require('multer');
 const path = require('path');
-
-// Configure multer for CSV upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'public/uploads/csv/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, `customers_import_${Date.now()}${path.extname(file.originalname)}`);
-  }
-});
-
-const upload = multer({
-  storage,
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV files are allowed'), false);
-    }
-  },
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
-});
+const { uploadUpdateDriverDocuments, uploadUpdateCustomerDocuments } = require('../../middleware/uploadMiddleware');
 
 //  CUSTOMER CRUD 
 
+router.get(
+  "/create-customer",
+  protectAdmin,
+  isAdmin,
+  customerController.getCreateCustomer
+)
+
 // Create customer
+// router.post(
+//   '/',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'create'),
+//   customerController.createCustomer
+// );
+
 router.post(
   '/',
   protectAdmin,
   isAdmin,
   checkPermission('customers', 'create'),
+  uploadUpdateCustomerDocuments, 
   customerController.createCustomer
 );
 
@@ -47,33 +42,54 @@ router.get(
   checkPermission('customers', 'read'),
   customerController.getAllCustomers
 );
-
-// Get customer by ID
+// View single customer
 router.get(
-  '/:customerId',
+  '/view/:customerId',
   protectAdmin,
   isAdmin,
   checkPermission('customers', 'read'),
-  customerController.getCustomerById
+  customerController.viewCustomer
 );
 
+// Get customer by ID
+// router.get(
+//   '/:customerId',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'read'),
+//   customerController.getCustomerById
+// );
+
 // Update customer
-router.put(
-  '/:customerId',
+// Edit customer form
+router.get(
+  '/:customerId/edit',
   protectAdmin,
   isAdmin,
   checkPermission('customers', 'update'),
+  customerController.getEditCustomer
+);
+
+router.post(
+  '/:customerId/edit',
+  protectAdmin,
+  isAdmin,
+  checkPermission('customers', 'update'),
+  uploadUpdateCustomerDocuments,          
   customerController.updateCustomer
 );
 
+
 // Delete customer
-router.delete(
-  '/:customerId',
+router.post(
+  '/:customerId/delete',
   protectAdmin,
   isAdmin,
   checkPermission('customers', 'delete'),
   customerController.deleteCustomer
 );
+
+
 
 //  LOCATION MANAGEMENT 
 
@@ -141,7 +157,7 @@ router.post(
   protectAdmin,
   isAdmin,
   checkPermission('customers', 'create'),
-  upload.single('csvFile'),
+  // upload.single('csvFile'),
   customerController.bulkImport
 );
 

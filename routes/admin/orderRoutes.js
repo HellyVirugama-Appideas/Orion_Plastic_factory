@@ -6,7 +6,7 @@ const { checkPermission } = require('../../middleware/roleMiddleware');
 const { createOrderByAdmin } = require('../../controllers/admin/orderController');
 const { renderOrdersList, renderCreateOrder } = require('../../controllers/admin/adminDashboardController');
 
-
+ 
 // Admin creates order
 // router.post(
 //   '/create',

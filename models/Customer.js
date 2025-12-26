@@ -4,7 +4,7 @@ const locationSchema = new mongoose.Schema({
   locationName: {
     type: String,
     required: true,
-    trim: true
+    trim: true  
   },
   addressLine1: {
     type: String,
