@@ -9,7 +9,7 @@
 //     default: 'fuel',
 //     index: true
 //   },
-  
+
 //   // Driver & Vehicle Reference
 //   driver: {
 //     type: mongoose.Schema.Types.ObjectId,
@@ -17,7 +17,7 @@
 //     required: false,
 //     index: true
 //   },
-  
+
 //   vehicle: {
 //     vehicleNumber: {
 //       type: String,
@@ -29,7 +29,7 @@
 //     },
 //     model: String
 //   },
-  
+
 //   // Journey/Delivery Reference (Integration with existing system)
 //   journey: {
 //     type: mongoose.Schema.Types.ObjectId,
@@ -39,7 +39,7 @@
 //     type: mongoose.Schema.Types.ObjectId,
 //     ref: 'Delivery'
 //   },
-  
+
 //   // Fuel Specific Data
 //   fuelDetails: {
 //     quantity: {
@@ -68,7 +68,7 @@
 //       }
 //     }
 //   },
-  
+
 //   // Meter Reading (for mileage calculation)
 //   meterReading: {
 //     current: {
@@ -85,7 +85,7 @@
 //       min: 0
 //     }
 //   },
-  
+
 //   // Mileage Calculation
 //   mileageData: {
 //     distanceCovered: {
@@ -106,7 +106,7 @@
 //       default: 'km/l'
 //     }
 //   },
-  
+
 //   // Receipt & Photo Management
 //   receipts: [{
 //     type: {
@@ -124,7 +124,7 @@
 //       default: Date.now
 //     }
 //   }],
-  
+
 //   // Date & Time (Auto-fetched)
 //   expenseDate: {
 //     type: Date,
@@ -132,7 +132,7 @@
 //     default: Date.now,
 //     index: true
 //   },
-  
+
 //   // Approval Workflow (Driver → Admin → Finance)
 //   approvalStatus: {
 //     type: String,
@@ -140,7 +140,7 @@
 //     default: 'pending',
 //     index: true
 //   },
-  
+
 //   approvalWorkflow: {
 //     submittedAt: {
 //       type: Date,
@@ -177,7 +177,7 @@
 //       paidAt: Date
 //     }
 //   },
-  
+
 //   // Rejection Details
 //   rejectionReason: String,
 //   rejectedBy: {
@@ -185,7 +185,7 @@
 //     ref: 'User'
 //   },
 //   rejectedAt: Date,
-  
+
 //   // Additional Information
 //   description: String,
 //   remarks: String,
@@ -193,17 +193,17 @@
 //     type: String,
 //     enum: ['operational', 'emergency', 'scheduled', 'unexpected']
 //   },
-  
+
 //   // Payment Status
 //   paymentStatus: {
 //     type: String,
 //     enum: ['unpaid', 'partially_paid', 'paid', 'reimbursed'],
 //     default: 'unpaid'
 //   },
-  
+
 //   // Analytics & Reporting
 //   tags: [String]
-  
+
 // }, { 
 //   timestamps: true,
 //   toJSON: { virtuals: true },
@@ -265,22 +265,26 @@ const expenseSchema = new mongoose.Schema({
   expenseType: {
     type: String,
     required: true,
-    enum: [
-      'fuel', 
-      'maintenance', 
-      'vehicle',
-      'washing', 
-      'toll', 
-      'parking', 
-      'repair',
-      'general',
-      'insurance',
-      'other'
-    ],
+    enum: ['fuel', 'vehicle'],
     default: 'fuel',
     index: true
   },
-  
+  subCategory: {
+    type: String,
+    enum: [
+      'maintenance',
+      'repair',
+      'washing',
+      'toll',
+      'parking',
+      'insurance',
+      'general',
+      'other'
+    ],
+    default: 'maintenance',
+    required: function() { return this.expenseType === 'vehicle'; }
+  },
+
   // Driver & Vehicle Reference
   driver: {
     type: mongoose.Schema.Types.ObjectId,
@@ -288,7 +292,7 @@ const expenseSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  
+
   vehicle: {
     vehicleNumber: {
       type: String,
@@ -301,7 +305,7 @@ const expenseSchema = new mongoose.Schema({
     },
     model: String
   },
-  
+
   // Journey/Delivery Reference
   journey: {
     type: mongoose.Schema.Types.ObjectId,
@@ -311,7 +315,7 @@ const expenseSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Delivery'
   },
-  
+
   // Fuel Specific Data (for expenseType: 'fuel')
   fuelDetails: {
     quantity: {
@@ -337,7 +341,7 @@ const expenseSchema = new mongoose.Schema({
       longitude: Number
     }
   },
-  
+
   // Vehicle Expense Specific Data (for expenseType: 'vehicle'/'maintenance')
   vehicleExpenseDetails: {
     expenseAmount: {
@@ -347,7 +351,7 @@ const expenseSchema = new mongoose.Schema({
     expenseType: String, // Additional sub-type
     additionalNotes: String
   },
-  
+
   // Meter Reading (for mileage calculation)
   meterReading: {
     current: {
@@ -363,7 +367,7 @@ const expenseSchema = new mongoose.Schema({
       min: 0
     }
   },
-  
+
   // Mileage Calculation
   mileageData: {
     distanceCovered: {
@@ -384,7 +388,7 @@ const expenseSchema = new mongoose.Schema({
       default: 'km/l'
     }
   },
-  
+
   // Receipt & Photo Management
   receipts: [{
     type: {
@@ -402,7 +406,7 @@ const expenseSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
+
   // Browse & Upload Files tracking
   browseUploadFiles: [{
     filename: String,
@@ -413,7 +417,7 @@ const expenseSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
+
   // Payment Receipt Photo
   paymentReceiptPhoto: [{
     url: String,
@@ -423,7 +427,7 @@ const expenseSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
+
   // Date & Time
   expenseDate: {
     type: Date,
@@ -431,7 +435,7 @@ const expenseSchema = new mongoose.Schema({
     default: Date.now,
     index: true
   },
-  
+
   // Approval Workflow
   approvalStatus: {
     type: String,
@@ -439,7 +443,7 @@ const expenseSchema = new mongoose.Schema({
     default: 'pending',
     index: true
   },
-  
+
   approvalWorkflow: {
     submittedAt: {
       type: Date,
@@ -476,7 +480,7 @@ const expenseSchema = new mongoose.Schema({
       paidAt: Date
     }
   },
-  
+
   // Rejection Details
   rejectionReason: String,
   rejectedBy: {
@@ -484,7 +488,7 @@ const expenseSchema = new mongoose.Schema({
     ref: 'User'
   },
   rejectedAt: Date,
-  
+
   // Additional Information
   description: String,
   remarks: String,
@@ -493,25 +497,25 @@ const expenseSchema = new mongoose.Schema({
     type: String,
     enum: ['operational', 'emergency', 'scheduled', 'unexpected']
   },
-  
+
   // Payment Status
   paymentStatus: {
     type: String,
     enum: ['unpaid', 'partially_paid', 'paid', 'reimbursed'],
     default: 'unpaid'
   },
-  
+
   // Resubmission tracking
   resubmittedAt: Date,
   resubmittedCount: {
     type: Number,
     default: 0
   },
-  
+
   // Analytics & Reporting
   tags: [String]
-  
-}, { 
+
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
@@ -527,7 +531,7 @@ expenseSchema.index({ delivery: 1 });
 expenseSchema.index({ expenseType: 1, driver: 1 });
 
 // Virtual for total amount (handles both fuel and vehicle expenses)
-expenseSchema.virtual('totalAmount').get(function() {
+expenseSchema.virtual('totalAmount').get(function () {
   if (this.expenseType === 'fuel' && this.fuelDetails) {
     return this.fuelDetails.totalFuelCost || 0;
   } else if (this.vehicleExpenseDetails) {
@@ -537,7 +541,7 @@ expenseSchema.virtual('totalAmount').get(function() {
 });
 
 // Calculate mileage before saving (for fuel expenses)
-expenseSchema.pre('save', async function(next) {
+expenseSchema.pre('save', async function (next) {
   if (this.expenseType === 'fuel' && this.meterReading.previous && this.fuelDetails.quantity) {
     this.meterReading.difference = this.meterReading.current - this.meterReading.previous;
     this.mileageData.distanceCovered = this.meterReading.difference;
@@ -548,7 +552,7 @@ expenseSchema.pre('save', async function(next) {
 });
 
 // Static method to get vehicle mileage history
-expenseSchema.statics.getVehicleMileageHistory = async function(vehicleNumber, startDate, endDate) {
+expenseSchema.statics.getVehicleMileageHistory = async function (vehicleNumber, startDate, endDate) {
   return this.aggregate([
     {
       $match: {
@@ -569,12 +573,12 @@ expenseSchema.statics.getVehicleMileageHistory = async function(vehicleNumber, s
 };
 
 // Static method to get pending expenses count
-expenseSchema.statics.getPendingExpensesCount = async function() {
+expenseSchema.statics.getPendingExpensesCount = async function () {
   return this.countDocuments({ approvalStatus: 'pending' });
 };
 
 // Static method to get expenses by type
-expenseSchema.statics.getExpensesByType = async function(driverId, expenseType) {
+expenseSchema.statics.getExpensesByType = async function (driverId, expenseType) {
   const query = { driver: driverId };
   if (expenseType && expenseType !== 'all') {
     query.expenseType = expenseType;

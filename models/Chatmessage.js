@@ -8,7 +8,7 @@ const chatMessageSchema = new mongoose.Schema({
   },
   senderId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true,
+    required: false,
     refPath: 'senderType'
   },
   senderType: {
@@ -30,7 +30,7 @@ const chatMessageSchema = new mongoose.Schema({
     type: String,
     enum: ['text', 'image', 'video', 'audio', 'document', 'location'],
     default: 'text'
-  },
+  }, 
   content: {
     type: String,
     required: true

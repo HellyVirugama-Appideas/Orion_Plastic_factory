@@ -240,6 +240,7 @@ const AdminTrackingRoutes = require("./routes/admin/AdminTrackingRoutes");
 const communicationRoutes = require('./routes/admin/Communicationroutes');
 const driverChatRoutes = require("./routes/Driver/driverChatRoutes")
 const onboardingRoutes = require("./routes/admin/onboardingRoutes")
+const Homepage = require("./routes/Driver/Homepage")
 
 const driverApprovalRoutes= require("./routes/admin/driverApprovalRoutes")
 const methodOverride = require('method-override');
@@ -593,12 +594,13 @@ app.use("/api/journey", journeyRoutes);
 app.use("/api/routes", routeRoutes);  
 app.use("/api/remark", remarkRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
-app.use("/api/expenses", expenseRoutes);
+app.use("/api/expenses", expenseRoutes);    
 app.use("/api/chat", driverChatRoutes)
+app.use("/api/home",Homepage)
 
 // Admin Routes (Existing)
 app.use('/admin', adminRoutes);
-app.use("/admin/order", orderRoutes);
+app.use("/admin/orders", orderRoutes); 
 app.use("/admin/vehicles", vehicleRoutes);
 app.use("/admin/regions", regionRoutes);
 app.use("/admin/drivers", driverManagementRoutes);  
@@ -610,12 +612,13 @@ app.use("/admin/expenses", expenseAdminRoutes);
 app.use("/admin/tracking", AdminTrackingRoutes);
 app.use("/admin/onboarding", onboardingRoutes)
 app.use('/admin/drivers',driverApprovalRoutes)
+app.use("/admin/chat",communicationRoutes)
 
 // app.all('/admin/*', (req, res) => res.status(404).render('404'));
 
 
 // Chat, Notifications, Reports, Analytics
-app.use('/api/admin', communicationRoutes);
+// app.use('/api/admin', communicationRoutes);
 
 // app.get('/', (req, res) => {
 //   res.json({ 

@@ -399,50 +399,152 @@ exports.getMessages = async (req, res) => {
 };
 
 // SEND MESSAGE FROM ADMIN (with file upload support)
+// exports.sendMessage = async (req, res) => {
+//   try {
+//     const admin = req.user;
+//     let { driverId, content, messageType = 'text', location } = req.body;
+
+//     if (!driverId) {
+//       return res.status(400).json({ success: false, message: 'driverId is required' });
+//     }
+
+//     let mediaUrl = null;
+//     let fileName = null;
+//     let mimeType = null;
+
+//     // File upload via Multer
+//     if (req.file) {
+//       mediaUrl = `/uploads/chat/${req.file.filename}`;
+//       fileName = req.file.originalname;
+//       mimeType = req.file.mimetype;
+
+//       if (mimeType.startsWith('image/')) messageType = 'image';
+//       else if (mimeType.startsWith('video/')) messageType = 'video';
+//       else if (mimeType.startsWith('audio/')) messageType = 'audio';
+//       else if (mimeType === 'application/pdf') messageType = 'document';
+//       else messageType = 'document';
+//     }
+
+//     if (!content && !mediaUrl && messageType !== 'location') {
+//       return res.status(400).json({ success: false, message: 'Content or media required' });
+//     }
+
+//     // Parse location if string
+//     if (location && typeof location === 'string') {
+//       try { location = JSON.parse(location); } catch (e) { location = null; }
+//     }
+
+//     const conversationId = generateConversationId('admin', driverId);
+
+//     const message = await ChatMessage.create({
+//       conversationId,
+//       senderId: null, // Admin has no MongoDB ID
+//       senderType: 'Admin',
+//       receiverId: driverId,
+//       receiverType: 'Driver',
+//       messageType,
+//       content: content || null,
+//       mediaUrl,
+//       fileName,
+//       mimeType,
+//       location: location || null,
+//       isDelivered: true,
+//       deliveredAt: new Date()
+//     });
+
+//     const messageObj = message.toObject();
+
+//     // Real-time emit
+//     if (global.io) {
+//       const payload = {
+//         conversationId,
+//         message: {
+//           ...messageObj,
+//           sender: {
+//             name: 'Support',
+//             profileImage: '/images/support-avatar.png'
+//           }
+//         }
+//       };
+
+//       global.io.to(`driver-${driverId}`).emit('chat:new-message', payload);
+//       global.io.to('admin-room').emit('chat:new-message', payload);
+//     }
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Message sent successfully',
+//       data: { message: messageObj }
+//     });
+
+//   } catch (error) {
+//     console.error('Admin Send Message Error:', error);
+//     res.status(500).json({ success: false, message: 'Failed to send message' });
+//   }
+// };
+
+// SEND MESSAGE FROM ADMIN (fully multipart/form-data friendly)
 exports.sendMessage = async (req, res) => {
   try {
-    const admin = req.user;
-    let { driverId, content, messageType = 'text', location } = req.body;
+    // All fields come from FormData → req.body
+    const { driverId, content, messageType = 'text' } = req.body;
+
+    // Location can come as string (JSON) or already parsed object
+    let location = req.body.location;
+    if (location && typeof location === 'string') {
+      try {
+        location = JSON.parse(location);
+      } catch {
+        location = null;
+      }
+    }
 
     if (!driverId) {
-      return res.status(400).json({ success: false, message: 'driverId is required' });
+      return res.status(400).json({
+        success: false,
+        message: 'driverId is required'
+      });
     }
 
     let mediaUrl = null;
     let fileName = null;
     let mimeType = null;
+    let finalMessageType = messageType;
 
-    // File upload via Multer
+    // File handling (field name must be 'file')
     if (req.file) {
       mediaUrl = `/uploads/chat/${req.file.filename}`;
       fileName = req.file.originalname;
       mimeType = req.file.mimetype;
 
-      if (mimeType.startsWith('image/')) messageType = 'image';
-      else if (mimeType.startsWith('video/')) messageType = 'video';
-      else if (mimeType.startsWith('audio/')) messageType = 'audio';
-      else if (mimeType === 'application/pdf') messageType = 'document';
-      else messageType = 'document';
+      // Auto-detect messageType from file if not provided
+      if (mimeType.startsWith('image/')) finalMessageType = 'image';
+      else if (mimeType.startsWith('video/')) finalMessageType = 'video';
+      else if (mimeType.startsWith('audio/')) finalMessageType = 'audio';
+      else if (mimeType === 'application/pdf' || mimeType.includes('document')) {
+        finalMessageType = 'document';
+      } else {
+        finalMessageType = 'document'; // fallback
+      }
     }
 
-    if (!content && !mediaUrl && messageType !== 'location') {
-      return res.status(400).json({ success: false, message: 'Content or media required' });
-    }
-
-    // Parse location if string
-    if (location && typeof location === 'string') {
-      try { location = JSON.parse(location); } catch (e) { location = null; }
+    // Validation: kuch to bhejna chahiye
+    if (!content && !mediaUrl && finalMessageType !== 'location') {
+      return res.status(400).json({
+        success: false,
+        message: 'Content or media or location is required'
+      });
     }
 
     const conversationId = generateConversationId('admin', driverId);
 
     const message = await ChatMessage.create({
       conversationId,
-      senderId: null, // Admin has no MongoDB ID
+      senderId: null,
       senderType: 'Admin',
       receiverId: driverId,
       receiverType: 'Driver',
-      messageType,
+      messageType: finalMessageType,
       content: content || null,
       mediaUrl,
       fileName,
@@ -454,7 +556,7 @@ exports.sendMessage = async (req, res) => {
 
     const messageObj = message.toObject();
 
-    // Real-time emit
+    // Socket.IO emit (same as before)
     if (global.io) {
       const payload = {
         conversationId,
@@ -471,7 +573,7 @@ exports.sendMessage = async (req, res) => {
       global.io.to('admin-room').emit('chat:new-message', payload);
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Message sent successfully',
       data: { message: messageObj }
@@ -479,7 +581,11 @@ exports.sendMessage = async (req, res) => {
 
   } catch (error) {
     console.error('Admin Send Message Error:', error);
-    res.status(500).json({ success: false, message: 'Failed to send message' });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send message',
+      error: error.message
+    });
   }
 };
 
@@ -524,10 +630,14 @@ exports.editMessage = async (req, res) => {
 
 // DELETE MESSAGE (Admin)
 exports.deleteMessage = async (req, res) => {
+  const data = { deleteForEveryone: false }; // Use object - safe even in catch
+
   try {
     const { messageId } = req.params;
     const body = req.body || {};
-    const deleteForEveryone = body.deleteForEveryone === true;
+
+    // Update value safely
+    data.deleteForEveryone = body.deleteForEveryone === true;
 
     const message = await ChatMessage.findOne({
       _id: messageId,
@@ -540,26 +650,151 @@ exports.deleteMessage = async (req, res) => {
 
     message.isDeleted = true;
     message.deletedAt = new Date();
-    message.deletedForEveryone = deleteForEveryone;
+    message.deletedForEveryone = data.deleteForEveryone;
+
     await message.save();
 
+    // Socket emit
     if (global.io) {
       const payload = {
         conversationId: message.conversationId,
         messageId: message._id,
-        deletedForEveryone
+        deletedForEveryone: data.deleteForEveryone
       };
       global.io.to('admin-room').emit('chat:message-deleted', payload);
       const driverId = message.conversationId.split('_').find(id => id.length === 24);
       if (driverId) global.io.to(`driver-${driverId}`).emit('chat:message-deleted', payload);
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: deleteForEveryone ? 'Deleted for everyone' : 'Message deleted'
+      message: data.deleteForEveryone ? 'Deleted for everyone' : 'Message deleted (for you)'
     });
+
   } catch (error) {
     console.error('Admin Delete Error:', error);
-    res.status(500).json({ success: false, message: 'Failed to delete' });
+
+    // Now 100% safe - no ReferenceError possible
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to delete message',
+      error: error.message,
+      // Optional debug info (remove in production)
+      attemptedDeleteForEveryone: data.deleteForEveryone
+    });
+  }
+};
+
+// RENDER: Chat Dashboard (list of conversations)
+exports.renderChatDashboard = async (req, res) => {
+  try {
+    const admin = req.user;
+
+    // Reuse your existing getConversations logic (but render EJS)
+    const conversations = await ChatMessage.aggregate([
+      { $match: { $or: [{ senderType: 'Admin' }, { receiverType: 'Admin' }] } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: '$conversationId',
+          lastMessage: { $first: '$$ROOT' },
+          unreadCount: {
+            $sum: {
+              $cond: [{ $and: [{ $eq: ['$receiverType', 'Admin'] }, { $eq: ['$isRead', false] }] }, 1, 0]
+            }
+          }
+        }
+      },
+      { $sort: { 'lastMessage.createdAt': -1 } }
+    ]);
+
+    // Populate driver info
+    for (let conv of conversations) {
+      const driverId = conv._id.split('_').find(id => id !== 'admin');
+      if (driverId) {
+        const driver = await Driver.findById(driverId)
+          .select('name phone vehicleNumber profileImage')
+          .lean();
+
+        if (driver) {
+          conv.participant = {
+            id: driver._id,
+            name: driver.name || 'Unknown Driver',
+            phone: driver.phone || 'N/A',
+            vehicleNumber: driver.vehicleNumber || 'N/A',
+            profileImage: driver.profileImage || '/img/avatar.png',
+            type: 'driver'
+          };
+        } else {
+          conv.participant = { name: 'Deleted Driver', type: 'driver' };
+        }
+      }
+    }
+
+    res.render('chat', {
+      title: 'Admin Chat Dashboard',
+      user: req.user,
+      conversations,
+      activeMenu: 'chat',
+      url: req.originalUrl,
+      messages: req.flash()
+    });
+
+  } catch (error) {
+    console.error('Render Chat Dashboard Error:', error);
+    req.flash('error', 'Failed to load chat conversations');
+    res.redirect('/admin/dashboard');
+  }
+};
+
+// RENDER: Single Conversation View
+exports.renderConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+
+    // Find driver from conversationId
+    const driverId = conversationId.split('_').find(id => id !== 'admin');
+    if (!driverId) {
+      req.flash('error', 'Invalid conversation');
+      return res.redirect('/admin/chat');
+    }
+
+    const driver = await Driver.findById(driverId)
+      .select('name phone vehicleNumber profileImage')
+      .lean();
+
+    if (!driver) {
+      req.flash('error', 'Driver not found');
+      return res.redirect('/admin/chat');
+    }
+
+    // Get messages (last 50 for performance, older ones via load more)
+    const messages = await ChatMessage.find({ conversationId })
+      .sort({ createdAt: 1 })
+      .limit(50)
+      .populate('senderId', 'name profileImage')
+      .lean();
+
+    // Mark messages as read for admin
+    await ChatMessage.updateMany(
+      { conversationId, receiverType: 'Admin', isRead: false },
+      { $set: { isRead: true, readAt: new Date() } }
+    );
+
+    res.render('chat_conversation', {
+      title: `Chat with ${driver.name}`,
+      user: req.user,
+      driver,
+      conversationId,
+      chatMessages: messages,
+      activeMenu: 'chat',
+      url: req.originalUrl,
+      messages: req.flash()
+    });
+
+  } catch (error) {
+    console.error('Render Conversation Error:', error);
+    req.flash('error', 'Failed to load conversation');
+    res.redirect('/admin/chat');
   }
 };

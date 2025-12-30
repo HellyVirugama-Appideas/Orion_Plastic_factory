@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html class="loading" lang="en" data-textdirection="ltr">
+
+<head>
+    <%- include('_layouts/head') %>
+    <title>Create New Order | <%= title %></title>
+
+    <!-- Materialize + existing styles -->
+    <style>
+        .form-section {
+            background: white;
+            padding: 28px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .section-title {
+            margin: 0 0 20px 0;
+            color: #424242;
+            font-weight: 500;
+        }
+
+        .item-card {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .remove-item-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+        }
+
+        .required::after {
+            content: " *";
+            color: #d32f2f;
+        }
+
+        .btn-gradient {
+            background: linear-gradient(45deg, #667eea, #764ba2) !important;
+        }
+    </style>
+</head>
+
+<body class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
+      data-open="click" data-menu="vertical-dark-menu" data-col="2-columns">
+
+    <%- include('_layouts/sidenavbar') %>
+
+    <div id="main">
+        <div class="row">
+            <!-- Breadcrumbs -->
+            <div id="breadcrumbs-wrapper" style="background-color: white;">
+                <div class="container">
+                    <div class="row valign-wrapper">
+                        <div class="col s12 m6 l6">
+                            <h5 class="breadcrumbs-title mb-0"><span>Create New Order</span></h5>
+                        </div>
+                        <div class="col s12 m6 l6 right-align-md">
+                            <a href="/admin/orders" class="btn gradient-45deg-purple-deep-orange pull-right btn-breadcrumbs">
+                                Back to Orders
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <%- include('messages', { messages: messages }) %>
+
+            <div class="col s12">
+                <div class="container">
+                    <div class="card-panel" style="padding: 0; border-radius: 8px; overflow: hidden;">
+                        <div class="card-content" style="padding: 30px;">
+                            <form id="createOrderForm" method="POST" action="/admin/orders/create">
+                                <div class="row">
+
+                                    <!-- Customer Selection -->
+                                    <div class="col s12">
+                                        <h5 class="section-title">Customer Information</h5>
+                                    </div>
+
+                                    <div class="input-field col s12 m8 l6">
+                                        <select name="customerId" id="customerId" class="required" required>
+                                            <option value="" disabled selected>Select Customer</option>
+                                            <% customers.forEach(customer => { %>
+                                                <option value="<%= customer._id %>">
+                                                    <%= customer.companyName || customer.name %> - <%= customer.phone %>
+                                                </option>
+                                            <% }) %>
+                                        </select>
+                                        <label>Customer</label>
+                                    </div>
+
+                                    <!-- Order Items -->
+                                    <div class="col s12">
+                                        <h5 class="section-title mt-4">Order Items</h5>
+                                    </div>
+
+                                    <div class="col s12">
+                                        <div id="itemsContainer"></div>
+
+                                        <button type="button" onclick="addItem()" 
+                                                class="btn btn-gradient waves-effect waves-light mt-2">
+                                            <i class="material-icons left">add_circle_outline</i>
+                                            Add New Item
+                                        </button>
+                                    </div>
+
+                                    <!-- Delivery Information -->
+                                    <div class="col s12">
+                                        <h5 class="section-title mt-5">Delivery Information</h5>
+                                    </div>
+
+                                    <div class="input-field col s12 m6">
+                                        <input id="contactPerson" name="deliveryLocation[contactPerson]" type="text" class="required" required>
+                                        <label for="contactPerson">Contact Person</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m6">
+                                        <input id="contactPhone" name="deliveryLocation[contactPhone]" type="tel" class="required" required>
+                                        <label for="contactPhone">Contact Phone</label>
+                                    </div>
+
+                                    <div class="input-field col s12">
+                                        <textarea id="address" name="deliveryLocation[address]" class="materialize-textarea required" required></textarea>
+                                        <label for="address">Full Delivery Address</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m4">
+                                        <input id="city" name="deliveryLocation[city]" type="text" class="required" required>
+                                        <label for="city">City</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m4">
+                                        <input id="state" name="deliveryLocation[state]" type="text" class="required" required>
+                                        <label for="state">State</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m4">
+                                        <input id="pincode" name="deliveryLocation[pincode]" type="text" maxlength="6" class="required" required>
+                                        <label for="pincode">Pincode</label>
+                                    </div>
+
+                                    <div class="input-field col s12">
+                                        <input id="landmark" name="deliveryLocation[landmark]" type="text">
+                                        <label for="landmark">Landmark (Optional)</label>
+                                    </div>
+
+                                    <!-- Order Details -->
+                                    <div class="col s12">
+                                        <h5 class="section-title mt-5">Order Details</h5>
+                                    </div>
+
+                                    <div class="input-field col s12 m6">
+                                        <select name="orderType" id="orderType">
+                                            <option value="retail" selected>Retail</option>
+                                            <option value="wholesale">Wholesale</option>
+                                            <option value="bulk">Bulk</option>
+                                            <option value="custom">Custom</option>
+                                        </select>
+                                        <label>Order Type</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m6">
+                                        <select name="priority" id="priority">
+                                            <option value="low">Low</option>
+                                            <option value="medium" selected>Medium</option>
+                                            <option value="high">High</option>
+                                            <option value="urgent">Urgent</option>
+                                        </select>
+                                        <label>Priority</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m6">
+                                        <input type="datetime-local" name="scheduledPickupDate" id="scheduledPickupDate">
+                                        <label for="scheduledPickupDate">Scheduled Pickup (Optional)</label>
+                                    </div>
+
+                                    <div class="input-field col s12 m6">
+                                        <input type="datetime-local" name="scheduledDeliveryDate" id="scheduledDeliveryDate">
+                                        <label for="scheduledDeliveryDate">Scheduled Delivery (Optional)</label>
+                                    </div>
+
+                                    <!-- Special Instructions -->
+                                    <div class="col s12">
+                                        <h5 class="section-title mt-5">Special Instructions</h5>
+                                    </div>
+
+                                    <div class="input-field col s12">
+                                        <textarea name="specialInstructions" id="specialInstructions" class="materialize-textarea"></textarea>
+                                        <label for="specialInstructions">Special Instructions (Optional)</label>
+                                    </div>
+
+                                    <div class="input-field col s12">
+                                        <textarea name="packagingInstructions" id="packagingInstructions" class="materialize-textarea"></textarea>
+                                        <label for="packagingInstructions">Packaging Instructions (Optional)</label>
+                                    </div>
+
+                                    <!-- Hidden Items JSON -->
+                                    <input type="hidden" name="items" id="itemsJSON">
+
+                                    <!-- Submit Buttons -->
+                                    <div class="col s12 right-align mt-5">
+                                        <button type="submit" class="btn btn-gradient waves-effect waves-light">
+                                            <i class="material-icons left">check_circle</i>
+                                            Create Order
+                                        </button>
+                                        <a href="/admin/orders" class="btn grey waves-effect waves-light ml-2">
+                                            Cancel
+                                        </a>
+                                    </div>
+
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <%- include('_layouts/commonJs') %>
+
+    <script>
+        let itemCounter = 0;
+
+        function addItem() {
+            itemCounter++;
+            const itemId = `item-${itemCounter}`;
+
+            const itemHTML = `
+                <div class="item-card" id="${itemId}">
+                    <button type="button" class="btn-small red remove-item-btn waves-effect" 
+                            onclick="removeItem('${itemId}')">
+                        <i class="material-icons">close</i>
+                    </button>
+
+                    <div class="row">
+                        <div class="input-field col s12 m6">
+                            <input id="productName-${itemCounter}" type="text" class="required" required>
+                            <label for="productName-${itemCounter}">Product Name</label>
+                        </div>
+                        <div class="input-field col s12 m6">
+                            <input id="productCode-${itemCounter}" type="text">
+                            <label for="productCode-${itemCounter}">Product Code (Optional)</label>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="input-field col s12 m4">
+                            <select id="category-${itemCounter}">
+                                <option value="containers">Containers</option>
+                                <option value="bottles">Bottles</option>
+                                <option value="bags">Bags</option>
+                                <option value="sheets">Sheets</option>
+                                <option value="custom">Custom</option>
+                                <option value="other" selected>Other</option>
+                            </select>
+                            <label>Category</label>
+                        </div>
+
+                        <div class="input-field col s12 m4">
+                            <input id="quantity-${itemCounter}" type="number" min="1" value="1" class="required" required>
+                            <label for="quantity-${itemCounter}">Quantity</label>
+                        </div>
+
+                        <div class="input-field col s12 m4">
+                            <input id="description-${itemCounter}" type="text">
+                            <label for="description-${itemCounter}">Description (Optional)</label>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', itemHTML);
+            M.updateTextFields();
+            M.FormSelect.init(document.querySelectorAll(`#${itemId} select`));
+        }
+
+        function removeItem(itemId) {
+            const item = document.getElementById(itemId);
+            if (item) item.remove();
+        }
+
+        // Form submit handler - collect items
+        document.getElementById('createOrderForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const items = [];
+            document.querySelectorAll('.item-card').forEach(card => {
+                const id = card.id.split('-')[1];
+                const item = {
+                    productName: document.getElementById(`productName-${id}`).value.trim(),
+                    productCode: document.getElementById(`productCode-${id}`).value.trim() || '',
+                    category: document.getElementById(`category-${id}`).value,
+                    quantity: parseInt(document.getElementById(`quantity-${id}`).value) || 1,
+                    description: document.getElementById(`description-${id}`).value.trim() || ''
+                };
+                if (item.productName) items.push(item);
+            });
+
+            if (items.length === 0) {
+                M.toast({html: 'Please add at least one item', classes: 'red rounded'});
+                return;
+            }
+
+            document.getElementById('itemsJSON').value = JSON.stringify(items);
+            this.submit();
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            M.FormSelect.init(document.querySelectorAll('select'));
+            M.updateTextFields();
+            
+            // Add first item automatically
+            addItem();
+        });
+    </script>
+</body>
+</html>

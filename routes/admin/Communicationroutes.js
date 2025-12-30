@@ -8,20 +8,36 @@ const { uploadChatMedia, handleUploadError } = require('../../middleware/uploadM
 
 // ==================== CHAT ROUTES ====================
 
+// Chat Dashboard (list)
 router.get(
-    '/chat/conversations',
+    '/',
+    protectAdmin,
+    isAdmin,
+    chatController.renderChatDashboard
+);
+
+// Single Conversation
+router.get(
+    '/:conversationId',
+    protectAdmin,
+    isAdmin,
+    chatController.renderConversation
+);
+
+router.get(
+    '/conversations',
     protectAdmin,
     isAdmin,
     chatController.getConversations
 );
 router.get(
-    '/chat/:conversationId/messages',
+    '/:conversationId/messages',
     protectAdmin,
     isAdmin,
     chatController.getMessages
 );
 router.post(
-    '/chat/send',
+    '/send',
     protectAdmin,
     isAdmin,
     uploadChatMedia,
@@ -30,14 +46,14 @@ router.post(
 );
 
 router.patch(
-    "/chat/message/:messageId/edit",
+    "/message/:messageId/edit",
     protectAdmin,
     isAdmin,
     chatController.editMessage
 )
 
 router.delete(
-    "/chat/message/:messageId",
+    "/message/:messageId",
     protectAdmin,
     isAdmin,
     chatController.deleteMessage

@@ -53,7 +53,7 @@ const orderSchema = new mongoose.Schema({
   },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Customer',
     required: true,
     index: true
   },
@@ -230,16 +230,16 @@ const orderSchema = new mongoose.Schema({
   // Order Management
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'Customer'
   },
   confirmedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'Customer'
   },
   confirmedAt: Date,
   cancelledBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'Customer'
   },
   cancelledAt: Date,
   cancellationReason: String,

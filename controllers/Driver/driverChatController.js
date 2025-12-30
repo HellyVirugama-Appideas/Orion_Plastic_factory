@@ -97,16 +97,43 @@ exports.getDriverMessages = async (req, res) => {
 // Send Message from Driver
 // exports.sendMessageFromDriver = async (req, res) => {
 //   try {
-//     // CHANGE HERE: req.driver → req.user
 //     if (!req.user || !req.user._id) {
 //       return res.status(401).json({ success: false, message: 'Unauthorized' });
 //     }
 
 //     const driver = req.user;
-//     const { content, messageType = 'text', mediaUrl, location } = req.body;
+//     let { content, messageType = 'text', location } = req.body;
 
-//     if (!content && !mediaUrl) {
-//       return res.status(400).json({ success: false, message: 'Message content required' });
+//     // Parse location if sent as string (common in form-data)
+//     if (location && typeof location === 'string') {
+//       try {
+//         location = JSON.parse(location);
+//       } catch (e) {
+//         location = null;
+//       }
+//     }
+
+//     let mediaUrl = null;
+//     let fileName = null;
+//     let mimeType = null;
+
+//     // Agar file upload hui hai (image, pdf, video etc.)
+//     if (req.file) {
+//       mediaUrl = `/uploads/chat/${req.file.filename}`;
+//       fileName = req.file.originalname;
+//       mimeType = req.file.mimetype;
+
+//       // Auto detect messageType from mime
+//       if (mimeType.startsWith('image/')) messageType = 'image';
+//       else if (mimeType.startsWith('video/')) messageType = 'video';
+//       else if (mimeType.startsWith('audio/')) messageType = 'audio';
+//       else if (mimeType === 'application/pdf') messageType = 'document';
+//       else messageType = 'document';
+//     }
+
+//     // Validation
+//     if (!content && !mediaUrl && messageType !== 'location') {
+//       return res.status(400).json({ success: false, message: 'Message content or media required' });
 //     }
 
 //     const conversationId = generateConversationId(driver._id);
@@ -118,21 +145,25 @@ exports.getDriverMessages = async (req, res) => {
 //       receiverId: null,
 //       receiverType: 'Admin',
 //       messageType,
-//       content: content || (messageType === 'image' ? 'Photo' : 'Media'),
+//       content: content || null,
 //       mediaUrl,
-//       location,
+//       fileName,
+//       mimeType,
+//       location: location || null,
 //       isDelivered: true,
 //       deliveredAt: new Date()
 //     });
 
 //     await message.populate('senderId', 'name profileImage vehicleNumber');
 
-//     // Real-time Socket.IO emit
+//     const messageObj = message.toObject();
+
+//     // Real-time emit
 //     if (global.io) {
-//       global.io.to('admin-room').emit('chat:new-message', {
+//       const payload = {
 //         conversationId,
 //         message: {
-//           ...message.toObject(),
+//           ...messageObj,
 //           sender: {
 //             _id: driver._id,
 //             name: driver.name,
@@ -141,19 +172,16 @@ exports.getDriverMessages = async (req, res) => {
 //             profileImage: driver.profileImage
 //           }
 //         }
-//       });
+//       };
 
-//       // Send back to driver instantly
-//       global.io.to(`driver-${driver._id}`).emit('chat:new-message', {
-//         conversationId,
-//         message: message.toObject()
-//       });
+//       global.io.to('admin-room').emit('chat:new-message', payload);
+//       global.io.to(`driver-${driver._id}`).emit('chat:new-message', payload);
 //     }
 
 //     return res.status(201).json({
 //       success: true,
 //       message: 'Message sent successfully',
-//       data: { message }
+//       data: { message: messageObj }
 //     });
 
 //   } catch (error) {
@@ -162,8 +190,6 @@ exports.getDriverMessages = async (req, res) => {
 //   }
 // };
 
-// controllers/Driver/driverChatController.js
-
 exports.sendMessageFromDriver = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
@@ -171,9 +197,13 @@ exports.sendMessageFromDriver = async (req, res) => {
     }
 
     const driver = req.user;
-    let { content, messageType = 'text', location } = req.body;
 
-    // Parse location if sent as string (common in form-data)
+    // Extract values from FormData (via multer)
+    const content = req.body.content || '';                    
+    let messageType = req.body.messageType || 'text';          
+    let location = req.body.location || null;                  
+
+    // Parse location if sent as string
     if (location && typeof location === 'string') {
       try {
         location = JSON.parse(location);
@@ -186,13 +216,13 @@ exports.sendMessageFromDriver = async (req, res) => {
     let fileName = null;
     let mimeType = null;
 
-    // Agar file upload hui hai (image, pdf, video etc.)
+    // File upload check (image, video, pdf, etc.)
     if (req.file) {
       mediaUrl = `/uploads/chat/${req.file.filename}`;
       fileName = req.file.originalname;
       mimeType = req.file.mimetype;
 
-      // Auto detect messageType from mime
+      // Auto-detect messageType based on file
       if (mimeType.startsWith('image/')) messageType = 'image';
       else if (mimeType.startsWith('video/')) messageType = 'video';
       else if (mimeType.startsWith('audio/')) messageType = 'audio';
@@ -202,7 +232,10 @@ exports.sendMessageFromDriver = async (req, res) => {
 
     // Validation
     if (!content && !mediaUrl && messageType !== 'location') {
-      return res.status(400).json({ success: false, message: 'Message content or media required' });
+      return res.status(400).json({
+        success: false,
+        message: 'Message content or media (file/location) is required'
+      });
     }
 
     const conversationId = generateConversationId(driver._id);
@@ -227,7 +260,7 @@ exports.sendMessageFromDriver = async (req, res) => {
 
     const messageObj = message.toObject();
 
-    // Real-time emit
+    // Real-time socket emit
     if (global.io) {
       const payload = {
         conversationId,
@@ -255,7 +288,10 @@ exports.sendMessageFromDriver = async (req, res) => {
 
   } catch (error) {
     console.error('Driver Send Message Error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to send message' });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send message'
+    });
   }
 };
 

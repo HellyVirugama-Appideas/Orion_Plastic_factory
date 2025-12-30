@@ -60,6 +60,7 @@ const customerSchema = new mongoose.Schema({
   customerId: {
     type: String,
     unique: true,
+    ref: 'Customer',
     uppercase: true
   },
   customerType: {
