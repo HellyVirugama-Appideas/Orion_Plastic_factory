@@ -560,61 +560,103 @@ exports.login = async (req, res) => {
 //   try {
 //     const { driverId, pin } = req.body;
 
-//     // Validation
 //     if (!driverId || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
 //       return errorResponse(res, 'Valid 4-digit PIN required', 400);
 //     }
 
-//     const driver = await Driver.findById(driverId).select('+pin'); // +pin because it's select: false by default
+//     const driver = await Driver.findById(driverId)
+//       .select('+pin +documents +governmentIds +pinAttempts +pinLockedUntil +profileStatus +vehicleNumber +vehicleType +rating');
+
 //     if (!driver) {
 //       return errorResponse(res, 'Driver not found', 404);
 //     }
 
-//     // Check if approved
 //     if (driver.profileStatus !== 'approved') {
 //       return errorResponse(res, 'Account not approved by admin yet', 403);
 //     }
 
-//     // Verify PIN
+//     if (driver.pinLockedUntil && new Date() < driver.pinLockedUntil) {
+//       const minutesLeft = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
+//       return errorResponse(res, `PIN locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}`, 423);
+//     }
+
 //     const isMatch = await driver.comparePin(pin);
 //     if (!isMatch) {
 //       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
 //       if (driver.pinAttempts >= 5) {
-//         driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock 30 min
+//         driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000);
 //       }
 //       await driver.save();
 //       return errorResponse(res, 'Incorrect PIN', 400);
 //     }
 
-//     // Reset attempts on success
+//     // Reset on success
 //     driver.pinAttempts = 0;
 //     driver.pinLockedUntil = null;
-//     await driver.save();
+//     driver.lastLoginAt = new Date();
 
-//     // GENERATE BOTH TOKENS
 //     const accessToken = generateAccessToken(driver._id, 'driver');
 //     const refreshToken = generateRefreshToken(driver._id, 'driver');
-
-//     // Optional: Save refresh token in DB (recommended for logout feature)
 //     driver.refreshToken = refreshToken;
-//     driver.lastLoginAt = new Date();
+
 //     await driver.save();
 
-//     // Send to frontend
+//     // === EXTRACT FROM ARRAY BASED ON documentType ===
+//     const docs = driver.documents || [];
+
+//     let licenseNumber = null;
+//     let licenseFront = null;
+//     let licenseBack = null;
+//     let rcNumber = null;
+//     let rcFront = null;
+//     let rcBack = null;
+
+//     docs.forEach(doc => {
+//       switch (doc.documentType) {
+//         case 'license_front':
+//           licenseFront = doc.fileUrl;
+//           if (doc.documentNumber) licenseNumber = doc.documentNumber;
+//           break;
+//         case 'license_back':
+//           licenseBack = doc.fileUrl;
+//           break;
+//         case 'vehicle_rc_front':
+//           rcFront = doc.fileUrl;
+//           if (doc.documentNumber) rcNumber = doc.documentNumber;
+//           break;
+//         case 'vehicle_rc_back':
+//           rcBack = doc.fileUrl;
+//           break;
+//       }
+//     });
+
 //     return successResponse(res, 'Login successful!', {
 //       tokens: {
 //         accessToken,
 //         refreshToken,
-//         expiresIn: 24 * 60 * 60 // 24 hours in seconds
+//         expiresIn: 24 * 60 * 60
 //       },
 //       driver: {
 //         _id: driver._id,
 //         name: driver.name,
 //         phone: driver.phone,
 //         vehicleNumber: driver.vehicleNumber,
-//         emiratesId: driver.governmentIds?.emiratesId,
+//         vehicleType: driver.vehicleType,
+//         emiratesId: driver.governmentIds?.emiratesId || null,
 //         profileImage: driver.profileImage || null,
-//         isAvailable: driver.isAvailable
+//         isAvailable: driver.isAvailable,
+//         rating: driver.rating || 0,
+
+//         license: {
+//           number: licenseNumber,
+//           frontImage: licenseFront,
+//           backImage: licenseBack
+//         },
+//         vehicleRegistration: {
+//           number: rcNumber,
+//           frontImage: rcFront,
+//           backImage: rcBack
+//         }
 //       }
 //     });
 
@@ -624,53 +666,68 @@ exports.login = async (req, res) => {
 //   }
 // };
 
-/// step-2 pin verify
 exports.verifyPin = async (req, res) => {
   try {
     const { driverId, pin } = req.body;
 
+    // Validate input
     if (!driverId || !pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
       return errorResponse(res, 'Valid 4-digit PIN required', 400);
     }
 
-    const driver = await Driver.findById(driverId)
-      .select('+pin +documents +governmentIds +pinAttempts +pinLockedUntil +profileStatus +vehicleNumber +vehicleType +rating');
+    // Fetch driver with required fields
+    const driver = await Driver.findById(driverId).select(
+      '+pin +documents +governmentIds +pinAttempts +pinLockedUntil ' +
+      '+profileStatus +vehicleNumber +vehicleType +rating +address'
+    );
 
     if (!driver) {
       return errorResponse(res, 'Driver not found', 404);
     }
 
+    // Check approval status
     if (driver.profileStatus !== 'approved') {
       return errorResponse(res, 'Account not approved by admin yet', 403);
     }
 
+    // Check PIN lock
     if (driver.pinLockedUntil && new Date() < driver.pinLockedUntil) {
-      const minutesLeft = Math.ceil((driver.pinLockedUntil - new Date()) / 60000);
-      return errorResponse(res, `PIN locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}`, 423);
+      const minutesLeft = Math.ceil(
+        (driver.pinLockedUntil - new Date()) / 60000
+      );
+      return errorResponse(
+        res,
+        `PIN locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}`,
+        423
+      );
     }
 
+    // Verify PIN
     const isMatch = await driver.comparePin(pin);
     if (!isMatch) {
       driver.pinAttempts = (driver.pinAttempts || 0) + 1;
+
       if (driver.pinAttempts >= 5) {
         driver.pinLockedUntil = new Date(Date.now() + 30 * 60 * 1000);
       }
+
       await driver.save();
       return errorResponse(res, 'Incorrect PIN', 400);
     }
 
-    // Reset on success
+    // Reset attempts on success
     driver.pinAttempts = 0;
     driver.pinLockedUntil = null;
     driver.lastLoginAt = new Date();
 
+    // Generate tokens
     const accessToken = generateAccessToken(driver._id, 'driver');
     const refreshToken = generateRefreshToken(driver._id, 'driver');
     driver.refreshToken = refreshToken;
 
     await driver.save();
 
-    // === EXTRACT FROM ARRAY BASED ON documentType ===
+    // ================= DOCUMENT EXTRACTION =================
     const docs = driver.documents || [];
 
     let licenseNumber = null;
@@ -686,19 +743,23 @@ exports.verifyPin = async (req, res) => {
           licenseFront = doc.fileUrl;
           if (doc.documentNumber) licenseNumber = doc.documentNumber;
           break;
+
         case 'license_back':
           licenseBack = doc.fileUrl;
           break;
+
         case 'vehicle_rc_front':
           rcFront = doc.fileUrl;
           if (doc.documentNumber) rcNumber = doc.documentNumber;
           break;
+
         case 'vehicle_rc_back':
           rcBack = doc.fileUrl;
           break;
       }
     });
 
+    // ================= FINAL RESPONSE =================
     return successResponse(res, 'Login successful!', {
       tokens: {
         accessToken,
@@ -709,6 +770,10 @@ exports.verifyPin = async (req, res) => {
         _id: driver._id,
         name: driver.name,
         phone: driver.phone,
+
+        // ✅ REGION derived from address
+        region: driver.address?.city || driver.address?.country || null,
+
         vehicleNumber: driver.vehicleNumber,
         vehicleType: driver.vehicleType,
         emiratesId: driver.governmentIds?.emiratesId || null,
