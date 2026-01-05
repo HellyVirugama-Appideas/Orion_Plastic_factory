@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('_layouts/head') %>
+  <title>Vehicle Management | <%= title %></title>
+</head>
+<body>
+  <%- include('_layouts/sidenavbar') %>
+
+  <div id="main">
+    <div class="row">
+      <div id="breadcrumbs-wrapper">
+        <div class="container">
+          <div class="row">
+            <%- include('messages', { messages: messages }) %>
+            <h6 class="breadcrumbs-title">Vehicle Management</h6>
+            <a href="/admin/vehicles/create" class="btn right">Add Vehicle</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="container">
+        <div class="card">
+          <div class="card-content">
+            <table class="highlight">
+              <thead>
+                <tr>
+                  <th>Vehicle No</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Assigned Driver</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% vehicles.forEach(vehicle => { %>
+                  <tr>
+                    <td><%= vehicle.vehicleNumber %></td>
+                    <td><%= vehicle.vehicleType %></td>
+                    <td>
+                      <span class="badge <%= vehicle.status === 'available' ? 'green' : 'orange' %>">
+                        <%= vehicle.status %>
+                      </span>
+                    </td>
+                    <td>
+                      <% if (vehicle.assignedTo) { %>
+                        <%= vehicle.assignedTo.name %> (<%= vehicle.assignedTo.phone %>)
+                        <form action="/admin/vehicles/<%= vehicle._id %>/unassign" method="POST" style="display:inline;">
+                          <button type="submit" class="btn-flat red-text" onclick="return confirm('Unassign vehicle?')">Unassign</button>
+                        </form>
+                      <% } else { %>
+                        <form action="/admin/vehicles/<%= vehicle._id %>/assign" method="POST">
+                          <select name="driverId" required>
+                            <option value="">Assign Driver</option>
+                            <% drivers.forEach(driver => { %>
+                              <option value="<%= driver._id %>"><%= driver.name %> (<%= driver.phone %>)</option>
+                            <% }) %>
+                          </select>
+                          <button type="submit" class="btn-flat green-text">Assign</button>
+                        </form>
+                      <% } %>
+                    </td>
+                    <td>
+                      <a href="/admin/vehicles/edit/<%= vehicle._id %>" class="btn-floating green"><i class="material-icons">edit</i></a>
+                      <form action="/admin/vehicles/delete/<%= vehicle._id %>" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-floating red" onclick="return confirm('Delete vehicle?')">
+                          <i class="material-icons">delete</i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%- include('_layouts/commonJs') %>
+</body>
+</html>

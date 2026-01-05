@@ -36,8 +36,8 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const adminSchema = new mongoose.Schema({ 
-  name: { 
+const adminSchema = new mongoose.Schema({
+  name: {
     type: String,
     required: [true, 'Name is required'],
     trim: true
@@ -63,9 +63,23 @@ const adminSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'superadmin'] ,
-    default: 'admin'
+    enum: ['S', 'A'], // S = Super Admin, A = Sub Admin
+    default: 'A'
   },
+  isSuperAdmin: {
+  type: Boolean,
+  default: false
+},
+  permission: [ // For Sub Admin (role: 'A')
+    {
+      key: { type: String },
+      module: { type: String },
+      isView: { type: Boolean, default: false },
+      isAdd: { type: Boolean, default: false },
+      isEdit: { type: Boolean, default: false },
+      isDelete: { type: Boolean, default: false }
+    }
+  ],
 
   // Admin specific fields
   department: {
@@ -77,13 +91,12 @@ const adminSchema = new mongoose.Schema({
     type: String,
     unique: true,
     trim: true,
-    sparse: true 
+    sparse: true
   },
-  permissions: [{
+  photo: {
     type: String,
-    enum: ['manage_users', 'manage_drivers', 'view_reports', 'manage_rides', 'delete_content', 'all']
-  }],
-
+     default: '/img/avatar.png',
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -100,7 +113,7 @@ const adminSchema = new mongoose.Schema({
 
 
 // Hash password before saving
-adminSchema.pre('save', async function(next) {
+adminSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
@@ -108,12 +121,12 @@ adminSchema.pre('save', async function(next) {
 });
 
 // Compare password method
-adminSchema.methods.comparePassword = async function(candidatePassword) {
+adminSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Clean JSON output (password hata do)
-adminSchema.methods.toJSON = function() {
+adminSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
   delete obj.resetPasswordToken;

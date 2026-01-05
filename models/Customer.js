@@ -13,15 +13,15 @@ const locationSchema = new mongoose.Schema({
   addressLine2: String,
   city: {
     type: String,
-    required: true
+    // required: true
   },
   state: {
     type: String,
-    required: true
+    // required: true
   },
   zipcode: {
     type: String,
-    required: true,
+    // required: true,
     match: [/^\d{6}$/, 'Zipcode must be 6 digits']
   },
   country: {
@@ -83,7 +83,7 @@ const customerSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
+    required: true, 
     lowercase: true,
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Valid email required']
@@ -118,9 +118,9 @@ const customerSchema = new mongoose.Schema({
     addressLine1: String,
     addressLine2: String,
     city: String,
-    state: String,
+    state: String, 
     zipcode: String,
-    country: {
+    country: {  
       type: String,
       default: 'India'
     }

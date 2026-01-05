@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const routeController = require('../controllers/routeController');
 const { authenticate, isAdmin, isDriver, protectAdmin, authenticateDriver } = require('../middleware/authMiddleware');
-const { checkPermission } = require('../middleware/roleMiddleware');
+const { checkPermission } = require('../middleware/authMiddleware');
 
 // Admin Routes
 router.post(

@@ -143,8 +143,9 @@ const sessionSchema = new mongoose.Schema({
 
   userType: {
     type: String,
-    enum: ['driver', 'admin'],
+    enum: ['driver', 'admin', 'superadmin'],
     required: true,
+    default: 'driver',
     index: true
   },
   token: {

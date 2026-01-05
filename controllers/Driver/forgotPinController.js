@@ -449,3 +449,4 @@ exports.confirmNewPin = async (req, res) => {
     return errorResponse(res, 'PIN reset failed', 500);
   }
 };
+

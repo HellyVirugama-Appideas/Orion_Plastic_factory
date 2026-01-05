@@ -2,6 +2,159 @@ const Expense = require('../../models/Expense');
 const Driver = require('../../models/Driver');
 
 //  GET ALL EXPENSES (ADMIN) 
+// exports.getAllExpenses = async (req, res) => {
+//   try {
+//     const {
+//       page = 1,
+//       limit = 20,
+//       expenseType,
+//       approvalStatus,
+//       driverId,
+//       vehicleNumber,
+//       startDate,
+//       endDate,
+//       minAmount,
+//       maxAmount,
+//       sortBy = 'expenseDate',
+//       sortOrder = 'desc'
+//     } = req.query;
+
+//     // Build query
+//     const query = {};
+
+//     if (expenseType) query.expenseType = expenseType;
+//     if (approvalStatus) query.approvalStatus = approvalStatus;
+//     if (driverId) query.driver = driverId;
+//     if (vehicleNumber) query['vehicle.vehicleNumber'] = vehicleNumber;
+
+//     if (startDate || endDate) {
+//       query.expenseDate = {};
+//       if (startDate) query.expenseDate.$gte = new Date(startDate);
+//       if (endDate) query.expenseDate.$lte = new Date(endDate);
+//     }
+
+//     if (minAmount || maxAmount) {
+//       query['fuelDetails.totalAmount'] = {};
+//       if (minAmount) query['fuelDetails.totalAmount'].$gte = parseFloat(minAmount);
+//       if (maxAmount) query['fuelDetails.totalAmount'].$lte = parseFloat(maxAmount);
+//     }
+
+//     // Pagination
+//     const skip = (parseInt(page) - 1) * parseInt(limit);
+//     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+
+//     const expenses = await Expense.find(query)
+//       .populate('driver', 'name email phone vehicleNumber vehicleType')
+//       .populate('journey', 'startTime endTime distance')
+//       .populate('delivery', 'trackingNumber orderId status')
+//       .sort(sort)
+//       .skip(skip)
+//       .limit(parseInt(limit));
+
+//     const total = await Expense.countDocuments(query);
+
+//     // Get summary statistics
+//     const summary = await Expense.aggregate([
+//       { $match: query },
+//       {
+//         $group: {
+//           _id: null,
+//           totalExpenses: { $sum: '$fuelDetails.totalAmount' },
+//           totalRecords: { $sum: 1 },
+//           pendingCount: {
+//             $sum: { $cond: [{ $eq: ['$approvalStatus', 'pending'] }, 1, 0] }
+//           },
+//           approvedByAdminCount: {
+//             $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_admin'] }, 1, 0] }
+//           },
+//           approvedByFinanceCount: {
+//             $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_finance'] }, 1, 0] }
+//           },
+//           rejectedCount: {
+//             $sum: { $cond: [{ $eq: ['$approvalStatus', 'rejected'] }, 1, 0] }
+//           }
+//         }
+//       }
+//     ]);
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Expenses retrieved successfully',
+//       data: {
+//         expenses,
+//         pagination: {
+//           total,
+//           page: parseInt(page),
+//           pages: Math.ceil(total / parseInt(limit)),
+//           limit: parseInt(limit)
+//         },
+//         summary: summary[0] || {}
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Get all expenses error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch expenses',
+//       error: error.message
+//     });
+//   }
+// };
+
+//  GET EXPENSE BY ID (ADMIN) 
+// exports.getExpenseById = async (req, res) => {
+//   try {
+//     const { expenseId } = req.params;
+
+//     const expense = await Expense.findById(expenseId)
+//       .populate('driver', 'name email phone vehicleNumber vehicleType profilePhoto')
+//       .populate('journey', 'startTime endTime distance status')
+//       .populate('delivery', 'trackingNumber orderId status')
+//       .populate('approvalWorkflow.adminApproval.approvedBy', 'name email')
+//       .populate('approvalWorkflow.financeApproval.approvedBy', 'name email')
+//       .populate('rejectedBy', 'name email');
+
+//     if (!expense) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Expense not found'
+//       });
+//     }
+
+//     // Get driver's expense history
+//     const driverHistory = await Expense.aggregate([
+//       { $match: { driver: expense.driver._id } },
+//       {
+//         $group: {
+//           _id: null,
+//           totalExpenses: { $sum: '$fuelDetails.totalAmount' },
+//           totalRecords: { $sum: 1 },
+//           avgExpense: { $avg: '$fuelDetails.totalAmount' }, 
+//           avgMileage: { $avg: '$mileageData.averageMileage' }
+//         }
+//       }
+//     ]);
+
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         expense,
+//         driverHistory: driverHistory[0] || {}
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Get expense error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch expense',
+//       error: error.message
+//     });
+//   }
+// };
+
+// GET ALL EXPENSES (EJS - Admin Dashboard)
 exports.getAllExpenses = async (req, res) => {
   try {
     const {
@@ -13,13 +166,10 @@ exports.getAllExpenses = async (req, res) => {
       vehicleNumber,
       startDate,
       endDate,
-      minAmount,
-      maxAmount,
       sortBy = 'expenseDate',
       sortOrder = 'desc'
     } = req.query;
 
-    // Build query
     const query = {};
 
     if (expenseType) query.expenseType = expenseType;
@@ -33,126 +183,88 @@ exports.getAllExpenses = async (req, res) => {
       if (endDate) query.expenseDate.$lte = new Date(endDate);
     }
 
-    if (minAmount || maxAmount) {
-      query['fuelDetails.totalAmount'] = {};
-      if (minAmount) query['fuelDetails.totalAmount'].$gte = parseFloat(minAmount);
-      if (maxAmount) query['fuelDetails.totalAmount'].$lte = parseFloat(maxAmount);
-    }
-
-    // Pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-    const expenses = await Expense.find(query)
-      .populate('driver', 'name email phone vehicleNumber vehicleType')
-      .populate('journey', 'startTime endTime distance')
-      .populate('delivery', 'trackingNumber orderId status')
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Expense.countDocuments(query);
-
-    // Get summary statistics
-    const summary = await Expense.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: null,
-          totalExpenses: { $sum: '$fuelDetails.totalAmount' },
-          totalRecords: { $sum: 1 },
-          pendingCount: {
-            $sum: { $cond: [{ $eq: ['$approvalStatus', 'pending'] }, 1, 0] }
-          },
-          approvedByAdminCount: {
-            $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_admin'] }, 1, 0] }
-          },
-          approvedByFinanceCount: {
-            $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_finance'] }, 1, 0] }
-          },
-          rejectedCount: {
-            $sum: { $cond: [{ $eq: ['$approvalStatus', 'rejected'] }, 1, 0] }
+    const [expenses, total, summary] = await Promise.all([
+      Expense.find(query)
+        .populate('driver', 'name email phone vehicleNumber')
+        .sort(sort)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Expense.countDocuments(query),
+      Expense.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalExpenses: { $sum: '$totalAmount' },
+            pendingCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'pending'] }, 1, 0] } },
+            approvedByAdminCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_admin'] }, 1, 0] } },
+            approvedByFinanceCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_finance'] }, 1, 0] } },
+            rejectedCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'rejected'] }, 1, 0] } }
           }
         }
-      }
+      ])
     ]);
-
-    res.status(200).json({
-      success: true,
-      message: 'Expenses retrieved successfully',
-      data: {
-        expenses,
-        pagination: {
-          total,
-          page: parseInt(page),
-          pages: Math.ceil(total / parseInt(limit)),
-          limit: parseInt(limit)
-        },
-        summary: summary[0] || {}
-      }
+    const currentQuery = new URLSearchParams(req.query).toString();
+    res.render('expenses', {
+      title: 'Expense Management',
+      expenses,
+      summary: summary[0] || {},
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      },
+      currentQuery,
+      messages: req.flash(),
+      url: req.originalUrl,
+      admin: req.admin
     });
 
   } catch (error) {
     console.error('Get all expenses error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch expenses',
-      error: error.message
-    });
+    req.flash('error', 'Failed to load expenses');
+    res.redirect('/admin/expenses');
   }
 };
 
-//  GET EXPENSE BY ID (ADMIN) 
+// GET SINGLE EXPENSE DETAIL (EJS)
 exports.getExpenseById = async (req, res) => {
   try {
     const { expenseId } = req.params;
 
     const expense = await Expense.findById(expenseId)
-      .populate('driver', 'name email phone vehicleNumber vehicleType profilePhoto')
-      .populate('journey', 'startTime endTime distance status')
-      .populate('delivery', 'trackingNumber orderId status')
+      .populate('driver', 'name email phone vehicleNumber')
+      .populate('journey')
+      .populate('delivery')
       .populate('approvalWorkflow.adminApproval.approvedBy', 'name email')
       .populate('approvalWorkflow.financeApproval.approvedBy', 'name email')
-      .populate('rejectedBy', 'name email');
+      // .lean();
 
     if (!expense) {
-      return res.status(404).json({
-        success: false,
-        message: 'Expense not found'
-      });
+      req.flash('error', 'Expense not found');
+      return res.redirect('/admin/expenses');
     }
 
-    // Get driver's expense history
-    const driverHistory = await Expense.aggregate([
-      { $match: { driver: expense.driver._id } },
-      {
-        $group: {
-          _id: null,
-          totalExpenses: { $sum: '$fuelDetails.totalAmount' },
-          totalRecords: { $sum: 1 },
-          avgExpense: { $avg: '$fuelDetails.totalAmount' }, 
-          avgMileage: { $avg: '$mileageData.averageMileage' }
-        }
-      }
-    ]);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        expense,
-        driverHistory: driverHistory[0] || {}
-      }
+    res.render('expense_view', {
+      title: `Expense Details`,
+      expense,
+      messages: req.flash(),
+      url: req.originalUrl,
+      admin: req.admin
     });
 
   } catch (error) {
     console.error('Get expense error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch expense',
-      error: error.message
-    });
+    req.flash('error', 'Failed to load expense details');
+    res.redirect('/admin/expenses');
   }
 };
+
 
 // GET PENDING EXPENSES (ADMIN) 
 exports.getPendingExpenses = async (req, res) => {
@@ -243,11 +355,13 @@ exports.approveExpense = async (req, res) => {
       { path: 'approvalWorkflow.adminApproval.approvedBy', select: 'name email' }
     ]);
 
-    res.status(200).json({
-      success: true,
-      message: 'Expense approved by admin. Forwarded to finance for final approval.',
-      data: { expense }
-    });
+    // res.status(200).json({
+    //   success: true,
+    //   message: 'Expense approved by admin. Forwarded to finance for final approval.',
+    //   data: { expense }
+    // });
+
+    res.redirect("/admin/expenses")
 
   } catch (error) {
     console.error('Admin approve expense error:', error);
@@ -298,11 +412,13 @@ exports.rejectExpense = async (req, res) => {
     await expense.save();
     await expense.populate('driver', 'name email phone');
 
-    res.status(200).json({
-      success: true,
-      message: 'Expense rejected',
-      data: { expense }
-    });
+    // res.status(200).json({
+    //   success: true,
+    //   message: 'Expense rejected',
+    //   data: { expense }
+    // });
+
+    res.redirect("/admin/expenses")
 
   } catch (error) {
     console.error('Reject expense error:', error);
@@ -326,10 +442,10 @@ exports.getExpenseReports = async (req, res) => {
     } = req.query;
 
     const matchStage = {};
-    
+
     if (vehicleNumber) matchStage['vehicle.vehicleNumber'] = vehicleNumber;
     if (driverId) matchStage.driver = mongoose.Types.ObjectId(driverId);
-    
+
     if (startDate || endDate) {
       matchStage.expenseDate = {};
       if (startDate) matchStage.expenseDate.$gte = new Date(startDate);
@@ -571,13 +687,13 @@ exports.exportExpenses = async (req, res) => {
     } = req.query;
 
     const query = {};
-    
+
     if (startDate || endDate) {
       query.expenseDate = {};
       if (startDate) query.expenseDate.$gte = new Date(startDate);
       if (endDate) query.expenseDate.$lte = new Date(endDate);
     }
-    
+
     if (driverId) query.driver = driverId;
     if (vehicleNumber) query['vehicle.vehicleNumber'] = vehicleNumber;
     if (approvalStatus) query.approvalStatus = approvalStatus;
@@ -606,12 +722,12 @@ exports.exportExpenses = async (req, res) => {
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename=expenses.csv');
-      
+
       // Simple CSV conversion (you can use csv-writer package for better formatting)
       const headers = Object.keys(csvData[0]).join(',');
       const rows = csvData.map(row => Object.values(row).join(','));
       const csv = [headers, ...rows].join('\n');
-      
+
       return res.send(csv);
     }
 

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html class="loading" lang="en" data-textdirection="ltr">
+
+<head>
+    <%- include('_layouts/head') %>
+        <title>Delivery Details - <%= delivery.trackingNumber %> | <%= title %>
+        </title>
+
+        <style>
+            .delivery-card {
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            .status-badge {
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 0.9rem;
+                font-weight: 500;
+                display: inline-block;
+            }
+
+            .status-assigned {
+                background: #fff3cd;
+                color: #856404;
+            }
+
+            .status-in-transit {
+                background: #cce5ff;
+                color: #004085;
+            }
+
+            .status-delivered {
+                background: #d4edda;
+                color: #155724;
+            }
+
+            .status-cancelled {
+                background: #ffcdd2;
+                color: #b71c1c;
+            }
+
+            .info-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 12px 0;
+                border-bottom: 1px solid #eee;
+            }
+
+            .info-label {
+                color: #555;
+                font-weight: 500;
+            }
+
+            .info-value {
+                font-weight: 600;
+            }
+
+            .map-container {
+                height: 400px;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            .action-buttons {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+        </style>
+</head>
+
+<body
+    class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
+    data-open="click" data-menu="vertical-dark-menu" data-col="2-columns">
+
+    <%- include('_layouts/sidenavbar') %>
+
+        <div id="main">
+            <div class="row">
+                <div class="pt-1 pb-0" id="breadcrumbs-wrapper">
+                    <div class="container">
+                        <div class="row">
+                            <%- include('messages', { messages: messages }) %>
+                                <div class="col s12 m6 l6">
+                                    <h6 class="breadcrumbs-title">
+                                        <i class="material-icons left">local_shipping</i>
+                                        Delivery: <%= delivery.trackingNumber %>
+                                    </h6>
+                                </div>
+                                <div class="col s12 m6 l6 right-align">
+                                    <a href="/admin/deliveries" class="btn-flat">
+                                        <i class="material-icons left">arrow_back</i> Back to Deliveries
+                                    </a>
+                                </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col s12">
+                <div class="container">
+                    <div class="section">
+
+                        <!-- Main Delivery Card -->
+                        <div class="card delivery-card">
+                            <div class="card-content">
+                                <div class="row">
+                                    <!-- Left Column: Details -->
+                                    <div class="col s12 m6 l7">
+                                        <h5 class="mb-1">
+                                            <%= delivery.trackingNumber %>
+                                                <span class="status-badge status-<%= delivery.status %> right">
+                                                    <%= delivery.status.replace('_', ' ' ).toUpperCase() %>
+                                                </span>
+                                        </h5>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Order Number</span>
+                                            <span class="info-value">
+                                                <%= delivery.orderId %>
+                                            </span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Customer</span>
+                                            <span class="info-value">
+                                                <%= delivery.customerId?.companyName || delivery.customerId?.name
+                                                    || 'N/A' %>
+                                                    <% if (delivery.customerId?.phone) { %>
+                                                        <br><small class="grey-text">Ph: <%= delivery.customerId.phone
+                                                                %></small>
+                                                        <% } %>
+                                            </span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Driver</span>
+                                            <span class="info-value">
+                                                <%= delivery.driverId?.name || 'Not Assigned' %>
+                                                    <% if (delivery.driverId?.phone) { %>
+                                                        <br><small class="grey-text">Ph: <%= delivery.driverId.phone %>
+                                                        </small>
+                                                        <% } %>
+                                                            <% if (delivery.vehicleNumber) { %>
+                                                                <br><small class="grey-text">Vehicle: <%=
+                                                                        delivery.vehicleNumber %></small>
+                                                                <% } %>
+                                            </span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Priority</span>
+                                            <span class="info-value">
+                                                <span class="priority-<%= delivery.priority || 'medium' %>">
+                                                    <%= (delivery.priority || 'medium' ).toUpperCase() %>
+                                                </span>
+                                            </span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Distance / Duration</span>
+                                            <span class="info-value">
+                                                <%= delivery.distance ? delivery.distance + ' km' : 'N/A' %>
+                                                    / <%= delivery.estimatedDuration ? delivery.estimatedDuration
+                                                        + ' min' : 'N/A' %>
+                                            </span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Scheduled Pickup</span>
+                                            <span class="info-value">
+                                                <%= delivery.scheduledPickupTime ? new
+                                                    Date(delivery.scheduledPickupTime).toLocaleString('en-IN')
+                                                    : 'Not Scheduled' %>
+                                            </span>
+                                        </div>
+
+                                        <div class="info-row">
+                                            <span class="info-label">Scheduled Delivery</span>
+                                            <span class="info-value">
+                                                <%= delivery.scheduledDeliveryTime ? new
+                                                    Date(delivery.scheduledDeliveryTime).toLocaleString('en-IN')
+                                                    : 'Not Scheduled' %>
+                                            </span>
+                                        </div>
+
+                                        <% if (delivery.instructions) { %>
+                                            <div class="info-row">
+                                                <span class="info-label">Instructions</span>
+                                                <span class="info-value">
+                                                    <%= delivery.instructions %>
+                                                </span>
+                                            </div>
+                                            <% } %>
+                                    </div>
+
+                                    <!-- Right Column: Map -->
+                                    <div class="col s12 m6 l5">
+                                        <div id="map" class="map-container"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions Footer -->
+                            <div class="card-action right-align">
+                                <div class="action-buttons">
+                                    <a href="/admin/deliveries/<%= delivery._id %>/edit"
+                                        class="btn waves-effect waves-light orange">
+                                        <i class="material-icons left">edit</i> Edit Delivery
+                                    </a>
+
+                                    <% if (delivery.status==='assigned' ) { %>
+                                        <a href="#" onclick="confirmAction('<%= delivery._id %>', 'start')"
+                                            class="btn waves-effect waves-light green">
+                                            <i class="material-icons left">play_arrow</i> Start Delivery
+                                        </a>
+                                        <% } %>
+
+                                            <% if (['in_transit', 'started' ].includes(delivery.status)) { %>
+                                                <a href="#" onclick="confirmAction('<%= delivery._id %>', 'complete')"
+                                                    class="btn waves-effect waves-light blue">
+                                                    <i class="material-icons left">check</i> Mark Delivered
+                                                </a>
+                                                <% } %>
+
+                                                    <% if (!['delivered', 'cancelled' ].includes(delivery.status)) { %>
+                                                        <a href="#"
+                                                            onclick="confirmAction('<%= delivery._id %>', 'cancel')"
+                                                            class="btn waves-effect waves-light red">
+                                                            <i class="material-icons left">cancel</i> Cancel Delivery
+                                                        </a>
+                                                        <% } %>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status History -->
+                        <div class="card">
+                            <div class="card-content">
+                                <h6>Status History</h6>
+                                <ul class="collection">
+                                    <% if (statusHistory && statusHistory.length> 0) { %>
+                                        <% statusHistory.forEach(history=> { %>
+                                            <li class="collection-item avatar">
+                                                <i
+                                                    class="material-icons circle <%= history.status === 'delivered' ? 'green' : 'blue' %>">
+                                                    history.status === 'delivered' ? 'check' : 'history'
+                                                </i>
+                                                <span class="title">
+                                                    <%= history.status.replace('_', ' ' ).toUpperCase() %>
+                                                </span>
+                                                <p>
+                                                    <%= history.remarks || 'Status updated' %><br>
+                                                        <small class="grey-text">
+                                                            By <%= history.updatedBy?.userName || 'System' %>
+                                                                on <%= new
+                                                                    Date(history.timestamp).toLocaleString('en-IN') %>
+                                                        </small>
+                                                </p>
+                                            </li>
+                                            <% }) %>
+                                                <% } else { %>
+                                                    <li class="collection-item center-align grey-text">
+                                                        No status history available
+                                                    </li>
+                                                    <% } %>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaflet Map Script -->
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> -->
+
+            <%- include('_layouts/commonJs') %>
+
+                <script>
+                    // Initialize Map
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const map = L.map('map').setView([28.7041, 77.1025], 12);
+
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        }).addTo(map);
+
+                // Pickup Location (Green)
+                <% if (delivery?.pickupLocation?.coordinates) { %>
+                            L.marker([<%= delivery.pickupLocation.coordinates.latitude %>, <%= delivery.pickupLocation.coordinates.longitude %>], {
+                                icon: L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                                    iconSize: [25, 41],
+                                    iconAnchor: [12, 41]
+                                })
+                            }).addTo(map).bindPopup('Pickup Location');
+                <% } %>
+
+                // Delivery Location (Red)
+                <% if (delivery?.deliveryLocation?.coordinates) { %>
+                            L.marker([<%= delivery.deliveryLocation.coordinates.latitude %>, <%= delivery.deliveryLocation.coordinates.longitude %>], {
+                                icon: L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                                    iconSize: [25, 41],
+                                    iconAnchor: [12, 41]
+                                })
+                            }).addTo(map).bindPopup('Delivery Location');
+                <% } %>
+
+                // Fit bounds if both locations exist
+                <% if (delivery?.pickupLocation?.coordinates && delivery?.deliveryLocation?.coordinates) { %>
+                            map.fitBounds([
+                                [<%= delivery.pickupLocation.coordinates.latitude %>, <%= delivery.pickupLocation.coordinates.longitude %>],
+                                [<%= delivery.deliveryLocation.coordinates.latitude %>, <%= delivery.deliveryLocation.coordinates.longitude %>]
+                            ], { padding: [50, 50] });
+                <% } %>
+            });
+
+                    // Confirm Actions (Start / Complete / Cancel)
+                    // function confirmAction(deliveryId, action) {
+                    //     let message = '';
+                    //     if (action === 'start') message = 'Are you sure you want to START this delivery?';
+                    //     else if (action === 'complete') message = 'Mark this delivery as DELIVERED?';
+                    //     else if (action === 'cancel') message = 'Are you sure you want to CANCEL this delivery?';
+
+                    //     if (!confirm(message)) return;
+
+                    //     fetch(`/admin/deliveries/${deliveryId}/${action}`, {
+                    //         method: 'PATCH',
+                    //         headers: { 'Content-Type': 'application/json' },
+                    //         body: JSON.stringify({ remarks: prompt('Add remarks (optional):') || 'Updated by admin' })
+                    //     })
+                    //     .then(res => res.json())
+                    //     .then(data => {
+                    //         if (data.success) {
+                    //             M.toast({ html: data.message || 'Action completed!', classes: 'green' });
+                    //             setTimeout(() => location.reload(), 1200);
+                    //         } else {
+                    //             M.toast({ html: data.message || 'Action failed', classes: 'red' });
+                    //         }
+                    //     })
+                    //     .catch(() => M.toast({ html: 'Network error', classes: 'red' }));
+                    // }
+
+                    // Cancel, Start, Complete sabke liye alag-alag URL banate hain (sabse simple aur clear)
+                    function confirmAction(deliveryId, action) {
+                        let message = '';
+                        let endpoint = '';
+
+                        if (action === 'start') {
+                            message = 'Are you sure you want to START this delivery?';
+                            endpoint = `/admin/deliveries/${deliveryId}/start`;
+                        }
+                        else if (action === 'complete') {
+                            message = 'Mark this delivery as DELIVERED?';
+                            endpoint = `/admin/deliveries/${deliveryId}/complete`;
+                        }
+                        else if (action === 'cancel') {
+                            message = 'Are you sure you want to CANCEL this delivery?\nThis will free the driver.';
+                            endpoint = `/admin/deliveries/${deliveryId}/cancel`;
+                        }
+
+                        if (!confirm(message)) return;
+
+                        const remarks = prompt('Add remarks (optional):') || 'Updated by admin';
+
+                        fetch(endpoint, {
+                            method: 'POST',           // ← Change to POST (recommended for cancel)
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ remarks })
+                        })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    M.toast({ html: data.message || 'Action completed!', classes: 'green' });
+                                    setTimeout(() => location.reload(), 1500);
+                                } else {
+                                    M.toast({ html: data.message || 'Action failed', classes: 'red' });
+                                }
+                            })
+                            .catch(err => {
+                                console.error(err);
+                                M.toast({ html: 'Network error', classes: 'red' });
+                            });
+                    }
+
+
+                </script>
+</body>
+
+</html>

@@ -294,7 +294,7 @@
     <%- include('_layouts/commonJs') %>
 
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> -->
 
     <script>
         let map;
@@ -306,8 +306,15 @@
         // Initialize Map
         document.addEventListener('DOMContentLoaded', function() {
             // Pickup and delivery coordinates
-            const pickupCoords = [<%= order.pickupLocation.coordinates.latitude %>, <%= order.pickupLocation.coordinates.longitude %>];
-            const deliveryCoords = [<%= order.deliveryLocation.coordinates.latitude %>, <%= order.deliveryLocation.coordinates.longitude %>];
+            <% 
+                // Default coordinates if not available
+                const pickupLat = order.pickupLocation?.coordinates?.latitude || 23.0225;
+                const pickupLng = order.pickupLocation?.coordinates?.longitude || 72.5714;
+                const deliveryLat = order.deliveryLocation?.coordinates?.latitude || 23.0225;
+                const deliveryLng = order.deliveryLocation?.coordinates?.longitude || 72.5714;
+            %>
+            const pickupCoords = [<%= pickupLat %>, <%= pickupLng %>];
+            const deliveryCoords = [<%= deliveryLat %>, <%= deliveryLng %>];
 
             // Initialize map
             map = L.map('map').setView(pickupCoords, 12);
@@ -392,7 +399,7 @@
                     <div class="row">
                         <div class="col s12 m8">
                             <input type="text" name="waypoint_address_${waypointCount}" placeholder="Waypoint Address" required>
-                        </div>
+                        </div>  
                         <div class="col s12 m4">
                             <select name="waypoint_type_${waypointCount}">
                                 <option value="stop">Stop</option>

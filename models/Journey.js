@@ -228,8 +228,34 @@ const journeySchema = new mongoose.Schema({
   averageSpeed: Number, // km/h
   maxSpeed: Number, // km/h
 
-  // Final Remarks (Screen 5)
-  finalRemarks: String,
+  remarks: [{
+    remarkId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Remark'           // Predefined remark ka reference
+    },
+    remarkText: {
+      type: String,           // Actual text jo use hua (snapshot)
+      required: true
+    },
+    category: String,
+    severity: String,
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver'            
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isCustom: {
+      type: Boolean,
+      default: false
+    },
+    // Optional: agar future mein edit history chahiye
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    updatedAt: Date
+  }],
+  finalRemarks: String,          // optional - old style ke liye rakh sakte ho
 
   communicationLog: [{
     type: {

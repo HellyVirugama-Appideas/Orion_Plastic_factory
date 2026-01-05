@@ -647,6 +647,7 @@
 const Journey = require('../../models/Journey');
 const Delivery = require('../../models/Delivery');
 const Driver = require('../../models/Driver');
+const Remark = require("../../models/Remark")
 const DeliveryStatusHistory = require('../../models/DeliveryStatusHistory');
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
 const { calculateDistance } = require('../../utils/geoHelper');
@@ -1584,71 +1585,433 @@ exports.uploadProofPhotos = async (req, res) => {
 };
 
 // POST /api/journey/:journeyId/complete-delivery
+// exports.completeDelivery = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { latitude, longitude, finalRemarks, verificationMethod = 'signature' } = req.body;
+
+//     if (!latitude || !longitude) {
+//       return errorResponse(res, 'Location is required to complete delivery', 400);
+//     }
+
+//     const journey = await Journey.findById(journeyId)
+//       .populate('deliveryId');
+
+//     if (!journey) return errorResponse(res, 'Journey not found', 404);
+
+//     if (journey.driverId.toString() !== req.user._id.toString()) {
+//       return errorResponse(res, 'Unauthorized', 403);
+//     }
+
+//     const delivery = journey.deliveryId;
+//     if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
+//       return errorResponse(res, 'Signature and proof photos are required', 400);
+//     }
+
+//     // Final update
+//     delivery.status = 'delivered';
+//     delivery.actualDeliveryTime = new Date();
+//     delivery.deliveryProof.completedAt = new Date();
+//     delivery.deliveryProof.verificationMethod = verificationMethod;
+//     delivery.deliveryProof.finalLocation = {
+//       latitude: Number(latitude),
+//       longitude: Number(longitude)
+//     };
+//     await delivery.save();
+
+//     // Complete journey
+//     journey.status = 'completed';
+//     journey.endTime = new Date();
+//     journey.endLocation = {
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: finalRemarks || 'Delivery completed'
+//     };
+//     journey.finalRemarks = finalRemarks || 'Delivery completed successfully';
+//     await journey.save();
+
+//     // Driver free
+//     await Driver.findByIdAndUpdate(req.user._id, {
+//       isAvailable: true,
+//       currentJourney: null
+//     });
+
+//     return successResponse(res, 'Delivery completed successfully!', {
+//       message: 'Thank you! You are now available for new deliveries.',
+//       deliveryStatus: 'delivered',
+//       journeyStatus: 'completed',
+//       proof: {
+//         signature: delivery.deliveryProof.signature,
+//         photos: delivery.deliveryProof.photos,
+//         signedBy: delivery.deliveryProof.signedBy,
+//         verificationMethod
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Complete Delivery Error:', error);
+//     return errorResponse(res, 'Failed to complete delivery', 500);
+//   }
+// };
+
+// POST /api/journey/:journeyId/complete-delivery
+// exports.completeDelivery = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const {
+//       latitude,
+//       longitude,
+//       finalRemarks = '',
+//       customRemarks = [],           // Driver ke likhe hue text remarks
+//       verificationMethod = 'signature'
+//     } = req.body;
+
+//     // 1. Basic validation
+//     if (!latitude || !longitude) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Location coordinates (latitude & longitude) are required'
+//       });
+//     }
+
+//     // 2. Find journey & check authorization
+//     const journey = await Journey.findById(journeyId)
+//       .populate('deliveryId');
+
+//     if (!journey) {
+//       return res.status(404).json({ success: false, message: 'Journey not found' });
+//     }
+
+//     if (journey.driverId.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ success: false, message: 'Unauthorized' });
+//     }
+
+//     const delivery = journey.deliveryId;
+
+//     // Optional proof check (business rule ke hisaab se rakho ya hata do)
+//     if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Signature and at least one proof photo required'
+//       });
+//     }
+
+//     // ───────────────────────────────────────────────────────────────
+//     // 3. Collect all remarks in array
+//     const remarksArray = [];
+
+//     // A. Handle customRemarks (array of strings sent by driver)
+//     if (customRemarks && Array.isArray(customRemarks) && customRemarks.length > 0) {
+//       for (const text of customRemarks) {
+//         if (typeof text !== 'string' || !text.trim()) continue;
+
+//         const remarkText = text.trim();
+
+//         // 1. Remark collection mein naya custom remark create karo
+//         const newRemark = new Remark({
+//           remarkType: 'custom',
+//           remarkText: remarkText,
+//           category: 'other',                  // default ya driver se bhejwa sakte ho
+//           severity: 'medium',
+//           isPredefined: false,
+//           isActive: true,
+//           createdBy: req.user._id,            // driver ka ID
+//           approvalStatus: 'pending',          // admin baad mein approve kar sakta hai
+//           requiresApproval: false,
+//           usageCount: 1,
+//           lastUsedAt: new Date()
+//         });
+
+//         await newRemark.save();
+
+//         // 2. Journey ke remarks array mein reference ke saath add karo
+//         remarksArray.push({
+//           remarkId: newRemark._id,
+//           remarkText: newRemark.remarkText,
+//           category: newRemark.category,
+//           severity: newRemark.severity,
+//           addedBy: req.user._id,
+//           addedAt: new Date(),
+//           isCustom: true
+//         });
+//       }
+//     }
+
+//     // B. Handle finalRemarks (old style single remark) - optional
+//     if (finalRemarks.trim()) {
+//       const remarkText = finalRemarks.trim();
+
+//       const newRemark = new Remark({
+//         remarkType: 'custom',
+//         remarkText: remarkText,
+//         category: 'other',
+//         severity: 'low',
+//         isPredefined: false,
+//         isActive: true,
+//         createdBy: req.user._id,
+//         approvalStatus: 'pending',
+//         requiresApproval: false,
+//         usageCount: 1,
+//         lastUsedAt: new Date()
+//       });
+
+//       await newRemark.save();
+
+//       remarksArray.push({
+//         remarkId: newRemark._id,
+//         remarkText: newRemark.remarkText,
+//         category: newRemark.category,
+//         severity: newRemark.severity,
+//         addedBy: req.user._id,
+//         addedAt: new Date(),
+//         isCustom: true
+//       });
+//     }
+
+//     // ───────────────────────────────────────────────────────────────
+//     // 4. Update Delivery
+//     delivery.status = 'delivered';
+//     delivery.actualDeliveryTime = new Date();
+//     delivery.deliveryProof = {
+//       ...delivery.deliveryProof,
+//       completedAt: new Date(),
+//       verificationMethod,
+//       finalLocation: {
+//         latitude: Number(latitude),
+//         longitude: Number(longitude)
+//       }
+//     };
+//     await delivery.save();
+
+//     // 5. Update Journey
+//     journey.status = 'completed';
+//     journey.endTime = new Date();
+//     journey.endLocation = {
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: finalRemarks.trim() || 'Delivery completed'
+//     };
+//     journey.remarks = remarksArray;           // ← yahan sab remarks save ho jayenge
+//     journey.finalRemarks = finalRemarks.trim() || 'Delivery completed successfully';
+//     await journey.save();
+
+//     // 6. Make driver available
+//     await Driver.findByIdAndUpdate(req.user._id, {
+//       isAvailable: true,
+//       currentJourney: null,
+//       lastActive: new Date()
+//     });
+
+//     // 7. Success Response
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Delivery completed successfully!',
+//       data: {
+//         journeyId: journey._id,
+//         status: 'completed',
+//         remarks: {
+//           count: remarksArray.length,
+//           list: remarksArray.map(r => ({
+//             text: r.remarkText,
+//             from: 'driver',
+//             createdAt: r.addedAt
+//           }))
+//         },
+//         finalRemarks: journey.finalRemarks,
+//         location: { latitude, longitude }
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Complete Delivery Error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to complete delivery',
+//       error: error.message
+//     });
+//   }
+// };
+
+// POST /api/journey/:journeyId/complete-delivery
 exports.completeDelivery = async (req, res) => {
   try {
     const { journeyId } = req.params;
-    const { latitude, longitude, finalRemarks, verificationMethod = 'signature' } = req.body;
+    const {
+      latitude,
+      longitude,
+      finalRemarks = '',
+      customRemarks = [],           // Driver ke likhe hue text remarks
+      verificationMethod = 'signature'
+    } = req.body;
 
+    // 1. Basic validation
     if (!latitude || !longitude) {
-      return errorResponse(res, 'Location is required to complete delivery', 400);
+      return res.status(400).json({
+        success: false,
+        message: 'Location coordinates (latitude & longitude) are required'
+      });
     }
 
+    // 2. Find journey & check authorization
     const journey = await Journey.findById(journeyId)
       .populate('deliveryId');
 
-    if (!journey) return errorResponse(res, 'Journey not found', 404);
+    if (!journey) {
+      return res.status(404).json({ success: false, message: 'Journey not found' });
+    }
 
     if (journey.driverId.toString() !== req.user._id.toString()) {
-      return errorResponse(res, 'Unauthorized', 403);
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
     const delivery = journey.deliveryId;
+
+    // Optional proof check
     if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
-      return errorResponse(res, 'Signature and proof photos are required', 400);
+      return res.status(400).json({
+        success: false,
+        message: 'Signature and at least one proof photo required'
+      });
     }
 
-    // Final update
+    // ───────────────────────────────────────────────────────────────
+    // 3. Collect all remarks in array
+    const remarksArray = [];
+
+    // A. Handle customRemarks (array of strings sent by driver)
+    if (customRemarks && Array.isArray(customRemarks) && customRemarks.length > 0) {
+      for (const text of customRemarks) {
+        if (typeof text !== 'string' || !text.trim()) continue;
+
+        const remarkText = text.trim();
+
+        // 1. Create new custom remark in Remark collection
+        const newRemark = new Remark({
+          remarkType: 'custom',
+          remarkText: remarkText,
+          category: 'other',
+          severity: 'medium',
+          isPredefined: false,
+          isActive: true,
+          createdBy: req.user._id,            // driver ka ID
+          approvalStatus: 'pending',
+          requiresApproval: false,
+          usageCount: 1,
+          lastUsedAt: new Date()
+        });
+
+        await newRemark.save();
+
+        // 2. Associate this remark with current delivery
+        newRemark.associatedDeliveries.push(delivery._id);
+        await newRemark.save();
+
+        // 3. Add to journey remarks array (reference)
+        remarksArray.push({
+          remarkId: newRemark._id,
+          remarkText: newRemark.remarkText,
+          category: newRemark.category,
+          severity: newRemark.severity,
+          addedBy: req.user._id,
+          addedAt: new Date(),
+          isCustom: true
+        });
+      }
+    }
+
+    // B. Handle finalRemarks (old style single remark) - optional
+    if (finalRemarks.trim()) {
+      const remarkText = finalRemarks.trim();
+
+      const newRemark = new Remark({
+        remarkType: 'custom',
+        remarkText: remarkText,
+        category: 'other',
+        severity: 'low',
+        isPredefined: false,
+        isActive: true,
+        createdBy: req.user._id,
+        approvalStatus: 'pending',
+        requiresApproval: false,
+        usageCount: 1,
+        lastUsedAt: new Date()
+      });
+
+      await newRemark.save();
+
+      // Associate with delivery
+      newRemark.associatedDeliveries.push(delivery._id);
+      await newRemark.save();
+
+      remarksArray.push({
+        remarkId: newRemark._id,
+        remarkText: newRemark.remarkText,
+        category: newRemark.category,
+        severity: newRemark.severity,
+        addedBy: req.user._id,
+        addedAt: new Date(),
+        isCustom: true
+      });
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // 4. Update Delivery
     delivery.status = 'delivered';
     delivery.actualDeliveryTime = new Date();
-    delivery.deliveryProof.completedAt = new Date();
-    delivery.deliveryProof.verificationMethod = verificationMethod;
-    delivery.deliveryProof.finalLocation = {
-      latitude: Number(latitude),
-      longitude: Number(longitude)
+    delivery.deliveryProof = {
+      ...delivery.deliveryProof,
+      completedAt: new Date(),
+      verificationMethod,
+      finalLocation: {
+        latitude: Number(latitude),
+        longitude: Number(longitude)
+      }
     };
     await delivery.save();
 
-    // Complete journey
+    // 5. Update Journey
     journey.status = 'completed';
     journey.endTime = new Date();
     journey.endLocation = {
       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
-      address: finalRemarks || 'Delivery completed'
+      address: finalRemarks.trim() || 'Delivery completed'
     };
-    journey.finalRemarks = finalRemarks || 'Delivery completed successfully';
+    journey.remarks = remarksArray;           // All remarks saved here
+    journey.finalRemarks = finalRemarks.trim() || 'Delivery completed successfully';
     await journey.save();
 
-    // Driver free
+    // 6. Make driver available
     await Driver.findByIdAndUpdate(req.user._id, {
       isAvailable: true,
-      currentJourney: null
+      currentJourney: null,
+      lastActive: new Date()
     });
 
-    return successResponse(res, 'Delivery completed successfully!', {
-      message: 'Thank you! You are now available for new deliveries.',
-      deliveryStatus: 'delivered',
-      journeyStatus: 'completed',
-      proof: {
-        signature: delivery.deliveryProof.signature,
-        photos: delivery.deliveryProof.photos,
-        signedBy: delivery.deliveryProof.signedBy,
-        verificationMethod
+    // 7. Success Response
+    return res.status(200).json({
+      success: true,
+      message: 'Delivery completed successfully!',
+      data: {
+        journeyId: journey._id,
+        status: 'completed',
+        remarks: {
+          count: remarksArray.length,
+          list: remarksArray.map(r => ({
+            text: r.remarkText,
+            from: 'driver',
+            createdAt: r.addedAt
+          }))
+        },
+        finalRemarks: journey.finalRemarks,
+        location: { latitude, longitude }
       }
     });
 
   } catch (error) {
     console.error('Complete Delivery Error:', error);
-    return errorResponse(res, 'Failed to complete delivery', 500);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to complete delivery',
+      error: error.message
+    });
   }
 };
 

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const customerController = require('../../controllers/admin/customerController');
 const { isAdmin, protectAdmin } = require('../../middleware/authMiddleware');
-const { checkPermission } = require('../../middleware/roleMiddleware');
+const { checkPermission } = require('../../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const { uploadUpdateDriverDocuments, uploadUpdateCustomerDocuments } = require('../../middleware/uploadMiddleware');
@@ -13,6 +13,7 @@ router.get(
   "/create-customer",
   protectAdmin,
   isAdmin,
+  checkPermission('customers', 'create'),
   customerController.getCreateCustomer
 )
 
@@ -121,64 +122,64 @@ router.delete(
 );
 
 // Override region for location
-router.patch(
-  '/:customerId/locations/:locationId/override-region',
-  protectAdmin,
-  isAdmin,
-  checkPermission('customers', 'update'),
-  customerController.overrideRegion
-);
+// router.patch(
+//   '/:customerId/locations/:locationId/override-region',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'update'),
+//   customerController.overrideRegion
+// );
 
 //  PREFERENCES 
 
-// Toggle feedback notification
-router.patch(
-  '/:customerId/toggle-feedback',
-  protectAdmin,
-  isAdmin,
-  checkPermission('customers', 'update'),
-  customerController.toggleFeedbackNotification
-);
+// // Toggle feedback notification
+// router.patch(
+//   '/:customerId/toggle-feedback',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'update'),
+//   customerController.toggleFeedbackNotification
+// );
 
-// Update preferences
-router.patch(
-  '/:customerId/preferences',
-  protectAdmin,
-  isAdmin,
-  checkPermission('customers', 'update'),
-  customerController.updatePreferences
-);
+// // Update preferences
+// router.patch(
+//   '/:customerId/preferences',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'update'),
+//   customerController.updatePreferences
+// );
 
-//  BULK OPERATIONS 
+// //  BULK OPERATIONS 
 
-// Bulk import (CSV)
-router.post(
-  '/bulk/import',
-  protectAdmin,
-  isAdmin,
-  checkPermission('customers', 'create'),
-  // upload.single('csvFile'),
-  customerController.bulkImport
-);
+// // Bulk import (CSV)
+// router.post(
+//   '/bulk/import',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'create'),
+//   // upload.single('csvFile'),
+//   customerController.bulkImport
+// );
 
-// Bulk export (CSV)
-router.get(
-  '/bulk/export',
-  protectAdmin,
-  isAdmin,
-  checkPermission('customers', 'read'),
-  customerController.bulkExport
-);
+// // Bulk export (CSV)
+// router.get(
+//   '/bulk/export',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'read'),
+//   customerController.bulkExport
+// );
 
-//  STATISTICS 
+// //  STATISTICS 
 
-// Get customer statistics
-router.get(
-  '/stats/overview',
-  protectAdmin,
-  isAdmin,
-  checkPermission('customers', 'read'),
-  customerController.getCustomerStatistics
-);
+// // Get customer statistics
+// router.get(
+//   '/stats/overview',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('customers', 'read'),
+//   customerController.getCustomerStatistics
+// );
 
 module.exports = router;

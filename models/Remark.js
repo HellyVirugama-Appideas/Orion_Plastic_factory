@@ -78,7 +78,7 @@ const remarkSchema = new mongoose.Schema({
   // Created by (Admin or Driver)
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Driver',
     required: true
   },
   

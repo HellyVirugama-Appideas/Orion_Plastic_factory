@@ -2,16 +2,25 @@ const express = require('express');
 const router = express.Router();
 const vehicleController = require('../../controllers/admin/vehicleController');
 const { isAdmin, protectAdmin } = require('../../middleware/authMiddleware');
-const { checkPermission } = require('../../middleware/roleMiddleware');
+const { checkPermission } = require('../../middleware/authMiddleware');
 
 
 // Create vehicle
 router.post(
   '/',
   protectAdmin,
+  isAdmin,
   checkPermission('vehicles', 'create'),
   vehicleController.createVehicle
 );
+
+router.get(
+  "/create",
+  protectAdmin,
+  isAdmin,
+   checkPermission('vehicles', 'create'),
+   vehicleController.getCreateVehicle
+)
 
 // Get all vehicles
 router.get(
@@ -22,18 +31,26 @@ router.get(
   vehicleController.getAllVehicles
 );
 
-// Get vehicle by ID
-router.get(
-  '/:vehicleId',
-  protectAdmin,
-  isAdmin,
-  checkPermission('vehicles', 'read'),
-  vehicleController.getVehicleById
-);
+// // Get vehicle by ID
+// router.get( 
+//   '/:vehicleId',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('vehicles', 'read'),
+//   vehicleController.getVehicleById
+// );
 
 // Update vehicle
-router.put(
-  '/:vehicleId',
+
+router.get(
+  "/edit/:vehicleId",
+  protectAdmin,
+  isAdmin,
+  checkPermission('vehicles', 'update'),
+  vehicleController.getEditVehicle
+)
+router.post(
+  '/edit/:vehicleId',
   protectAdmin,
   isAdmin,
   checkPermission('vehicles', 'update'),
@@ -41,43 +58,13 @@ router.put(
 );
 
 // Delete vehicle
-router.delete(
-  '/:vehicleId',
+router.post(
+  '/delete/:vehicleId',
   protectAdmin,
   isAdmin,
   checkPermission('vehicles', 'delete'),
   vehicleController.deleteVehicle
 );
-
-// Update meter reading
-router.patch(
-  '/:vehicleId/meter-reading',
-  protectAdmin,
-  isAdmin,
-  checkPermission('vehicles', 'update'),
-  vehicleController.updateMeterReading
-);
-
-//  MAINTENANCE 
-
-// Add maintenance record
-router.post(
-  '/:vehicleId/maintenance',
-  protectAdmin,
-  isAdmin,
-  checkPermission('vehicles', 'update'),
-  vehicleController.addMaintenanceRecord
-);
-
-// Get maintenance history
-router.get(
-  '/:vehicleId/maintenance',
-  protectAdmin,
-  isAdmin,
-  checkPermission('vehicles', 'read'),
-  vehicleController.getMaintenanceHistory
-);
-
 
 // Assign vehicle to driver
 router.post(
@@ -88,35 +75,35 @@ router.post(
   vehicleController.assignVehicleToDriver
 );
 
-// Unassign vehicle from driver
+// // Unassign vehicle from driver
 router.post(
   '/:vehicleId/unassign',
   protectAdmin,
   isAdmin,
   checkPermission('vehicles', 'update'),
-  vehicleController.unassignVehicleFromDriver
+  vehicleController.unassignVehicle
 );
 
 //  STATUS MANAGEMENT 
 
 // Update vehicle status
-router.patch(
-  '/:vehicleId/status',
-  protectAdmin,
-  isAdmin,
-  checkPermission('vehicles', 'update'),
-  vehicleController.updateVehicleStatus
-);
+// router.patch(
+//   '/:vehicleId/status',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('vehicles', 'update'),
+//   vehicleController.updateVehicleStatus
+// );
 
 //  STATISTICS 
 
-// Get vehicle statistics
-router.get(
-  '/stats/overview',
-  protectAdmin,
-  isAdmin,
-  checkPermission('vehicles', 'read'),
-  vehicleController.getVehicleStatistics
-);
+// // Get vehicle statistics
+// router.get(
+//   '/stats/overview',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('vehicles', 'read'),
+//   vehicleController.getVehicleStatistics
+// );
 
 module.exports = router;

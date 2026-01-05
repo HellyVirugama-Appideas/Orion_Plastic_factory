@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <%- include('_layouts/head') %>
+    <title>Region Management | <%= title %>
+    </title>
+</head>
+
+<body>
+  <%- include('_layouts/sidenavbar') %>
+
+    <div id="main">
+      <div class="row">
+        <div id="breadcrumbs-wrapper">
+          <div class="container">
+            <div class="row">
+              <%- include('messages', { messages: messages }) %>
+                <h6 class="breadcrumbs-title">Region Management</h6>
+                <a href="/admin/regions/create" class="btn right">Add Region</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="container">
+          <div class="card">
+            <div class="card-content">
+              <table class="highlight">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>State</th>
+                    <th>Zipcodes</th>
+                    <th>Customers</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% regions.forEach(region=> { %>
+                    <tr>
+                      <td>
+                        <%= region.regionCode %>
+                      </td>
+                      <td>
+                        <%= region.regionName %>
+                      </td>
+                      <td>
+                        <%= region.state %>
+                      </td>
+                      <td>
+                        <%= region.zipcodes.length %>
+                      </td>
+                      <td>
+                        <!-- <span class="badge <%= region.customerCount > 0 ? 'green' : 'grey' %>"> -->
+                          <%= region.customerCount %> Customers
+                        <!-- </span> -->
+                      </td>
+                      <td>
+                        <a href="/admin/regions/view/<%= region._id %>"
+                          class="waves-effect waves-light accent-2 btn-edit">
+                          <i class="material-icons">visibility</i>
+                        </a>
+                        &nbsp;&nbsp;
+                        <a href="/admin/regions/edit/<%= region._id %>" class="btn-floating green"><i
+                            class="material-icons">edit</i></a>
+                        <form action="/admin/regions/delete/<%= region._id %>" method="POST" style="display:inline;">
+                          <button type="submit" class="btn-floating red" onclick="return confirm('Delete region?')">
+                            <i class="material-icons">delete</i>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%- include('_layouts/commonJs') %>
+</body>
+
+</html>

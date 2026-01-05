@@ -279,8 +279,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(morgan('dev'));
 
 app.use(methodOverride('_method'));
@@ -689,3 +689,4 @@ server.listen(PORT, () => {
 });
 
 module.exports = app;
+

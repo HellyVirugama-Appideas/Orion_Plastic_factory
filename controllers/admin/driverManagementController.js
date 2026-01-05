@@ -2,6 +2,7 @@ const mongoose = require("mongoose")
 const Driver = require('../../models/Driver');
 const Vehicle = require('../../models/Vehicle');
 const Delivery = require('../../models/Delivery');
+const Region = require('../../models/Region')
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
 
 //BLOCK DRIVER
@@ -404,10 +405,18 @@ exports.getDriverStatistics = async (req, res) => {
 exports.getCreateDriver = async (req, res) => {
   try {
     console.log('[CREATE FORM] Loading create driver form');
-    res.render('driver_add', {  // ← your file is views/driver_add.ejs
+
+    // Fetch all active regions
+    const regions = await Region.find({ isActive: true })
+      .select('regionName regionCode state')
+      .sort({ regionName: 1 })
+      .lean();
+
+    res.render('driver_add', {
       title: 'Create New Driver',
       user: req.admin,
-      url: req.originalUrl
+      url: req.originalUrl,
+      regions
     });
   } catch (error) {
     console.error('[CREATE FORM] Error:', error);
@@ -464,7 +473,7 @@ exports.getCreateDriver = async (req, res) => {
 
 //     // ✅ FIX: Build documents array instead of top-level fields
 //     const documents = [];
-    
+
 //     if (req.files?.licenseFront?.[0]) {
 //       documents.push({
 //         documentType: 'license_front',
@@ -527,9 +536,9 @@ exports.getCreateDriver = async (req, res) => {
 
 //   } catch (error) {
 //     console.error('[CREATE-DRIVER] ERROR:', error);
-    
+
 //     let errorMsg = 'Failed to create driver';
-    
+
 //     if (error.code === 11000) {
 //       const field = Object.keys(error.keyPattern || {})[0];
 //       errorMsg = `Duplicate ${field}: This value already exists`;
@@ -582,8 +591,8 @@ exports.createDriver = async (req, res) => {
     const fullPhone = `${code}${number}`;
 
     const documents = [];
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://yourdomain.com' 
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://yourdomain.com'
       : 'http://localhost:5001';
 
     const documentBasePath = '/uploads/documents/';
@@ -595,8 +604,8 @@ exports.createDriver = async (req, res) => {
 
         documents.push({
           documentType: docType,
-          fileUrl: fileUrl,                   
-          fullUrl: `${baseUrl}${fileUrl}`,    
+          fileUrl: fileUrl,
+          fullUrl: `${baseUrl}${fileUrl}`,
           uploadedAt: new Date(),
           verificationStatus: 'pending'
         });
@@ -639,7 +648,7 @@ exports.createDriver = async (req, res) => {
   } catch (error) {
     console.error('[CREATE-DRIVER] ERROR:', error);
     let errorMsg = 'Failed to create driver';
-    
+
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {})[0];
       errorMsg = `Duplicate ${field}: This value already exists`;
@@ -686,7 +695,7 @@ exports.getEditDriverForm = async (req, res) => {
     req.flash('error', 'Failed to load edit form');
     res.redirect('/admin/drivers');
   }
-}; 
+};
 
 // UPDATE DRIVER
 exports.updateDriverDetails = async (req, res) => {
@@ -769,14 +778,14 @@ exports.updateDriverDetails = async (req, res) => {
 
           if (existingIndex >= 0) {
             documents[existingIndex] = {
-              documentType: docType,                   
+              documentType: docType,
               fileUrl: relativePath,
               uploadedAt: new Date(),
               verificationStatus: 'pending'
             };
           } else {
             documents.push({
-              documentType: docType,                  
+              documentType: docType,
               fileUrl: relativePath,
               uploadedAt: new Date(),
               verificationStatus: 'pending'

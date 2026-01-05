@@ -110,7 +110,6 @@
                                                             <th>Type</th>
                                                             <th>Category</th>
                                                             <th>Status</th>
-                                                            <th>Primary Address</th>
                                                             <th>Created Date</th>
                                                             <th>Actions</th>
                                                         </tr>
@@ -171,9 +170,7 @@
                                                                             <%= customer.status?.toUpperCase() || 'UNKNOWN' %>
                                                                         </span>
                                                                     </td>
-                                                                    <td title="<%= primaryLocation.addressLine1 || '' %>">
-                                                                        <%= primaryAddress !== 'N/A' ? primaryAddress : 'N/A' %>
-                                                                    </td>
+                                                                   
                                                                     <td>
                                                                         <% 
                                                                             let formattedDate = '-';

@@ -61,11 +61,11 @@
 // // )
 
 // module.exports = router;
-
+ 
 const express = require('express');
 const router = express.Router();
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
-const { checkPermission } = require('../../middleware/roleMiddleware');
+const { checkPermission } = require('../../middleware/authMiddleware');
 const deliveryController = require('../../controllers/admin/deliveryAdminController');
 
 // ============= PAGE ROUTES =============
@@ -97,6 +97,13 @@ router.get(
   deliveryController.renderDeliveryDetails
 );
 
+router.get(
+  "/:deliveryId/edit",
+  protectAdmin,
+  isAdmin,
+  deliveryController.renderEditDelivery
+)
+
 // ============= POST/PATCH ACTIONS =============
 
 // Create delivery from order
@@ -116,6 +123,20 @@ router.patch(
   checkPermission('deliveries', 'update'),
   deliveryController.updateDeliveryStatus
 );
+
+router.post(
+  "/:deliveryId/update",
+  protectAdmin,
+  isAdmin,
+  deliveryController.updateDelivery
+)
+
+router.post(
+  "/:deliveryId/cancel",
+  protectAdmin,
+  isAdmin,
+  deliveryController.cancelDelivery
+)
 
 // Complete waypoint
 router.patch(

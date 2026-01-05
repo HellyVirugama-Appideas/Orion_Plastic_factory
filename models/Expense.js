@@ -531,14 +531,14 @@ expenseSchema.index({ delivery: 1 });
 expenseSchema.index({ expenseType: 1, driver: 1 });
 
 // Virtual for total amount (handles both fuel and vehicle expenses)
-expenseSchema.virtual('totalAmount').get(function () {
-  if (this.expenseType === 'fuel' && this.fuelDetails) {
-    return this.fuelDetails.totalFuelCost || 0;
-  } else if (this.vehicleExpenseDetails) {
-    return this.vehicleExpenseDetails.expenseAmount || 0;
-  }
-  return 0;
-});
+// expenseSchema.virtual('totalAmount').get(function () {
+//   if (this.expenseType === 'fuel' && this.fuelDetails) {
+//     return this.fuelDetails.totalFuelCost || 0;
+//   } else if (this.vehicleExpenseDetails) {
+//     return this.vehicleExpenseDetails.expenseAmount || 0;
+//   }
+//   return 0;
+// });
 
 // Calculate mileage before saving (for fuel expenses)
 expenseSchema.pre('save', async function (next) {
@@ -585,6 +585,17 @@ expenseSchema.statics.getExpensesByType = async function (driverId, expenseType)
   }
   return this.find(query).sort({ expenseDate: -1 });
 };
+
+expenseSchema.virtual('totalAmount').get(function () {
+  if (this.expenseType === 'fuel' && this.fuelDetails) {
+    // return this.fuelDetails.totalAmount || 0;  
+    return this.fuelDetails.totalAmount || 0;
+  } 
+  if (this.vehicleExpenseDetails) {
+    return this.vehicleExpenseDetails.expenseAmount || 0;
+  }
+  return 0;
+});
 
 module.exports = mongoose.model('Expense', expenseSchema);
 

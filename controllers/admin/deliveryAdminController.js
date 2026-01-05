@@ -38,6 +38,25 @@ exports.renderCreateDeliveryFromOrder = async (req, res) => {
       return res.redirect(`/admin/deliveries/${existingDelivery._id}`);
     }
 
+    // ✅ FIX: Ensure coordinates exist, provide defaults if missing
+    if (!order.pickupLocation.coordinates) {
+      order.pickupLocation.coordinates = {
+        latitude: 23.0225,  // Default Ahmedabad coordinates
+        longitude: 72.5714
+      };
+    }
+
+    if (!order.deliveryLocation.coordinates) {
+      order.deliveryLocation.coordinates = {
+        latitude: 23.0225,  // Default Ahmedabad coordinates
+        longitude: 72.5714
+      };
+    }
+
+    console.log('[CREATE-DELIVERY] Order:', order.orderNumber);
+    console.log('[CREATE-DELIVERY] Pickup coords:', order.pickupLocation.coordinates);
+    console.log('[CREATE-DELIVERY] Delivery coords:', order.deliveryLocation.coordinates);
+
     // Get available drivers
     const drivers = await Driver.find({
       isActive: true,
@@ -63,7 +82,140 @@ exports.renderCreateDeliveryFromOrder = async (req, res) => {
   }
 };
 
+
 // ============= CREATE DELIVERY FROM ORDER =============
+// exports.createDeliveryFromOrder = async (req, res) => {
+//   try {
+//     const { orderId } = req.params;
+//     const {
+//       customerId,
+//       driverId,
+//       scheduledPickupTime,
+//       scheduledDeliveryTime,
+//       instructions,
+//       waypoints,
+//       routeDistance,
+//       routeDuration
+//     } = req.body;
+
+//     console.log('[CREATE-DELIVERY] Order ID:', orderId);
+
+//     // Get order
+//     const order = await Order.findById(orderId)
+//       .populate({
+//         path: 'customerId',
+//         model: 'Customer'
+//       });
+
+//     if (!order) {
+//       req.flash('error', 'Order not found');
+//       return res.redirect('/admin/orders');
+//     }
+
+//     // Check if delivery exists
+//     const existing = await Delivery.findOne({ orderId: order.orderNumber });
+//     if (existing) {
+//       req.flash('error', 'Delivery already exists for this order');
+//       return res.redirect(`/admin/deliveries/${existing._id}`);
+//     }
+
+//     // Validate driver
+//     const driver = await Driver.findById(driverId);
+//     if (!driver) {
+//       req.flash('error', 'Driver not found');
+//       return res.redirect(`/admin/orders/${orderId}/create-delivery`);
+//     }
+
+//     if (!driver.isAvailable || driver.profileStatus !== 'approved') {
+//       req.flash('error', 'Driver is not available or not approved');
+//       return res.redirect(`/admin/orders/${orderId}/create-delivery`);
+//     }
+
+//     // Generate tracking number
+//     const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+//     const random = Math.floor(1000 + Math.random() * 9000);
+//     const trackingNumber = `DEL${dateStr}${random}`;
+
+//     // Parse waypoints
+//     let parsedWaypoints = [];
+//     if (waypoints) {
+//       try {
+//         parsedWaypoints = JSON.parse(waypoints);
+//       } catch (e) {
+//         console.error('Waypoints parse error:', e);
+//       }
+//     }
+
+//     // Create delivery
+//     const delivery = await Delivery.create({
+//       trackingNumber,
+//       orderId: order.orderNumber,
+//       customerId: order.customerId._id,
+//       driverId,
+//       vehicleNumber: driver.vehicleNumber,
+//       pickupLocation: order.pickupLocation,
+//       deliveryLocation: order.deliveryLocation,
+//       packageDetails: {
+//         description: order.items.map(i => i.productName).join(', '),
+//         quantity: order.items.reduce((sum, i) => sum + i.quantity, 0),
+//         weight: order.items.reduce((sum, i) => sum + (i.specifications?.weight || 0), 0)
+//       },
+//       scheduledPickupTime: scheduledPickupTime ? new Date(scheduledPickupTime) : null,
+//       scheduledDeliveryTime: scheduledDeliveryTime ? new Date(scheduledDeliveryTime) : null,
+//       instructions,
+//       waypoints: parsedWaypoints,
+//       distance: parseFloat(routeDistance) || 0,
+//       estimatedDuration: parseInt(routeDuration) || 0,
+//       status: 'assigned',
+//       priority: order.priority,
+//       createdBy: req.user._id
+//     });
+
+//     // Update order with delivery reference
+//     order.deliveryId = delivery._id;
+//     order.status = 'assigned';
+//     await order.save();
+
+//     // Mark driver as unavailable
+//     driver.isAvailable = false;
+//     await driver.save();
+
+//     // Create status history
+//     await DeliveryStatusHistory.create({
+//       deliveryId: delivery._id,
+//       status: 'assigned',
+//       remarks: `Delivery assigned to ${driver.name} (${driver.vehicleNumber})`,
+//       updatedBy: {
+//         userId: req.user._id,
+//         userRole: req.user.role,
+//         userName: req.user.name
+//       }
+//     });
+
+//     // Send notification to driver
+//     if (driver.userId) {
+//       await Notification.create({
+//         userId: driver.userId,
+//         type: 'delivery_assigned',
+//         title: 'New Delivery Assigned',
+//         message: `You have been assigned delivery ${trackingNumber}. Check details in your app.`,
+//         referenceId: delivery._id,
+//         referenceModel: 'Delivery',
+//         priority: 'high'
+//       });
+//     }
+
+//     console.log('[CREATE-DELIVERY] Success:', trackingNumber);
+//     req.flash('success', 'Delivery created and driver assigned successfully!');
+//     res.redirect(`/admin/deliveries/${delivery._id}`);
+
+//   } catch (error) {
+//     console.error('[CREATE-DELIVERY] Error:', error);
+//     req.flash('error', error.message || 'Failed to create delivery');
+//     res.redirect(`/admin/orders/${req.params.orderId}/create-delivery`);
+//   }
+// };
+
 exports.createDeliveryFromOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -106,7 +258,7 @@ exports.createDeliveryFromOrder = async (req, res) => {
       return res.redirect(`/admin/orders/${orderId}/create-delivery`);
     }
 
-    if (!driver.isAvailable || driver.profileStatus !== 'approved') {
+    if (driver.isAvailable === false  || driver.profileStatus !== 'approved') {
       req.flash('error', 'Driver is not available or not approved');
       return res.redirect(`/admin/orders/${orderId}/create-delivery`);
     }
@@ -126,15 +278,35 @@ exports.createDeliveryFromOrder = async (req, res) => {
       }
     }
 
+    // SAFE: Extract coordinates with fallback (Delhi center)
+    const defaultLat = 28.7041;
+    const defaultLng = 77.1025;
+
+    const pickupCoords = {
+      latitude: order?.pickupLocation?.coordinates?.latitude ?? defaultLat,
+      longitude: order?.pickupLocation?.coordinates?.longitude ?? defaultLng
+    };
+
+    const deliveryCoords = {
+      latitude: order?.deliveryLocation?.coordinates?.latitude ?? defaultLat,
+      longitude: order?.deliveryLocation?.coordinates?.longitude ?? defaultLng
+    };
+
     // Create delivery
     const delivery = await Delivery.create({
       trackingNumber,
       orderId: order.orderNumber,
-      customerId: order.customerId._id,
+      customerId: order.customerId?._id || null, // Safe: null if missing
       driverId,
       vehicleNumber: driver.vehicleNumber,
-      pickupLocation: order.pickupLocation,
-      deliveryLocation: order.deliveryLocation,
+      pickupLocation: {
+        ...order.pickupLocation,
+        coordinates: pickupCoords // Safe coords
+      },
+      deliveryLocation: {
+        ...order.deliveryLocation,
+        coordinates: deliveryCoords // Safe coords
+      },
       packageDetails: {
         description: order.items.map(i => i.productName).join(', '),
         quantity: order.items.reduce((sum, i) => sum + i.quantity, 0),
@@ -151,16 +323,16 @@ exports.createDeliveryFromOrder = async (req, res) => {
       createdBy: req.user._id
     });
 
-    // Update order with delivery reference
+    // Update order
     order.deliveryId = delivery._id;
     order.status = 'assigned';
     await order.save();
 
-    // Mark driver as unavailable
+    // Mark driver unavailable
     driver.isAvailable = false;
     await driver.save();
 
-    // Create status history
+    // Status history
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
       status: 'assigned',
@@ -172,7 +344,7 @@ exports.createDeliveryFromOrder = async (req, res) => {
       }
     });
 
-    // Send notification to driver
+    // Notification to driver
     if (driver.userId) {
       await Notification.create({
         userId: driver.userId,
@@ -434,6 +606,302 @@ exports.updateDeliveryStatus = async (req, res) => {
   } catch (error) {
     console.error('[UPDATE-STATUS] Error:', error);
     return errorResponse(res, 'Failed to update status', 500);
+  }
+};
+
+// ============= EDIT DELIVERY =============
+exports.renderEditDelivery = async (req, res) => {
+  try {
+    const { deliveryId } = req.params;
+
+    const delivery = await Delivery.findById(deliveryId)
+      .populate('customerId')
+      .populate('driverId', 'name phone vehicleNumber')
+      .populate('orderId', 'orderNumber items priority')
+      .lean();
+
+    if (!delivery) {
+      req.flash('error', 'Delivery not found');
+      return res.redirect('/admin/deliveries');
+    }
+
+    // Get currently assigned driver + all available drivers (for possible reassignment)
+    const drivers = await Driver.find({
+      $or: [
+        { _id: delivery.driverId },
+        { isActive: true, isAvailable: true, profileStatus: 'approved' }
+      ]
+    })
+      .select('name phone vehicleNumber profileImage isAvailable')
+      .sort({ name: 1 })
+      .lean();
+
+    res.render('delivery_edit', {
+      title: `Edit Delivery - ${delivery.trackingNumber}`,
+      delivery,
+      drivers,
+      user: req.user,
+      url: req.originalUrl,
+      messages: req.flash()
+    });
+
+  } catch (error) {
+    console.error('[RENDER-EDIT-DELIVERY] Error:', error);
+    req.flash('error', 'Failed to load edit page');
+    res.redirect('/admin/deliveries');
+  }
+};
+
+exports.updateDelivery = async (req, res) => {
+  try {
+    const { deliveryId } = req.params;
+    const {
+      driverId, // allow driver change (optional)
+      scheduledPickupTime,
+      scheduledDeliveryTime,
+      instructions,
+      waypoints,
+      routeDistance,
+      routeDuration
+    } = req.body;
+
+    const delivery = await Delivery.findById(deliveryId);
+    if (!delivery) {
+      req.flash('error', 'Delivery not found');
+      return res.redirect('/admin/deliveries');
+    }
+
+    // Parse waypoints
+    let parsedWaypoints = [];
+    if (waypoints) {
+      try {
+        parsedWaypoints = JSON.parse(waypoints);
+      } catch (e) {
+        console.warn('Invalid waypoints JSON in edit:', e.message);
+      }
+    }
+
+    // Safe coordinates (same as create)
+    const DEFAULT_LAT = 23.0225;
+    const DEFAULT_LNG = 72.5714;
+
+    const pickupCoords = {
+      latitude: delivery.pickupLocation?.coordinates?.latitude ?? DEFAULT_LAT,
+      longitude: delivery.pickupLocation?.coordinates?.longitude ?? DEFAULT_LNG
+    };
+
+    const deliveryCoords = {
+      latitude: delivery.deliveryLocation?.coordinates?.latitude ?? DEFAULT_LAT,
+      longitude: delivery.deliveryLocation?.coordinates?.longitude ?? DEFAULT_LNG
+    };
+
+    // Optional: allow driver change
+    let driverChanged = false;
+    let oldDriverId = delivery.driverId?.toString();
+
+    if (driverId && driverId !== oldDriverId) {
+      const newDriver = await Driver.findById(driverId);
+      if (!newDriver || !newDriver.isAvailable) {
+        req.flash('error', 'Selected driver is not available');
+        return res.redirect(`/admin/deliveries/${deliveryId}/edit`);
+      }
+
+      // Free old driver if changing
+      if (oldDriverId) {
+        await Driver.findByIdAndUpdate(oldDriverId, { isAvailable: true });
+      }
+
+      // Assign new driver
+      delivery.driverId = driverId;
+      delivery.vehicleNumber = newDriver.vehicleNumber;
+      driverChanged = true;
+    }
+
+    // Update fields
+    delivery.scheduledPickupTime = scheduledPickupTime ? new Date(scheduledPickupTime) : delivery.scheduledPickupTime;
+    delivery.scheduledDeliveryTime = scheduledDeliveryTime ? new Date(scheduledDeliveryTime) : delivery.scheduledDeliveryTime;
+    delivery.instructions = instructions || delivery.instructions;
+    delivery.waypoints = parsedWaypoints.length > 0 ? parsedWaypoints : delivery.waypoints;
+    delivery.distance = parseFloat(routeDistance) || delivery.distance;
+    delivery.estimatedDuration = parseInt(routeDuration) || delivery.estimatedDuration;
+
+    await delivery.save();
+
+    // Create status history entry for edit
+    await DeliveryStatusHistory.create({
+      deliveryId: delivery._id,
+      status: delivery.status,
+      remarks: driverChanged 
+        ? 'Delivery updated + driver reassigned' 
+        : 'Delivery details updated (route/schedule)',
+      updatedBy: {
+        userId: req.user._id,
+        userRole: req.user.role,
+        userName: req.user.name
+      }
+    });
+
+    // Send notification to current driver
+    const currentDriver = await Driver.findById(delivery.driverId);
+    if (currentDriver?.userId) {
+      await Notification.create({
+        userId: currentDriver.userId,
+        type: 'delivery_updated',
+        title: 'Delivery Updated',
+        message: `Delivery ${delivery.trackingNumber} has been updated. Please check details in your app.`,
+        referenceId: delivery._id,
+        referenceModel: 'Delivery',
+        priority: 'medium'
+      });
+    }
+
+    req.flash('success', 'Delivery updated successfully!');
+    res.redirect(`/admin/deliveries/${delivery._id}`);
+
+  } catch (error) {
+    console.error('[UPDATE-DELIVERY] Error:', error);
+    req.flash('error', 'Failed to update delivery');
+    res.redirect(`/admin/deliveries/${req.params.deliveryId}/edit`);
+  }
+};
+
+// ============= CANCEL DELIVERY =============
+// exports.cancelDelivery = async (req, res) => {
+//   try {
+//     const { deliveryId } = req.params;
+//     const { remarks = 'Cancelled by admin' } = req.body;
+
+//     const delivery = await Delivery.findById(deliveryId);
+//     if (!delivery) {
+//       return res.status(404).json({ success: false, message: 'Delivery not found' });
+//     }
+
+//     if (['delivered', 'cancelled'].includes(delivery.status)) {
+//       req.flash('error', `Cannot cancel delivery in ${delivery.status} status`);
+//       return res.redirect(`/admin/deliveries/${deliveryId}`);
+//     }
+
+//     delivery.status = 'cancelled';
+//     await delivery.save();
+
+//     // Free the driver
+//     if (delivery.driverId) {
+//       await Driver.findByIdAndUpdate(delivery.driverId, { isAvailable: true });
+//     }
+
+//     // Update order status
+//     await Order.updateOne(
+//       { orderNumber: delivery.orderId },
+//       { status: 'cancelled' }
+//     );
+
+//     // Status history
+//     await DeliveryStatusHistory.create({
+//       deliveryId: delivery._id,
+//       status: 'cancelled',
+//       remarks: remarks,
+//       updatedBy: {
+//         userId: req.user._id,
+//         userRole: req.user.role,
+//         userName: req.user.name
+//       }
+//     });
+
+//     // Notify driver
+//     const driver = await Driver.findById(delivery.driverId);
+//     if (driver?.userId) {
+//       await Notification.create({
+//         userId: driver.userId,
+//         type: 'delivery_cancelled',
+//         title: 'Delivery Cancelled',
+//         message: `Delivery ${delivery.trackingNumber} has been cancelled. ${remarks}`,
+//         referenceId: delivery._id,
+//         referenceModel: 'Delivery',
+//         priority: 'high'
+//       });
+//     }
+
+//     req.flash('success', 'Delivery cancelled successfully');
+//     res.redirect('/admin/deliveries');
+
+//   } catch (error) {
+//     console.error('[CANCEL-DELIVERY] Error:', error);
+//     req.flash('error', 'Failed to cancel delivery');
+//     res.redirect('/admin/deliveries');
+//   }
+// };
+
+exports.cancelDelivery = async (req, res) => {
+  try {
+    const { deliveryId } = req.params;
+    const { remarks = 'Cancelled by admin' } = req.body;
+
+    const delivery = await Delivery.findById(deliveryId);
+    if (!delivery) {
+      return res.status(404).json({ success: false, message: 'Delivery not found' });
+    }
+
+    if (['delivered', 'cancelled'].includes(delivery.status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot cancel delivery in ${delivery.status} status` 
+      });
+    }
+
+    // Update delivery status
+    delivery.status = 'cancelled';
+    await delivery.save();
+
+    // **Important** — Driver ko wapas available kar do
+    if (delivery.driverId) {
+      await Driver.findByIdAndUpdate(delivery.driverId, { 
+        isAvailable: true,
+        // optional: lastUpdated: new Date()
+      });
+    }
+
+    // Update linked order (optional but recommended)
+    if (delivery.orderId) {
+      await Order.updateOne(
+        { orderNumber: delivery.orderId },
+        { status: 'cancelled' }
+      );
+    }
+
+    // Status history
+    await DeliveryStatusHistory.create({
+      deliveryId: delivery._id,
+      status: 'cancelled',
+      remarks: remarks,
+      updatedBy: {
+        userId: req.user._id,
+        userRole: req.user.role,
+        userName: req.user.name
+      }
+    });
+
+    // Notification to driver (very important)
+    const driver = await Driver.findById(delivery.driverId);
+    if (driver?.userId) {
+      await Notification.create({
+        userId: driver.userId,
+        type: 'delivery_cancelled',
+        title: 'Delivery Cancelled',
+        message: `Your assigned delivery ${delivery.trackingNumber} has been cancelled by admin.\nReason: ${remarks}`,
+        referenceId: delivery._id,
+        referenceModel: 'Delivery',
+        priority: 'high'
+      });
+    }
+
+    return res.json({ 
+      success: true, 
+      message: 'Delivery cancelled successfully. Driver is now available again.' 
+    });
+
+  } catch (error) {
+    console.error('[CANCEL-DELIVERY] Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to cancel delivery' });
   }
 };
 

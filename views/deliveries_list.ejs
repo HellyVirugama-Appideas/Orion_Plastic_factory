@@ -90,7 +90,6 @@
                                                             </label>
                                                         </th>
                                                         <th>Tracking Number</th>
-                                                        <th>Order ID</th>
                                                         <th>Customer</th>
                                                         <th>Driver</th>
                                                         <th>Pickup Location</th>
@@ -113,11 +112,9 @@
                                                                     </label>
                                                                 </td>
                                                                 <td><strong><%= delivery.trackingNumber %></strong></td>
-                                                                <td><%= delivery.orderId || 'N/A' %></td>
                                                                 <td>
                                                                     <% if (delivery.customerId) { %>
                                                                         <%= delivery.customerId.companyName || delivery.customerId.name || 'N/A' %><br>
-                                                                        <small class="grey-text"><%= delivery.customerId.phone || '' %></small>
                                                                     <% } else { %>
                                                                         <span class="grey-text">N/A</span>
                                                                     <% } %>
@@ -125,7 +122,6 @@
                                                                 <td>
                                                                     <% if (delivery.driverId) { %>
                                                                         <%= delivery.driverId.name %><br>
-                                                                        <small class="grey-text"><%= delivery.driverId.vehicleNumber || '' %></small>
                                                                     <% } else { %>
                                                                         <span class="grey-text">Not Assigned</span>
                                                                     <% } %>

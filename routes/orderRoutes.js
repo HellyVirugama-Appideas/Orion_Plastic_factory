@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/orderController');
 const { authenticate, isAdmin, isCustomer } = require('../middleware/authMiddleware');
-const { checkPermission } = require('../middleware/roleMiddleware');
+const { checkPermission } = require('../middleware/authMiddleware');
 
 // ======================== CUSTOMER ROUTES ========================
 

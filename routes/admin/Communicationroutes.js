@@ -4,108 +4,98 @@ const chatController = require('../../controllers/admin/Chatcontroller');
 const reportsController = require('../../controllers/admin/Reportscontroller');
 const analyticsController = require('../../controllers/admin/Analyticscontroller');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
+const { checkPermission } = require('../../middleware/authMiddleware');
 const { uploadChatMedia, handleUploadError } = require('../../middleware/uploadMiddleware');
 
 // ==================== CHAT ROUTES ====================
 
-// Chat Dashboard (list)
+// Chat Dashboard (list) - requires 'read' permission
 router.get(
-    '/',
-    protectAdmin,
-    isAdmin,
-    chatController.renderChatDashboard
+  '/',
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'read'),
+  chatController.renderChatDashboard
 );
 
-// Single Conversation
+// Single Conversation - requires 'read' permission
 router.get(
-    '/:conversationId',
-    protectAdmin,
-    isAdmin,
-    chatController.renderConversation
+  '/:conversationId',
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'read'),
+  chatController.renderConversation
 );
 
+// Get conversations list - requires 'read'
 router.get(
-    '/conversations',
-    protectAdmin,
-    isAdmin,
-    chatController.getConversations
+  '/conversations',
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'read'),
+  chatController.getConversations
 );
+
+// Get messages - requires 'read'
 router.get(
-    '/:conversationId/messages',
-    protectAdmin,
-    isAdmin,
-    chatController.getMessages
+  '/:conversationId/messages',
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'read'),
+  chatController.getMessages
 );
+
+// Send message - requires 'create' permission
 router.post(
-    '/send',
-    protectAdmin,
-    isAdmin,
-    uploadChatMedia,
-    handleUploadError,
-    chatController.sendMessage
+  '/send',
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'create'),
+  uploadChatMedia,
+  handleUploadError,
+  chatController.sendMessage
 );
 
+// Edit message - requires 'update'
 router.patch(
-    "/message/:messageId/edit",
-    protectAdmin,
-    isAdmin,
-    chatController.editMessage
-)
+  "/message/:messageId/edit",
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'update'),
+  chatController.editMessage
+);
 
+// Delete message - requires 'delete'
 router.delete(
-    "/message/:messageId",
-    protectAdmin,
-    isAdmin,
-    chatController.deleteMessage
-)
-
-
-// router.patch('/chat/:conversationId/read', protectAdmin, isAdmin, chatController.markAsRead);
-// router.get('/chat/unread-count', protectAdmin, isAdmin, chatController.getUnreadCount);
+  "/message/:messageId",
+  protectAdmin,
+  isAdmin,
+  checkPermission('chat', 'delete'),
+  chatController.deleteMessage
+);
 
 // ==================== REPORTS ROUTES ====================
 
-// Delivery Reports
-router.get('/reports/deliveries', protectAdmin, isAdmin, reportsController.getDeliveryReport);
+// All reports require 'read' permission (reports module ke liye)
+router.get('/reports/deliveries', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getDeliveryReport);
+router.get('/reports/customers', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getCustomerReport);
+router.get('/reports/vehicles', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getVehicleReport);
+router.get('/reports/maintenance', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getMaintenanceReport);
+router.get('/reports/fuel-expenses', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getFuelExpenseReport);
+router.get('/reports/driver-performance', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getDriverPerformanceReport);
+router.get('/reports/punctuality', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getOnTimeDelayedReport);
+router.get('/reports/region-distribution', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.getRegionDistributionReport);
 
-// Customer Reports
-router.get('/reports/customers', protectAdmin, isAdmin, reportsController.getCustomerReport);
-
-// Vehicle Reports
-router.get('/reports/vehicles', protectAdmin, isAdmin, reportsController.getVehicleReport);
-
-// Maintenance Reports
-router.get('/reports/maintenance', protectAdmin, isAdmin, reportsController.getMaintenanceReport);
-
-// Fuel Expense Reports
-router.get('/reports/fuel-expenses', protectAdmin, isAdmin, reportsController.getFuelExpenseReport);
-
-// Driver Performance Reports
-router.get('/reports/driver-performance', protectAdmin, isAdmin, reportsController.getDriverPerformanceReport);
-
-// On-time vs Delayed Reports
-router.get('/reports/punctuality', protectAdmin, isAdmin, reportsController.getOnTimeDelayedReport);
-
-// Region Distribution Reports
-router.get('/reports/region-distribution', protectAdmin, isAdmin, reportsController.getRegionDistributionReport);
-
-// Export Reports
-router.get('/reports/export/excel', protectAdmin, isAdmin, reportsController.exportToExcel);
-router.get('/reports/export/pdf', protectAdmin, isAdmin, reportsController.exportToPDF);
+// Export reports - requires 'read'
+router.get('/reports/export/excel', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.exportToExcel);
+router.get('/reports/export/pdf', protectAdmin, isAdmin, checkPermission('reports', 'read'), reportsController.exportToPDF);
 
 // ==================== ANALYTICS ROUTES ====================
 
-// Fuel Analytics
-router.get('/analytics/fuel', protectAdmin, isAdmin, analyticsController.getFuelAnalytics);
-
-// Punctuality Metrics
-router.get('/analytics/punctuality', protectAdmin, isAdmin, analyticsController.getPunctualityMetrics);
-
-// Driver Performance Scoring
-router.get('/analytics/driver-score', protectAdmin, isAdmin, analyticsController.getDriverPerformanceScore);
-
-// Dashboard KPIs
-router.get('/analytics/kpis', protectAdmin, isAdmin, analyticsController.getDashboardKPIs);
+// All analytics require 'read' permission (analytics module ke liye)
+router.get('/analytics/fuel', protectAdmin, isAdmin, checkPermission('analytics', 'read'), analyticsController.getFuelAnalytics);
+router.get('/analytics/punctuality', protectAdmin, isAdmin, checkPermission('analytics', 'read'), analyticsController.getPunctualityMetrics);
+router.get('/analytics/driver-score', protectAdmin, isAdmin, checkPermission('analytics', 'read'), analyticsController.getDriverPerformanceScore);
+router.get('/analytics/kpis', protectAdmin, isAdmin, checkPermission('analytics', 'read'), analyticsController.getDashboardKPIs);
 
 module.exports = router;
-

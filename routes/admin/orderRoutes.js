@@ -57,7 +57,7 @@ const router = express.Router();
 const orderController = require('../../controllers/orderController');
 const adminDashboardController = require('../../controllers/admin/orderController');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
-const { checkPermission } = require('../../middleware/roleMiddleware');
+const { checkPermission } = require('../../middleware/authMiddleware');
 
 // ============= PAGE ROUTES =============
 
