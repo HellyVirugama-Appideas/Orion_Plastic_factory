@@ -449,6 +449,54 @@ const driverSchema = new mongoose.Schema({
   resetPinToken: String,
   resetPinExpires: Date,
 
+  // ADD THIS FIELD for live location tracking
+  currentLocation: {
+    latitude: {
+      type: Number,
+      default: null
+    },
+    longitude: {
+      type: Number,
+      default: null
+    },
+    speed: {
+      type: Number,
+      default: 0 // Speed in m/s (convert to km/h by * 3.6)
+    },
+    heading: {
+      type: Number,
+      default: 0 // Direction in degrees (0-360)
+    },
+    accuracy: {
+      type: Number,
+      default: 0 // Location accuracy in meters
+    },
+    timestamp: {
+      type: Date,
+      default: null
+    },
+    deliveryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Delivery',
+      default: null // Which delivery is currently active
+    }
+  },
+
+  // Location history (optional - for tracking driver's path)
+  locationHistory: [{
+    latitude: Number,
+    longitude: Number,
+    speed: Number,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    deliveryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Delivery'
+    }
+  }],
+
 }, { timestamps: true });
 
 // Indexes
@@ -497,6 +545,50 @@ driverSchema.methods.toJSON = function () {
   delete obj.pinAttempts;
   delete obj.pinLockedUntil;
   return obj;
+};
+
+// Method to update driver's current location
+driverSchema.methods.updateLocation = async function(locationData) {
+  this.currentLocation = {
+    latitude: locationData.latitude,
+    longitude: locationData.longitude,
+    speed: locationData.speed || 0,
+    heading: locationData.heading || 0,
+    accuracy: locationData.accuracy || 0,
+    timestamp: new Date(),
+    deliveryId: locationData.deliveryId || this.currentLocation?.deliveryId
+  };
+
+  // Optionally add to history (limit to last 100 points to avoid bloat)
+  if (this.locationHistory && this.locationHistory.length > 100) {
+    this.locationHistory = this.locationHistory.slice(-99);
+  }
+  
+  this.locationHistory = this.locationHistory || [];
+  this.locationHistory.push({
+    latitude: locationData.latitude,
+    longitude: locationData.longitude,
+    speed: locationData.speed || 0,
+    timestamp: new Date(),
+    deliveryId: locationData.deliveryId
+  });
+
+  await this.save();
+};
+
+// Method to clear location when delivery completes
+driverSchema.methods.clearLocation = async function() {
+  this.currentLocation = {
+    latitude: null,
+    longitude: null,
+    speed: 0,
+    heading: 0,
+    accuracy: 0,
+    timestamp: null,
+    deliveryId: null
+  };
+  
+  await this.save();
 };
 
 module.exports = mongoose.model('Driver', driverSchema);

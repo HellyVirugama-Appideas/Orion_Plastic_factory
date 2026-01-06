@@ -425,95 +425,204 @@ const Vehicle = require("../../models/Vehicle")
 //   }
 // };
 // Render dashboard
+// exports.renderDashboard = async (req, res) => {
+//   try {
+//     const [
+//       totalOrders,
+//       totalDeliveries,
+//       totalDrivers,
+//       totalCustomers,
+//       pendingOrders,
+//       activeDeliveries,
+//       availableDrivers,
+//       recentOrders,
+//       activeDeliveriesList,
+//       orderStatusBreakdown,
+//       deliveryStatusBreakdown
+//     ] = await Promise.all([
+//       Order.countDocuments(),
+//       Delivery.countDocuments(),
+//       Driver.countDocuments(),
+//       Customer.countDocuments(),
+//       Order.countDocuments({ status: 'pending' }),
+//       Delivery.countDocuments({ status: { $in: ['in_transit', 'out_for_delivery'] } }),
+//       Driver.countDocuments({ status: 'available' }),
+//       Order.find().populate('customerId').sort({ createdAt: -1 }).limit(10),
+//       Delivery.find({ status: { $in: ['in_transit', 'out_for_delivery'] } })
+//         .populate('driverId orderId')
+//         .limit(10),
+//       Order.aggregate([
+//         { $group: { _id: '$status', count: { $sum: 1 } } }
+//       ]),
+//       Delivery.aggregate([
+//         { $group: { _id: '$status', count: { $sum: 1 } } }
+//       ])
+//     ]);
+
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+//     const todayRevenue = await Order.aggregate([
+//       {
+//         $match: {
+//           status: 'delivered',
+//           updatedAt: { $gte: today }
+//         }
+//       },
+//       {
+//         $group: {
+//           _id: null,
+//           total: { $sum: '$totalAmount' }
+//         }
+//       }
+//     ]);
+
+//     // YE LINE ADD KARO – sidenavbar ko current url batao
+//     const currentUrl = req.originalUrl || req.url;
+
+//     res.render('index', {
+//       title: 'Dashboard',
+//       user: req.admin,
+//       url: currentUrl,  // ← YE ADD KARO (sidenavbar ke liye)
+//       stats: {
+//         totalOrders,
+//         totalDeliveries,
+//         totalDrivers,
+//         totalCustomers,
+//         pendingOrders,
+//         activeDeliveries,
+//         availableDrivers,
+//         todayRevenue: todayRevenue[0]?.total || 0
+//       },
+//       recentOrders,
+//       activeDeliveries: activeDeliveriesList,
+//       orderStatusBreakdown,
+//       deliveryStatusBreakdown
+//     });
+//   } catch (error) {
+//     console.error('Dashboard render error:', error);
+    
+//     const currentUrl = req.originalUrl || req.url;
+    
+//     res.render('index', {
+//       title: 'Dashboard',
+//       user: req.admin,
+//       url: currentUrl,  // ← error case me bhi pass kar do
+//       stats: {},
+//       recentOrders: [],
+//       activeDeliveries: [],
+//       orderStatusBreakdown: [],
+//       deliveryStatusBreakdown: [],
+//       error: 'Failed to load dashboard data'
+//     });
+//   }
+// };
+
+// Render dashboard
 exports.renderDashboard = async (req, res) => {
   try {
-    // Fetch stats in parallel (tumhara code same)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const last7DaysStart = new Date(today);
+    last7DaysStart.setDate(today.getDate() - 6); // Last 7 days including today
+
     const [
       totalOrders,
       totalDeliveries,
       totalDrivers,
       totalCustomers,
-      pendingOrders,
-      activeDeliveries,
+      todayDeliveries,
       availableDrivers,
+      availableVehicles,
       recentOrders,
-      activeDeliveriesList,
-      orderStatusBreakdown,
-      deliveryStatusBreakdown
+      chartData
     ] = await Promise.all([
       Order.countDocuments(),
       Delivery.countDocuments(),
       Driver.countDocuments(),
       Customer.countDocuments(),
-      Order.countDocuments({ status: 'pending' }),
-      Delivery.countDocuments({ status: { $in: ['in_transit', 'out_for_delivery'] } }),
-      Driver.countDocuments({ status: 'available' }),
-      Order.find().populate('customerId').sort({ createdAt: -1 }).limit(10),
-      Delivery.find({ status: { $in: ['in_transit', 'out_for_delivery'] } })
-        .populate('driverId orderId')
+
+      // Today's delivered
+      Delivery.countDocuments({ 
+        status: 'delivered', 
+        actualDeliveryTime: { $gte: today } 
+      }),
+
+      // Available Drivers: assuming you have isAvailable field in Driver
+      // If Driver also uses "status": "available" → change accordingly
+      Driver.countDocuments({ isAvailable: true }),           // ← Keep if exists
+
+      // IMPORTANT FIX: Available Vehicles – use your actual field "status": "available"
+      Vehicle.countDocuments({ status: "available" }),       // ← This will give you 1 (or more)
+
+      // Recent 10 orders
+      Order.find()
+        .populate('customerId', 'name companyName phone')
+        .sort({ createdAt: -1 })
         .limit(10),
+
+      // Chart: Orders & Deliveries last 7 days
       Order.aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 } } }
-      ]),
-      Delivery.aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 } } }
+        {
+          $match: {
+            createdAt: { $gte: last7DaysStart, $lte: today }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            orders: { $sum: 1 },
+            deliveries: { 
+              $sum: { 
+                $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] 
+              } 
+            }
+          }
+        },
+        { $sort: { _id: 1 } }
       ])
     ]);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayRevenue = await Order.aggregate([
-      {
-        $match: {
-          status: 'delivered',
-          updatedAt: { $gte: today }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: '$totalAmount' }
-        }
-      }
-    ]);
-
-    // YE LINE ADD KARO – sidenavbar ko current url batao
     const currentUrl = req.originalUrl || req.url;
 
     res.render('index', {
       title: 'Dashboard',
       user: req.admin,
-      url: currentUrl,  // ← YE ADD KARO (sidenavbar ke liye)
+      url: currentUrl,
       stats: {
-        totalOrders,
-        totalDeliveries,
-        totalDrivers,
-        totalCustomers,
-        pendingOrders,
-        activeDeliveries,
-        availableDrivers,
-        todayRevenue: todayRevenue[0]?.total || 0
+        totalOrders: totalOrders || 0,
+        totalDeliveries: totalDeliveries || 0,
+        totalDrivers: totalDrivers || 0,
+        totalCustomers: totalCustomers || 0,
+        todayDeliveries: todayDeliveries || 0,
+        availableDrivers: availableDrivers || 0,
+        availableVehicles: availableVehicles || 0
       },
-      recentOrders,
-      activeDeliveries: activeDeliveriesList,
-      orderStatusBreakdown,
-      deliveryStatusBreakdown
+      recentOrders: recentOrders || [],
+      chartData: chartData || []
     });
+
   } catch (error) {
     console.error('Dashboard render error:', error);
-    
+
     const currentUrl = req.originalUrl || req.url;
-    
+
     res.render('index', {
       title: 'Dashboard',
       user: req.admin,
-      url: currentUrl,  // ← error case me bhi pass kar do
-      stats: {},
+      url: currentUrl,
+      stats: {
+        totalOrders: 0,
+        totalDeliveries: 0,
+        totalDrivers: 0,
+        totalCustomers: 0,
+        todayDeliveries: 0,
+        availableDrivers: 0,
+        availableVehicles: 0
+      },
       recentOrders: [],
-      activeDeliveries: [],
-      orderStatusBreakdown: [],
-      deliveryStatusBreakdown: [],
-      error: 'Failed to load dashboard data'
+      chartData: [],
+      error: 'Failed to load dashboard data. Please try again.'
     });
   }
 };

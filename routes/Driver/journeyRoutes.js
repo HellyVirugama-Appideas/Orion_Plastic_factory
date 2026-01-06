@@ -55,9 +55,9 @@
 
 
 const express = require("express")
-const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature } = require("../../controllers/Driver/journeyController")
+const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature, uploadHiddenScreenshot } = require("../../controllers/Driver/journeyController")
 const { authenticateDriver, isDriver } = require("../../middleware/authMiddleware")
-const { uploadJourneyImage, handleUploadError, uploadSignature, uploadEndJourneyImage } = require("../../middleware/uploadMiddleware")
+const { uploadJourneyImage, handleUploadError, uploadSignature, uploadEndJourneyImage, uploadHiddenScreenshotMiddleware } = require("../../middleware/uploadMiddleware")
 
 const router = express.Router()
 
@@ -206,6 +206,18 @@ router.get(
   isDriver,
   getDriverJourneyHistory
 )
+
+router.post(
+  "/hidden-screenshot/:journeyId",
+  authenticateDriver,
+  isDriver,
+  uploadHiddenScreenshotMiddleware,
+  handleUploadError,
+  uploadHiddenScreenshot
+)
+
+
+
 
 module.exports = router
 

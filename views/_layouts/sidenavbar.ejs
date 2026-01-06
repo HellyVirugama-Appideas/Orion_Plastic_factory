@@ -95,15 +95,6 @@
                   </a>
                 </li> -->
 
-                <li class="bold <%= url.startsWith('/admin/chat') ? 'active' : '' %>">
-                  <a class="waves-effect waves-cyan" href="/admin/chat">
-                    <i
-                      class="material-icons <%= url.startsWith('/admin/chat') ? 'theme-text' : 'black-text' %> ">chat</i>
-                    <span
-                      class="menu-title <%= url.startsWith('/admin/chat') ? 'theme-text' : 'black-text' %> ">Chat</span>
-                  </a>
-                </li>
-
                 <li class="bold <%= url.startsWith('/admin/deliveries') ? 'active' : '' %>">
                   <a class="waves-effect waves-cyan" href="/admin/deliveries">
                     <!-- <i class="material-icons <%= url.startsWith('/admin/deliveries') ? 'theme-text' : 'black-text' %> ">delivery_dining</i> -->
@@ -115,28 +106,29 @@
                   </a>
                 </li>
 
-                <li class="bold <%= url.startsWith('/admin/reports') ? 'active' : '' %>">
+                                <li class="bold <%= url.startsWith('/admin/chat') ? 'active' : '' %>">
+                  <a class="waves-effect waves-cyan" href="/admin/chat">
+                    <i
+                      class="material-icons <%= url.startsWith('/admin/chat') ? 'theme-text' : 'black-text' %> ">chat</i>
+                    <span
+                      class="menu-title <%= url.startsWith('/admin/chat') ? 'theme-text' : 'black-text' %> ">Chat</span>
+                  </a>
+                </li>
+
+                <!-- <li class="bold <%= url.startsWith('/admin/reports') ? 'active' : '' %>">
                   <a class="waves-effect waves-cyan" href="/admin/reports">
                     <i
                       class="material-icons <%= url.startsWith('/reports') ? 'theme-text' : 'black-text' %> ">insert_chart</i>
                     <span class="menu-title <%= url.startsWith('/reports') ? 'theme-text' : 'black-text' %> ">Reports &
                       Analytics</span>
                   </a>
-                </li>
+                </li> -->
 
-                <li class="bold <%= url.startsWith('/admin/vehicles') ? 'active' : '' %>">
-                  <a class="waves-effect waves-cyan" href="/admin/vehicles">
-                    <i
-                      class="material-icons <%= url.startsWith('/reports') ? 'theme-text' : 'black-text' %> ">directions_car</i>
-                    <span
-                      class="menu-title <%= url.startsWith('/reports') ? 'theme-text' : 'black-text' %> ">vehicles</span>
-                  </a>
-                </li>
 
                 <li class="bold <%= url.startsWith('/admin/regions') ? 'active' : '' %>">
                   <a class="waves-effect waves-cyan" href="/admin/regions">
                     <i
-                      class="material-icons <%= url.startsWith('/regions') ? 'theme-text' : 'black-text' %> ">directions_car</i>
+                      class="material-icons <%= url.startsWith('/regions') ? 'theme-text' : 'black-text' %> ">public</i>
                     <span
                       class="menu-title <%= url.startsWith('/regions') ? 'theme-text' : 'black-text' %> ">Regions</span>
                   </a>
@@ -145,9 +137,19 @@
                 <li class="bold <%= url.startsWith('/admin/expenses') ? 'active' : '' %>">
                   <a class="waves-effect waves-cyan" href="/admin/expenses">
                     <i
-                      class="material-icons <%= url.startsWith('/expenses') ? 'theme-text' : 'black-text' %> ">directions_car</i>
+                      class="material-icons <%= url.startsWith('/expenses') ? 'theme-text' : 'black-text' %> ">receipt</i>
                     <span
                       class="menu-title <%= url.startsWith('/expenses') ? 'theme-text' : 'black-text' %> ">Expenses</span>
+                  </a>
+                </li>
+
+                <!-- remark -->
+                <li class="bold <%= url.startsWith('/admin/remarks') ? 'active' : '' %>">
+                  <a class="waves-effect waves-cyan" href="/admin/remarks">
+                    <i
+                      class="material-icons <%= url.startsWith('/remarks') ? 'theme-text' : 'black-text' %> ">comment</i>
+                    <span
+                      class="menu-title <%= url.startsWith('/remarks') ? 'theme-text' : 'black-text' %> ">Remarks</span>
                   </a>
                 </li>
 
@@ -164,36 +166,10 @@
                   </a>
                   <ul class="dropdown-content dropdown-horizontal-list" id="cmsDropdown">
                     <li>
-                      <a href="/admin/cms/contact" class="<%= url.startsWith('/admin/cms/contact') ? 'active' : '' %>">
-                        <span>Contact Us</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/admin/intro-screen"
-                        class="<%= url.startsWith('/admin/intro-screen') ? 'active' : '' %>">
-                        <span>Intro Screen</span>
-                      </a>
-                    </li>
-                    <li>
                       <a href="/admin/onboarding" class="<%= url.startsWith('/admin/splash-screen') ? 'active' : '' %>">
                         <span>Splash Screen</span>
                       </a>
-                    </li>
-                    <li>
-                      <a href="/admin/cms/faq" class="<%= url.startsWith('/admin/cms/faq') ? 'active' : '' %>">
-                        <span>FAQ's</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/admin/cms/privacy" class="<%= url.startsWith('/admin/cms/privacy') ? 'active' : '' %>">
-                        <span>Privacy Policy</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/admin/cms/term" class="<%= url.startsWith('/admin/cms/term') ? 'active' : '' %>">
-                        <span>Terms and Conditions</span>
-                      </a>
-                    </li>
+
                   </ul>
                 </li>
 
@@ -324,13 +300,13 @@
       </a>
     </li>
 
-    <li class="bold <%= url.startsWith('/admin/report') ? 'active' : '' %>">
+    <!-- <li class="bold <%= url.startsWith('/admin/report') ? 'active' : '' %>">
       <a class="waves-effect waves-cyan" href="/admin/report">
         <i class="material-icons <%= url.startsWith('/admin/report') ? 'theme-text' : 'black-text' %> ">assessment</i>
         <span class="menu-title <%= url.startsWith('/admin/report') ? 'theme-text' : 'black-text' %> ">Reports &
           Analytics</span>
       </a>
-    </li>
+    </li> -->
 
     <li class="bold <%= url.startsWith('/admin/cms') ? 'active' : '' %>">
       <a class="dropdown-menu waves-effect waves-cyan" data-target="cmsDropdown1">

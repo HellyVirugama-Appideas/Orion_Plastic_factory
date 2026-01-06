@@ -587,14 +587,8 @@ exports.adminLogout = async (req, res) => {
     const token = req.cookies.jwtAdmin;
 
     if (token) {
-      await Session.deleteOne({
-        userId: adminId,
-        token: token
-      });
-
-      await RefreshToken.deleteOne({
-        userId: adminId
-      });
+      await Session.deleteOne({ userId: adminId, token });
+      await RefreshToken.deleteOne({ userId: adminId });
     }
 
     res.clearCookie('jwtAdmin', {
@@ -604,12 +598,14 @@ exports.adminLogout = async (req, res) => {
       path: '/'
     });
 
-    req.flash('green', 'Logged out successfully!');
-    return res.redirect('/admin/login');
+    req.flash('success', 'Logged out successfully!');
+
+    return res.redirect('/admin/signin');     
 
   } catch (error) {
     console.error('Admin Logout Error:', error);
-    return errorResponse(res, 'Logout failed', 500);
+    req.flash('error', 'Logout failed. Please try again.');
+    return res.redirect('/admin/login'); 
   }
 };
 
@@ -632,6 +628,72 @@ exports.adminLogoutAll = async (req, res) => {
   } catch (error) {
     console.error('Admin Logout All Error:', error);
     return errorResponse(res, 'Failed to logout from all devices', 500);
+  }
+};
+
+// 
+exports.getChangePass = (req, res) => {
+  res.render('change_pass', {
+    title: 'Change Password',
+    url: req.originalUrl,
+    messages: req.flash()
+  });
+};
+
+exports.postChangePass = async (req, res) => {
+  try {
+    const { currentpass, newpass, cfnewpass } = req.body;
+
+    if (!currentpass || !newpass || !cfnewpass) {
+      req.flash('error', 'All fields are required');
+      return res.redirect('/admin/changepass');
+    }
+
+    if (newpass !== cfnewpass) {
+      req.flash('error', 'New password and confirm password do not match');
+      return res.redirect('/admin/changepass');
+    }
+
+    if (newpass.length < 8) {
+      req.flash('error', 'New password must be at least 8 characters long');
+      return res.redirect('/admin/changepass');
+    }
+    if (newpass === currentpass) {
+      req.flash('error', 'New password cannot be the same as current password');
+      return res.redirect('/admin/changepass');
+    }
+
+    // 4. Find admin
+    const admin = await Admin.findOne({ email: req.admin.email }).select('+password');
+
+    if (!admin) {
+      req.flash('error', 'Admin not found');
+      return res.redirect('/admin/changepass');
+    }
+
+    const isMatch = await admin.comparePassword(currentpass);
+    if (!isMatch) {
+      req.flash('error', 'Current password is incorrect');
+      return res.redirect('/admin/changepass');
+    }
+
+    admin.password = newpass;
+    await admin.save();
+
+    req.flash('success', 'Password changed successfully! Please login again with new password.');
+    res.redirect('/admin/logout');
+  } catch (error) {
+    console.error('Change Password Error:', error);
+
+    if (error.name === 'ValidationError') {
+      Object.values(error.errors).forEach(err => {
+        req.flash('error', err.message);
+      });
+    } else {
+      req.flash('error', 'Something went wrong. Please try again.');
+    }
+
+    res.redirect('/admin/changepass');
   }
 };
 
@@ -852,7 +914,7 @@ exports.postEditSubAdmin = async (req, res) => {
 /// delete sub admin
 exports.deleteSubAdmin = async (req, res) => {
   try {
-    console.log('Deleting sub-admin ID:', req.params.id); 
+    console.log('Deleting sub-admin ID:', req.params.id);
 
     const admin = await Admin.findById(req.params.id);
     if (!admin) {
@@ -866,7 +928,7 @@ exports.deleteSubAdmin = async (req, res) => {
     }
 
     await Admin.findByIdAndDelete(req.params.id);
-    await Session.deleteMany({ adminId: req.params.id }); 
+    await Session.deleteMany({ adminId: req.params.id });
     await RefreshToken.deleteMany({ userId: req.params.id });
 
     req.flash('green', 'Sub Admin deleted successfully!');

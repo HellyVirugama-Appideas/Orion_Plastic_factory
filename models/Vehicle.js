@@ -160,7 +160,8 @@ const vehicleSchema = new mongoose.Schema({
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Driver',
-    default: null
+    default: null,
+    required: false
   },
   assignedAt: Date,
   assignedBy: {

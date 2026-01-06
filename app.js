@@ -367,10 +367,65 @@ io.on("connection", (socket) => {
   });
 
   // Driver sends location update (automatic every 5 seconds)
+  // socket.on('driver:location', async (data) => {
+  //   const { driverId, deliveryId, latitude, longitude, speed, heading, accuracy, timestamp } = data;
+
+  //   // Store latest location
+  //   driverLocations.set(driverId, {
+  //     latitude,
+  //     longitude,
+  //     speed,
+  //     heading,
+  //     accuracy,
+  //     timestamp: timestamp || new Date(),
+  //     deliveryId
+  //   });
+
+  //   // Broadcast to admin panel in real-time
+  //   io.to('admin-room').emit('driver:location:update', {
+  //     driverId,
+  //     deliveryId,
+  //     location: { latitude, longitude },
+  //     speed,
+  //     heading,
+  //     accuracy,
+  //     timestamp: timestamp || new Date()
+  //   });
+
+  //   // Broadcast to specific delivery tracking room (for customers)
+  //   if (deliveryId) {
+  //     io.to(`delivery-${deliveryId}`).emit('delivery:location:update', {
+  //       deliveryId,
+  //       location: { latitude, longitude },
+  //       speed,
+  //       timestamp: timestamp || new Date()
+  //     });
+  //   }
+  // });
+
   socket.on('driver:location', async (data) => {
+  try {
     const { driverId, deliveryId, latitude, longitude, speed, heading, accuracy, timestamp } = data;
 
-    // Store latest location
+    if (!driverId || !latitude || !longitude) {
+      console.warn('Invalid location data received:', data);
+      return;
+    }
+
+    // Update driver's current location in database
+    const driver = await Driver.findById(driverId);
+    if (driver) {
+      await driver.updateLocation({
+        latitude,
+        longitude,
+        speed: speed || 0,
+        heading: heading || 0,
+        accuracy: accuracy || 0,
+        deliveryId: deliveryId || null
+      });
+    }
+
+    // Store latest location in memory map (for quick access)
     driverLocations.set(driverId, {
       latitude,
       longitude,
@@ -401,7 +456,13 @@ io.on("connection", (socket) => {
         timestamp: timestamp || new Date()
       });
     }
-  });
+
+    console.log(`📍 Location updated for driver ${driverId}: ${latitude}, ${longitude}`);
+
+  } catch (error) {
+    console.error('Error handling driver location update:', error);
+  }
+});
 
   // ==================== DELIVERY TRACKING (Existing) ====================
   socket.on("join-delivery", (deliveryId) => {
@@ -423,6 +484,33 @@ io.on("connection", (socket) => {
       heading,
       timestamp: new Date()
     });
+  });
+
+  // When driver completes delivery, clear their location
+  socket.on('delivery:completed', async (data) => {
+    try {
+      const { driverId, deliveryId } = data;
+  
+      const driver = await Driver.findById(driverId);
+      if (driver) {
+        await driver.clearLocation();
+        driver.isAvailable = true;
+        await driver.save();
+      }
+  
+      // Remove from active tracking
+      driverLocations.delete(driverId);
+  
+      // Notify admin
+      io.to('admin-room').emit('driver:delivery:completed', {
+        driverId,
+        deliveryId,
+        timestamp: new Date()
+      });
+  
+    } catch (error) {
+      console.error('Error handling delivery completion:', error);
+    }
   });
 
   // ==================== LIVE CHAT SYSTEM ====================

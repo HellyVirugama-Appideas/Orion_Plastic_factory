@@ -35,9 +35,13 @@ router.get('/profile', protectAdmin, adminAuthController.getAdminProfile);
 
 router.put('/profile', protectAdmin, adminAuthController.updateAdminProfile);
 
-router.post("/logout", protectAdmin, adminAuthController.adminLogout)
+router.get("/logout", protectAdmin, adminAuthController.adminLogout)
 
 router.post("/logout/all", protectAdmin, adminAuthController.adminLogoutAll)
+
+router.get("/changepass", protectAdmin, isAdmin, adminAuthController.getChangePass)
+
+router.post("/changepass", protectAdmin,isAdmin,adminAuthController.postChangePass)
 
 // ========== Dashboard Routes ==========
 // router.get('/dashboard/stats', protectAdmin,  adminDashboardController.getDashboardStats);

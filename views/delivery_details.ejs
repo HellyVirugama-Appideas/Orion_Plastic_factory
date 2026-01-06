@@ -3,391 +3,754 @@
 
 <head>
     <%- include('_layouts/head') %>
-        <title>Delivery Details - <%= delivery.trackingNumber %> | <%= title %>
-        </title>
+    <title>Delivery Details - <%= delivery.trackingNumber %> | <%= title %></title>
 
-        <style>
-            .delivery-card {
-                border-radius: 8px;
-                overflow: hidden;
-            }
+    <style>
+        .delivery-card {
+            border-radius: 8px;
+            overflow: hidden;
+        }
 
-            .status-badge {
-                padding: 8px 16px;
-                border-radius: 20px;
-                font-size: 0.9rem;
-                font-weight: 500;
-                display: inline-block;
-            }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: inline-block;
+        }
 
-            .status-assigned {
-                background: #fff3cd;
-                color: #856404;
-            }
+        .status-assigned { background: #fff3cd; color: #856404; }
+        .status-pending_acceptance { background: #e3f2fd; color: #1565c0; }
+        .status-picked_up { background: #d1ecf1; color: #0c5460; }
+        .status-in_transit { background: #cce5ff; color: #004085; }
+        .status-out_for_delivery { background: #d4edda; color: #155724; }
+        .status-delivered { background: #d4edda; color: #155724; }
+        .status-cancelled { background: #ffcdd2; color: #b71c1c; }
+        .status-failed { background: #f8d7da; color: #721c24; }
 
-            .status-in-transit {
-                background: #cce5ff;
-                color: #004085;
-            }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
 
-            .status-delivered {
-                background: #d4edda;
-                color: #155724;
-            }
+        .info-label {
+            color: #555;
+            font-weight: 500;
+        }
 
-            .status-cancelled {
-                background: #ffcdd2;
-                color: #b71c1c;
-            }
+        .info-value {
+            font-weight: 600;
+            text-align: right;
+        }
 
-            .info-row {
-                display: flex;
-                justify-content: space-between;
-                padding: 12px 0;
-                border-bottom: 1px solid #eee;
-            }
+        #map {
+            height: 500px;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+        }
 
-            .info-label {
-                color: #555;
-                font-weight: 500;
-            }
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
 
-            .info-value {
-                font-weight: 600;
-            }
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
 
-            .map-container {
-                height: 400px;
-                border-radius: 8px;
-                overflow: hidden;
-            }
+        .live-pulse {
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
 
-            .action-buttons {
-                display: flex;
-                gap: 10px;
-                flex-wrap: wrap;
-            }
-        </style>
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .driver-info-box {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            min-width: 280px;
+        }
+
+        .driver-info-box h6 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .driver-info-box p {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .driver-info-box .material-icons {
+            font-size: 18px;
+            color: #666;
+        }
+
+        .route-stats {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .route-stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .route-stat-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .route-stat-item strong {
+            color: #2196F3;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .no-tracking {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .tracking-status {
+            background: #e3f2fd;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tracking-status i {
+            color: #2196F3;
+        }
+    </style>
 </head>
 
-<body
-    class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
+<body class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
     data-open="click" data-menu="vertical-dark-menu" data-col="2-columns">
 
     <%- include('_layouts/sidenavbar') %>
 
-        <div id="main">
-            <div class="row">
-                <div class="pt-1 pb-0" id="breadcrumbs-wrapper">
-                    <div class="container">
-                        <div class="row">
-                            <%- include('messages', { messages: messages }) %>
-                                <div class="col s12 m6 l6">
-                                    <h6 class="breadcrumbs-title">
-                                        <i class="material-icons left">local_shipping</i>
-                                        Delivery: <%= delivery.trackingNumber %>
-                                    </h6>
-                                </div>
-                                <div class="col s12 m6 l6 right-align">
-                                    <a href="/admin/deliveries" class="btn-flat">
-                                        <i class="material-icons left">arrow_back</i> Back to Deliveries
-                                    </a>
-                                </div>
+    <div id="main">
+        <div class="row">
+            <div class="pt-1 pb-0" id="breadcrumbs-wrapper">
+                <div class="container">
+                    <div class="row">
+                        <%- include('messages', { messages: messages }) %>
+                        <div class="col s12 m6 l6">
+                            <h6 class="breadcrumbs-title">
+                                <i class="material-icons left">local_shipping</i>
+                                Delivery: <%= delivery.trackingNumber %>
+                            </h6>
+                        </div>
+                        <div class="col s12 m6 l6 right-align">
+                            <a href="/admin/deliveries" class="btn-flat">
+                                <i class="material-icons left">arrow_back</i> Back to Deliveries
+                            </a>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="col s12">
-                <div class="container">
-                    <div class="section">
+        <div class="col s12">
+            <div class="container">
+                <div class="section">
 
-                        <!-- Main Delivery Card -->
-                        <div class="card delivery-card">
-                            <div class="card-content">
-                                <div class="row">
-                                    <!-- Left Column: Details -->
-                                    <div class="col s12 m6 l7">
-                                        <h5 class="mb-1">
-                                            <%= delivery.trackingNumber %>
-                                                <span class="status-badge status-<%= delivery.status %> right">
-                                                    <%= delivery.status.replace('_', ' ' ).toUpperCase() %>
-                                                </span>
-                                        </h5>
+                    <!-- Main Delivery Card -->
+                    <div class="card delivery-card">
+                        <div class="card-content">
+                            <div class="row">
+                                <!-- Left Column: Details -->
+                                <div class="col s12 l5">
+                                    <h5 class="mb-1">
+                                        <%= delivery.trackingNumber %>
+                                        <span class="status-badge status-<%= delivery.status %> right">
+                                            <%= delivery.status.replace(/_/g, ' ').toUpperCase() %>
+                                        </span>
+                                    </h5>
 
-                                        <div class="info-row">
-                                            <span class="info-label">Order Number</span>
-                                            <span class="info-value">
-                                                <%= delivery.orderId %>
-                                            </span>
+                                    <!-- Tracking Status Info -->
+                                    <% if (['picked_up', 'in_transit', 'out_for_delivery'].includes(delivery.status)) { %>
+                                        <div class="tracking-status">
+                                            <i class="material-icons">gps_fixed</i>
+                                            <span>Live tracking active - Driver location updating in real-time</span>
                                         </div>
-
-                                        <div class="info-row">
-                                            <span class="info-label">Customer</span>
-                                            <span class="info-value">
-                                                <%= delivery.customerId?.companyName || delivery.customerId?.name
-                                                    || 'N/A' %>
-                                                    <% if (delivery.customerId?.phone) { %>
-                                                        <br><small class="grey-text">Ph: <%= delivery.customerId.phone
-                                                                %></small>
-                                                        <% } %>
-                                            </span>
+                                    <% } else if (delivery.status === 'assigned') { %>
+                                        <div class="tracking-status">
+                                            <i class="material-icons">schedule</i>
+                                            <span>Waiting for driver to start delivery</span>
                                         </div>
+                                    <% } %>
 
-                                        <div class="info-row">
-                                            <span class="info-label">Driver</span>
-                                            <span class="info-value">
-                                                <%= delivery.driverId?.name || 'Not Assigned' %>
-                                                    <% if (delivery.driverId?.phone) { %>
-                                                        <br><small class="grey-text">Ph: <%= delivery.driverId.phone %>
-                                                        </small>
-                                                        <% } %>
-                                                            <% if (delivery.vehicleNumber) { %>
-                                                                <br><small class="grey-text">Vehicle: <%=
-                                                                        delivery.vehicleNumber %></small>
-                                                                <% } %>
+                                    <div class="info-row">
+                                        <span class="info-label">Order Number</span>
+                                        <span class="info-value"><%= delivery.orderId %></span>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Customer</span>
+                                        <span class="info-value">
+                                            <%= delivery.customerId?.companyName || delivery.customerId?.name || 'N/A' %>
+                                            <% if (delivery.customerId?.phone) { %>
+                                                <br><small class="grey-text">Ph: <%= delivery.customerId.phone %></small>
+                                            <% } %>
+                                        </span>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Driver</span>
+                                        <span class="info-value">
+                                            <%= delivery.driverId?.name || 'Not Assigned' %>
+                                            <% if (delivery.driverId?.phone) { %>
+                                                <br><small class="grey-text">Ph: <%= delivery.driverId.phone %></small>
+                                            <% } %>
+                                            <% if (delivery.vehicleNumber) { %>
+                                                <br><small class="grey-text">Vehicle: <%= delivery.vehicleNumber %></small>
+                                            <% } %>
+                                        </span>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Priority</span>
+                                        <span class="info-value">
+                                            <span class="priority-<%= delivery.priority || 'medium' %>">
+                                                <%= (delivery.priority || 'medium').toUpperCase() %>
                                             </span>
-                                        </div>
+                                        </span>
+                                    </div>
 
+                                    <div class="route-stats">
+                                        <h6><strong>Route Information</strong></h6>
+                                        <div class="route-stat-item">
+                                            <span>Total Distance:</span>
+                                            <strong id="totalDistance"><%= delivery.distance ? delivery.distance.toFixed(2) + ' km' : 'Calculating...' %></strong>
+                                        </div>
+                                        <div class="route-stat-item">
+                                            <span>Est. Duration:</span>
+                                            <strong id="totalDuration"><%= delivery.estimatedDuration ? delivery.estimatedDuration + ' min' : 'Calculating...' %></strong>
+                                        </div>
+                                        <div class="route-stat-item">
+                                            <span>Current Speed:</span>
+                                            <strong id="currentSpeed">--</strong>
+                                        </div>
+                                        <div class="route-stat-item">
+                                            <span>Last Update:</span>
+                                            <strong id="lastUpdate">--</strong>
+                                        </div>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Pickup Location</span>
+                                        <span class="info-value">
+                                            <%= delivery.pickupLocation?.address || 'N/A' %>
+                                        </span>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Delivery Location</span>
+                                        <span class="info-value">
+                                            <%= delivery.deliveryLocation?.address || 'N/A' %>
+                                        </span>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Scheduled Pickup</span>
+                                        <span class="info-value">
+                                            <%= delivery.scheduledPickupTime ? new Date(delivery.scheduledPickupTime).toLocaleString('en-IN') : 'Not Scheduled' %>
+                                        </span>
+                                    </div>
+
+                                    <div class="info-row">
+                                        <span class="info-label">Scheduled Delivery</span>
+                                        <span class="info-value">
+                                            <%= delivery.scheduledDeliveryTime ? new Date(delivery.scheduledDeliveryTime).toLocaleString('en-IN') : 'Not Scheduled' %>
+                                        </span>
+                                    </div>
+
+                                    <% if (delivery.instructions) { %>
                                         <div class="info-row">
-                                            <span class="info-label">Priority</span>
-                                            <span class="info-value">
-                                                <span class="priority-<%= delivery.priority || 'medium' %>">
-                                                    <%= (delivery.priority || 'medium' ).toUpperCase() %>
-                                                </span>
-                                            </span>
+                                            <span class="info-label">Instructions</span>
+                                            <span class="info-value"><%= delivery.instructions %></span>
                                         </div>
+                                    <% } %>
+                                </div>
 
-                                        <div class="info-row">
-                                            <span class="info-label">Distance / Duration</span>
-                                            <span class="info-value">
-                                                <%= delivery.distance ? delivery.distance + ' km' : 'N/A' %>
-                                                    / <%= delivery.estimatedDuration ? delivery.estimatedDuration
-                                                        + ' min' : 'N/A' %>
-                                            </span>
-                                        </div>
-
-                                        <div class="info-row">
-                                            <span class="info-label">Scheduled Pickup</span>
-                                            <span class="info-value">
-                                                <%= delivery.scheduledPickupTime ? new
-                                                    Date(delivery.scheduledPickupTime).toLocaleString('en-IN')
-                                                    : 'Not Scheduled' %>
-                                            </span>
-                                        </div>
-
-                                        <div class="info-row">
-                                            <span class="info-label">Scheduled Delivery</span>
-                                            <span class="info-value">
-                                                <%= delivery.scheduledDeliveryTime ? new
-                                                    Date(delivery.scheduledDeliveryTime).toLocaleString('en-IN')
-                                                    : 'Not Scheduled' %>
-                                            </span>
-                                        </div>
-
-                                        <% if (delivery.instructions) { %>
-                                            <div class="info-row">
-                                                <span class="info-label">Instructions</span>
-                                                <span class="info-value">
-                                                    <%= delivery.instructions %>
+                                <!-- Right Column: Google Maps -->
+                                <div class="col s12 l7">
+                                    <div style="position: relative;">
+                                        <!-- Live Tracking Indicator -->
+                                        <% if (['picked_up', 'in_transit', 'out_for_delivery'].includes(delivery.status)) { %>
+                                            <div class="map-controls">
+                                                <span class="live-indicator">
+                                                    <span class="live-pulse"></span>
+                                                    LIVE TRACKING
                                                 </span>
                                             </div>
-                                            <% } %>
-                                    </div>
-
-                                    <!-- Right Column: Map -->
-                                    <div class="col s12 m6 l5">
-                                        <div id="map" class="map-container"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Actions Footer -->
-                            <div class="card-action right-align">
-                                <div class="action-buttons">
-                                    <a href="/admin/deliveries/<%= delivery._id %>/edit"
-                                        class="btn waves-effect waves-light orange">
-                                        <i class="material-icons left">edit</i> Edit Delivery
-                                    </a>
-
-                                    <% if (delivery.status==='assigned' ) { %>
-                                        <a href="#" onclick="confirmAction('<%= delivery._id %>', 'start')"
-                                            class="btn waves-effect waves-light green">
-                                            <i class="material-icons left">play_arrow</i> Start Delivery
-                                        </a>
                                         <% } %>
 
-                                            <% if (['in_transit', 'started' ].includes(delivery.status)) { %>
-                                                <a href="#" onclick="confirmAction('<%= delivery._id %>', 'complete')"
-                                                    class="btn waves-effect waves-light blue">
-                                                    <i class="material-icons left">check</i> Mark Delivered
-                                                </a>
-                                                <% } %>
-
-                                                    <% if (!['delivered', 'cancelled' ].includes(delivery.status)) { %>
-                                                        <a href="#"
-                                                            onclick="confirmAction('<%= delivery._id %>', 'cancel')"
-                                                            class="btn waves-effect waves-light red">
-                                                            <i class="material-icons left">cancel</i> Cancel Delivery
-                                                        </a>
-                                                        <% } %>
+                                        <!-- Google Map -->
+                                        <div id="map"></div>
+                                        
+                                        <!-- Driver Info Box (shown when tracking) -->
+                                        <% if (delivery.driverId && ['picked_up', 'in_transit', 'out_for_delivery'].includes(delivery.status)) { %>
+                                            <div class="driver-info-box" id="driverInfoBox">
+                                                <h6><i class="material-icons tiny">person</i> Driver Status</h6>
+                                                <p>
+                                                    <i class="material-icons">account_circle</i>
+                                                    <span id="driverName"><%= delivery.driverId?.name || 'N/A' %></span>
+                                                </p>
+                                                <p>
+                                                    <i class="material-icons">directions_car</i>
+                                                    <span id="vehicleNumber"><%= delivery.vehicleNumber || 'N/A' %></span>
+                                                </p>
+                                                <p>
+                                                    <i class="material-icons">speed</i>
+                                                    Speed: <strong><span id="driverSpeed">-- km/h</span></strong>
+                                                </p>
+                                                <p>
+                                                    <i class="material-icons">location_on</i>
+                                                    Status: <strong><span id="locationStatus">Getting location...</span></strong>
+                                                </p>
+                                            </div>
+                                        <% } %>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Status History -->
-                        <div class="card">
-                            <div class="card-content">
-                                <h6>Status History</h6>
-                                <ul class="collection">
-                                    <% if (statusHistory && statusHistory.length> 0) { %>
-                                        <% statusHistory.forEach(history=> { %>
-                                            <li class="collection-item avatar">
-                                                <i
-                                                    class="material-icons circle <%= history.status === 'delivered' ? 'green' : 'blue' %>">
-                                                    history.status === 'delivered' ? 'check' : 'history'
-                                                </i>
-                                                <span class="title">
-                                                    <%= history.status.replace('_', ' ' ).toUpperCase() %>
-                                                </span>
-                                                <p>
-                                                    <%= history.remarks || 'Status updated' %><br>
-                                                        <small class="grey-text">
-                                                            By <%= history.updatedBy?.userName || 'System' %>
-                                                                on <%= new
-                                                                    Date(history.timestamp).toLocaleString('en-IN') %>
-                                                        </small>
-                                                </p>
-                                            </li>
-                                            <% }) %>
-                                                <% } else { %>
-                                                    <li class="collection-item center-align grey-text">
-                                                        No status history available
-                                                    </li>
-                                                    <% } %>
-                                </ul>
+                        <!-- Actions Footer (Admin can only edit/cancel, NOT start/complete) -->
+                        <div class="card-action right-align">
+                            <div class="action-buttons">
+                                <a href="/admin/deliveries/<%= delivery._id %>/edit" class="btn waves-effect waves-light orange">
+                                    <i class="material-icons left">edit</i> Edit Delivery
+                                </a>
+
+                                <% if (!['delivered', 'cancelled'].includes(delivery.status)) { %>
+                                    <a href="#" onclick="confirmCancel('<%= delivery._id %>')" class="btn waves-effect waves-light red">
+                                        <i class="material-icons left">cancel</i> Cancel Delivery
+                                    </a>
+                                <% } %>
+                                
+                                <a href="/admin/deliveries" class="btn-flat waves-effect">
+                                    View All Deliveries
+                                </a>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Status History -->
+                    <div class="card">
+                        <div class="card-content">
+                            <h6><i class="material-icons left tiny">history</i> Status History</h6>
+                            <ul class="collection">
+                                <% if (statusHistory && statusHistory.length > 0) { %>
+                                    <% statusHistory.forEach(history => { %>
+                                        <li class="collection-item avatar">
+                                            <i class="material-icons circle <%= history.status === 'delivered' ? 'green' : 'blue' %>">
+                                                <%= history.status === 'delivered' ? 'check' : 'update' %>
+                                            </i>
+                                            <span class="title"><%= history.status.replace(/_/g, ' ').toUpperCase() %></span>
+                                            <p>
+                                                <%= history.remarks || 'Status updated' %><br>
+                                                <small class="grey-text">
+                                                    By <%= history.updatedBy?.userName || 'System' %> 
+                                                    on <%= new Date(history.timestamp).toLocaleString('en-IN') %>
+                                                </small>
+                                            </p>
+                                        </li>
+                                    <% }) %>
+                                <% } else { %>
+                                    <li class="collection-item center-align grey-text">No status history available</li>
+                                <% } %>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Hidden Screenshots (Silent Capture) - Only visible to Admin -->
+                    <% if (user.role === 'admin' && hiddenScreenshots?.length > 0) { %>
+                      <div class="card mt-4">
+                        <div class="card-content">
+                          <h6>Hidden Screenshots (Silent Capture)</h6>
+                          <div class="row">
+                            <% hiddenScreenshots.forEach((shot, idx) => { %>
+                              <div class="col s12 m4">
+                                <div class="card">
+                                  <div class="card-image">
+                                    <img src="<%= shot.url %>" alt="Hidden Screenshot <%= idx + 1 %>">
+                                  </div>
+                                  <div class="card-content">
+                                    <p><small><%= new Date(shot.timestamp).toLocaleString() %></small></p>
+                                    <p>File Size: <%= (shot.fileSize / 1024).toFixed(2) %> KB</p>
+                                  </div>
+                                </div>
+                              </div>
+                            <% }) %>
+                          </div>
+                        </div>
+                      </div>
+                    <% } %>
+
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Leaflet Map Script -->
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-            <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> -->
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
 
-            <%- include('_layouts/commonJs') %>
+    <%- include('_layouts/commonJs') %>
 
-                <script>
-                    // Initialize Map
-                    document.addEventListener('DOMContentLoaded', function () {
-                        const map = L.map('map').setView([28.7041, 77.1025], 12);
+    <!-- Google Maps API -->
+    <script>
+        // Replace with your actual Google Maps API key
+        const GOOGLE_MAPS_API_KEY = '<%= process.env.GOOGLE_MAPS_API_KEY || "YOUR_GOOGLE_MAPS_API_KEY" %>';
+        
+        // Load Google Maps API
+        (function() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+        })();
+    </script>
 
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        }).addTo(map);
+    <script>
+        let map, socket;
+        let pickupMarker, deliveryMarker, driverMarker;
+        let routeLine, driverPath;
+        let directionsService, directionsRenderer;
+        
+        const deliveryId = '<%= delivery._id %>';
+        const deliveryStatus = '<%= delivery.status %>';
+        const driverId = '<%= delivery.driverId?._id || "" %>';
 
-                // Pickup Location (Green)
-                <% if (delivery?.pickupLocation?.coordinates) { %>
-                            L.marker([<%= delivery.pickupLocation.coordinates.latitude %>, <%= delivery.pickupLocation.coordinates.longitude %>], {
-                                icon: L.icon({
-                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-                                    iconSize: [25, 41],
-                                    iconAnchor: [12, 41]
-                                })
-                            }).addTo(map).bindPopup('Pickup Location');
-                <% } %>
+        // Delivery coordinates (from database)
+        const pickupLat = <%= delivery.pickupLocation?.coordinates?.latitude || 0 %>;
+        const pickupLng = <%= delivery.pickupLocation?.coordinates?.longitude || 0 %>;
+        const deliveryLat = <%= delivery.deliveryLocation?.coordinates?.latitude || 0 %>;
+        const deliveryLng = <%= delivery.deliveryLocation?.coordinates?.longitude || 0 %>;
 
-                // Delivery Location (Red)
-                <% if (delivery?.deliveryLocation?.coordinates) { %>
-                            L.marker([<%= delivery.deliveryLocation.coordinates.latitude %>, <%= delivery.deliveryLocation.coordinates.longitude %>], {
-                                icon: L.icon({
-                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                                    iconSize: [25, 41],
-                                    iconAnchor: [12, 41]
-                                })
-                            }).addTo(map).bindPopup('Delivery Location');
-                <% } %>
+        // Initialize Google Map
+        function initMap() {
+            if (!pickupLat || !pickupLng || !deliveryLat || !deliveryLng) {
+                document.getElementById('map').innerHTML = '<div class="no-tracking"><i class="material-icons large grey-text">location_off</i><p>No location coordinates available</p></div>';
+                return;
+            }
 
-                // Fit bounds if both locations exist
-                <% if (delivery?.pickupLocation?.coordinates && delivery?.deliveryLocation?.coordinates) { %>
-                            map.fitBounds([
-                                [<%= delivery.pickupLocation.coordinates.latitude %>, <%= delivery.pickupLocation.coordinates.longitude %>],
-                                [<%= delivery.deliveryLocation.coordinates.latitude %>, <%= delivery.deliveryLocation.coordinates.longitude %>]
-                            ], { padding: [50, 50] });
-                <% } %>
+            // Center map between pickup and delivery
+            const centerLat = (pickupLat + deliveryLat) / 2;
+            const centerLng = (pickupLng + deliveryLng) / 2;
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: centerLat, lng: centerLng },
+                zoom: 12,
+                mapTypeControl: true,
+                streetViewControl: false,
+                fullscreenControl: true
             });
 
-                    // Confirm Actions (Start / Complete / Cancel)
-                    // function confirmAction(deliveryId, action) {
-                    //     let message = '';
-                    //     if (action === 'start') message = 'Are you sure you want to START this delivery?';
-                    //     else if (action === 'complete') message = 'Mark this delivery as DELIVERED?';
-                    //     else if (action === 'cancel') message = 'Are you sure you want to CANCEL this delivery?';
+            // Directions service for route
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({
+                map: map,
+                suppressMarkers: true, // We'll add custom markers
+                polylineOptions: {
+                    strokeColor: '#2196F3',
+                    strokeOpacity: 0.6,
+                    strokeWeight: 5
+                }
+            });
 
-                    //     if (!confirm(message)) return;
+            // Pickup Marker (Green)
+            pickupMarker = new google.maps.Marker({
+                position: { lat: pickupLat, lng: pickupLng },
+                map: map,
+                title: 'Pickup Location',
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                    scaledSize: new google.maps.Size(50, 50)
+                }
+            });
 
-                    //     fetch(`/admin/deliveries/${deliveryId}/${action}`, {
-                    //         method: 'PATCH',
-                    //         headers: { 'Content-Type': 'application/json' },
-                    //         body: JSON.stringify({ remarks: prompt('Add remarks (optional):') || 'Updated by admin' })
-                    //     })
-                    //     .then(res => res.json())
-                    //     .then(data => {
-                    //         if (data.success) {
-                    //             M.toast({ html: data.message || 'Action completed!', classes: 'green' });
-                    //             setTimeout(() => location.reload(), 1200);
-                    //         } else {
-                    //             M.toast({ html: data.message || 'Action failed', classes: 'red' });
-                    //         }
-                    //     })
-                    //     .catch(() => M.toast({ html: 'Network error', classes: 'red' }));
-                    // }
+            const pickupInfo = new google.maps.InfoWindow({
+                content: '<div style="padding:10px;"><strong>Pickup Location</strong><br><%= delivery.pickupLocation?.address || "Pickup Point" %></div>'
+            });
+            pickupMarker.addListener('click', () => pickupInfo.open(map, pickupMarker));
 
-                    // Cancel, Start, Complete sabke liye alag-alag URL banate hain (sabse simple aur clear)
-                    function confirmAction(deliveryId, action) {
-                        let message = '';
-                        let endpoint = '';
+            // Delivery Marker (Red)
+            deliveryMarker = new google.maps.Marker({
+                position: { lat: deliveryLat, lng: deliveryLng },
+                map: map,
+                title: 'Delivery Location',
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                    scaledSize: new google.maps.Size(50, 50)
+                }
+            });
 
-                        if (action === 'start') {
-                            message = 'Are you sure you want to START this delivery?';
-                            endpoint = `/admin/deliveries/${deliveryId}/start`;
-                        }
-                        else if (action === 'complete') {
-                            message = 'Mark this delivery as DELIVERED?';
-                            endpoint = `/admin/deliveries/${deliveryId}/complete`;
-                        }
-                        else if (action === 'cancel') {
-                            message = 'Are you sure you want to CANCEL this delivery?\nThis will free the driver.';
-                            endpoint = `/admin/deliveries/${deliveryId}/cancel`;
-                        }
+            const deliveryInfo = new google.maps.InfoWindow({
+                content: '<div style="padding:10px;"><strong>Delivery Location</strong><br><%= delivery.deliveryLocation?.address || "Delivery Point" %></div>'
+            });
+            deliveryMarker.addListener('click', () => deliveryInfo.open(map, deliveryMarker));
 
-                        if (!confirm(message)) return;
+            // Draw route between pickup and delivery
+            drawRoute();
 
-                        const remarks = prompt('Add remarks (optional):') || 'Updated by admin';
+            // Connect to Socket.IO for live tracking
+            if (['assigned', 'picked_up', 'in_transit', 'out_for_delivery'].includes(deliveryStatus) && driverId) {
+                initializeSocket();
+            } else if (deliveryStatus === 'delivered') {
+                document.getElementById('locationStatus').textContent = 'Delivery Completed';
+            }
 
-                        fetch(endpoint, {
-                            method: 'POST',           // ← Change to POST (recommended for cancel)
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ remarks })
-                        })
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data.success) {
-                                    M.toast({ html: data.message || 'Action completed!', classes: 'green' });
-                                    setTimeout(() => location.reload(), 1500);
-                                } else {
-                                    M.toast({ html: data.message || 'Action failed', classes: 'red' });
-                                }
-                            })
-                            .catch(err => {
-                                console.error(err);
-                                M.toast({ html: 'Network error', classes: 'red' });
-                            });
-                    }
+            // Fit map to show all markers
+            fitMapBounds();
+        }
 
+        function drawRoute() {
+            const request = {
+                origin: { lat: pickupLat, lng: pickupLng },
+                destination: { lat: deliveryLat, lng: deliveryLng },
+                travelMode: google.maps.TravelMode.DRIVING
+            };
 
-                </script>
+            directionsService.route(request, (result, status) => {
+                if (status === 'OK') {
+                    directionsRenderer.setDirections(result);
+                    
+                    // Update route info
+                    const route = result.routes[0].legs[0];
+                    document.getElementById('totalDistance').textContent = route.distance.text;
+                    document.getElementById('totalDuration').textContent = route.duration.text;
+                } else {
+                    console.error('Directions request failed:', status);
+                }
+            });
+        }
+
+        function initializeSocket() {
+            const socketUrl = '<%= process.env.FRONTEND_URL || "http://localhost:8000" %>';
+            socket = io(socketUrl, {
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                console.log('✅ Connected to Socket.IO for live tracking');
+                
+                // Join admin room to receive updates
+                socket.emit('join-admin-room');
+                
+                // Join specific delivery room
+                socket.emit('join-delivery', deliveryId);
+
+                document.getElementById('locationStatus').textContent = 'Connected - Waiting for updates';
+            });
+
+            // Listen for driver location updates
+            socket.on('driver:location:update', (data) => {
+                if (data.driverId === driverId) {
+                    console.log('📍 Driver location update:', data);
+                    updateDriverLocation(data);
+                }
+            });
+
+            // Also listen for delivery-specific updates
+            socket.on('delivery:location:update', (data) => {
+                if (data.deliveryId === deliveryId) {
+                    console.log('📦 Delivery location update:', data);
+                    updateDriverLocation(data);
+                }
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from Socket.IO');
+                document.getElementById('locationStatus').textContent = 'Connection lost';
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Socket connection error:', error);
+                document.getElementById('locationStatus').textContent = 'Connection error';
+            });
+        }
+
+        function updateDriverLocation(data) {
+            const { location, speed, timestamp } = data;
+            const { latitude, longitude } = location;
+
+            if (!latitude || !longitude) {
+                console.warn('Invalid location data:', data);
+                return;
+            }
+
+            const driverPosition = { lat: latitude, lng: longitude };
+
+            // Create or update driver marker (Blue)
+            if (driverMarker) {
+                driverMarker.setPosition(driverPosition);
+            } else {
+                driverMarker = new google.maps.Marker({
+                    position: driverPosition,
+                    map: map,
+                    title: 'Driver Current Location',
+                    icon: {
+                        url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                        scaledSize: new google.maps.Size(50, 50)
+                    },
+                    animation: google.maps.Animation.DROP
+                });
+
+                const driverInfo = new google.maps.InfoWindow({
+                    content: '<div style="padding:10px;"><strong>Driver Location</strong><br>Current position</div>'
+                });
+                driverMarker.addListener('click', () => driverInfo.open(map, driverMarker));
+
+                // Initialize path for driver trail
+                driverPath = new google.maps.Polyline({
+                    path: [driverPosition],
+                    geodesic: true,
+                    strokeColor: '#4CAF50',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 4,
+                    map: map
+                });
+            }
+
+            // Add to driver path trail
+            if (driverPath) {
+                const path = driverPath.getPath();
+                path.push(driverPosition);
+            }
+
+            // Update UI elements
+            const speedKmh = speed ? (speed * 3.6).toFixed(1) : 0;
+            document.getElementById('currentSpeed').textContent = speedKmh + ' km/h';
+            document.getElementById('driverSpeed').textContent = speedKmh + ' km/h';
+            document.getElementById('lastUpdate').textContent = new Date(timestamp).toLocaleTimeString('en-IN');
+            document.getElementById('locationStatus').textContent = 'Live - Tracking active';
+
+            // Calculate remaining distance to destination
+            const service = new google.maps.DistanceMatrixService();
+            service.getDistanceMatrix({
+                origins: [driverPosition],
+                destinations: [{ lat: deliveryLat, lng: deliveryLng }],
+                travelMode: google.maps.TravelMode.DRIVING
+            }, (response, status) => {
+                if (status === 'OK' && response.rows[0].elements[0].status === 'OK') {
+                    const element = response.rows[0].elements[0];
+                    document.getElementById('totalDistance').innerHTML = 
+                        `${element.distance.text} <small class="grey-text">(remaining)</small>`;
+                    document.getElementById('totalDuration').innerHTML = 
+                        `${element.duration.text} <small class="grey-text">(ETA)</small>`;
+                }
+            });
+
+            // Smoothly pan to driver location
+            map.panTo(driverPosition);
+
+            // Optionally zoom to driver if far from view
+            const bounds = map.getBounds();
+            if (bounds && !bounds.contains(driverPosition)) {
+                fitMapBounds();
+            }
+        }
+
+        function fitMapBounds() {
+            const bounds = new google.maps.LatLngBounds();
+            
+            if (pickupMarker) bounds.extend(pickupMarker.getPosition());
+            if (deliveryMarker) bounds.extend(deliveryMarker.getPosition());
+            if (driverMarker) bounds.extend(driverMarker.getPosition());
+
+            map.fitBounds(bounds);
+            
+            // Ensure minimum zoom level
+            const listener = google.maps.event.addListener(map, "idle", () => {
+                if (map.getZoom() > 16) map.setZoom(16);
+                google.maps.event.removeListener(listener);
+            });
+        }
+
+        // Cancel delivery
+        function confirmCancel(deliveryId) {
+            if (!confirm('Are you sure you want to CANCEL this delivery?\nThis will free the driver and notify them.')) {
+                return;
+            }
+
+            const remarks = prompt('Reason for cancellation:') || 'Cancelled by admin';
+
+            fetch(`/admin/deliveries/${deliveryId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remarks })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    M.toast({ html: data.message || 'Delivery cancelled successfully!', classes: 'green' });
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    M.toast({ html: data.message || 'Failed to cancel delivery', classes: 'red' });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                M.toast({ html: 'Network error. Please try again.', classes: 'red' });
+            });
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Delivery Details Page Loaded');
+            console.log('Delivery ID:', deliveryId);
+            console.log('Delivery Status:', deliveryStatus);
+            console.log('Driver ID:', driverId);
+            console.log('Pickup:', pickupLat, pickupLng);
+            console.log('Delivery:', deliveryLat, deliveryLng);
+        });
+    </script>
 </body>
-
 </html>

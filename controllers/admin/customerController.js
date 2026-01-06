@@ -1505,9 +1505,9 @@ exports.createCustomer = async (req, res) => {
 
     if (!region || region === '') {
       // No manual region selected - auto-assign based on zipcode
-      const foundRegion = await Region.findOne({ 
+      const foundRegion = await Region.findOne({
         zipcodes: zipcode,
-        isActive: true 
+        isActive: true
       }).select('_id regionName regionCode');
 
       if (foundRegion) {
@@ -1706,10 +1706,11 @@ exports.getAllCustomers = async (req, res) => {
         total
       },
       filters: req.query,
-      messages: {
-        success: req.flash('success'),
-        error: req.flash('error')
-      }
+      // messages: {
+      //   success: req.flash('success'),
+      //   error: req.flash('error')
+      // } 
+      messages: req.flash()
     });
 
   } catch (error) {
@@ -1770,7 +1771,7 @@ exports.viewCustomer = async (req, res) => {
     }
 
     const primaryLocation = customer.locations?.find(loc => loc.isPrimary) ||
-                           customer.locations?.[0] || {};
+      customer.locations?.[0] || {};
 
     const recentDeliveries = await Delivery.find({ customerId: customer._id })
       .populate('orderId')
@@ -1783,8 +1784,8 @@ exports.viewCustomer = async (req, res) => {
       completed: await Delivery.countDocuments({ customerId: customer._id, status: 'delivered' }),
       pending: await Delivery.countDocuments({ customerId: customer._id, status: { $in: ['pending', 'processing'] } }),
       totalSpent: customer.stats?.totalSpent || 0,
-      lastOrderDate: customer.stats?.lastOrderDate 
-        ? new Date(customer.stats.lastOrderDate).toLocaleDateString() 
+      lastOrderDate: customer.stats?.lastOrderDate
+        ? new Date(customer.stats.lastOrderDate).toLocaleDateString()
         : 'Never'
     };
 
@@ -1907,24 +1908,24 @@ exports.updateCustomer = async (req, res) => {
 
     // ========== AUTO-ASSIGN REGION IF ZIPCODE CHANGED ==========
     const currentCustomer = await Customer.findById(customerId).select('locations documents');
-    
+
     if (updates.zipcode && currentCustomer.locations?.length > 0) {
       const primaryLocation = currentCustomer.locations.find(loc => loc.isPrimary) || currentCustomer.locations[0];
-      
+
       // Check if zipcode changed
       if (primaryLocation.zipcode !== updates.zipcode) {
         console.log('[UPDATE-CUSTOMER] Zipcode changed from', primaryLocation.zipcode, 'to', updates.zipcode);
-        
+
         // Auto-assign new region based on new zipcode (only if no manual region selected)
         if (!updates.region || updates.region === '') {
-          const foundRegion = await Region.findOne({ 
+          const foundRegion = await Region.findOne({
             zipcodes: updates.zipcode,
-            isActive: true 
+            isActive: true
           }).select('_id regionName regionCode');
 
           if (foundRegion) {
             console.log('[UPDATE-CUSTOMER] Auto-assigned new region:', foundRegion.regionName);
-            
+
             // Update primary location's region
             const locationUpdates = {
               ...primaryLocation.toObject(),
@@ -1932,13 +1933,13 @@ exports.updateCustomer = async (req, res) => {
               regionId: foundRegion._id,
               regionAutoAssigned: true
             };
-            
+
             if (updates.city) locationUpdates.city = updates.city;
             if (updates.state) locationUpdates.state = updates.state;
             if (updates.addressLine1) locationUpdates.addressLine1 = updates.addressLine1;
             if (updates.addressLine2 !== undefined) locationUpdates.addressLine2 = updates.addressLine2;
-            
-            updates.locations = currentCustomer.locations.map(loc => 
+
+            updates.locations = currentCustomer.locations.map(loc =>
               loc.isPrimary ? locationUpdates : loc
             );
           } else {
@@ -1947,20 +1948,20 @@ exports.updateCustomer = async (req, res) => {
         } else {
           // Manual region selected
           console.log('[UPDATE-CUSTOMER] Manual region selected:', updates.region);
-          
+
           const locationUpdates = {
             ...primaryLocation.toObject(),
             zipcode: updates.zipcode,
             regionId: updates.region,
             regionAutoAssigned: false
           };
-          
+
           if (updates.city) locationUpdates.city = updates.city;
           if (updates.state) locationUpdates.state = updates.state;
           if (updates.addressLine1) locationUpdates.addressLine1 = updates.addressLine1;
           if (updates.addressLine2 !== undefined) locationUpdates.addressLine2 = updates.addressLine2;
-          
-          updates.locations = currentCustomer.locations.map(loc => 
+
+          updates.locations = currentCustomer.locations.map(loc =>
             loc.isPrimary ? locationUpdates : loc
           );
         }
@@ -2123,9 +2124,9 @@ exports.addLocation = async (req, res) => {
 
     // Auto-assign region if zipcode provided
     if (locationData.zipcode && locationData.regionAutoAssigned !== false) {
-      const region = await Region.findOne({ 
+      const region = await Region.findOne({
         zipcodes: locationData.zipcode,
-        isActive: true 
+        isActive: true
       });
       if (region) {
         locationData.regionId = region._id;
@@ -2175,9 +2176,9 @@ exports.updateLocation = async (req, res) => {
 
     // Auto-assign region if zipcode changed
     if (updates.zipcode && location.regionAutoAssigned !== false) {
-      const region = await Region.findOne({ 
+      const region = await Region.findOne({
         zipcodes: updates.zipcode,
-        isActive: true 
+        isActive: true
       });
       if (region) {
         location.regionId = region._id;

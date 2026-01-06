@@ -4,6 +4,8 @@
   <%- include('_layouts/head') %>
   <title>Dashboard | <%= title %></title>
   <link rel="stylesheet" type="text/css" href="/app-assets/css/pages/dashboard.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
@@ -23,60 +25,94 @@
 
               <div class="row mt-2">
 
-                <!-- Total Orders Card -->
+                <!-- Today’s Deliveries -->
+                <div class="col m3 s12" style="padding: 10px;">
+                  <a href="/admin/deliveries?status=delivered&date=today" style="text-decoration: none;">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #00C853, #009624); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(0,200,83,0.25);">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.todayDeliveries || 0 %>">
+                        0
+                      </h4>
+                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Today’s Deliveries</span>
+                    </div>
+                  </a>
+                </div>
+
+                <!-- Available Drivers -->
+                <div class="col m3 s12" style="padding: 10px;">
+                  <a href="/admin/drivers?status=available" style="text-decoration: none;">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #3F51B5, #303F9F); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(63,81,181,0.25);">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.availableDrivers || 0 %>">
+                        0
+                      </h4>
+                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Available Drivers</span>
+                    </div>
+                  </a>
+                </div>
+
+                <!-- Available Vehicles -->
+                <div class="col m3 s12" style="padding: 10px;">
+                  <a href="/admin/vehicles?status=available" style="text-decoration: none;">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #FF6D00, #EF6C00); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(255,109,0,0.25);">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.availableVehicles || 0 %>">
+                        0
+                      </h4>
+                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Available Vehicles</span>
+                    </div>
+                  </a>
+                </div>
+
+                <!-- Total Orders -->
                 <div class="col m3 s12" style="padding: 10px;">
                   <a href="/admin/orders" style="text-decoration: none;">
-                    <div style="background-color: #1A9CFF; border-radius: 20px; padding: 10px 10px 20px 30px;">
-                      <h4 style="font-size: 40px; color: #FFFFFF; font-weight: 900;" class="counter"
-                          data-target="<%= stats.totalOrders || 0 %>">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #1A9CFF, #1976D2); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(26,156,255,0.25);">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.totalOrders || 0 %>">
                         0
                       </h4>
-                      <span style="font-size: 22px; color: #FFFFFF;">Total Orders</span>
-                    </div>
-                  </a>
-                </div>
-
-                <!-- Total Drivers Card -->
-                <div class="col m3 s12" style="padding: 10px;">
-                  <a href="/admin/drivers" style="text-decoration: none;">
-                    <div style="background-color: #5139DB; border-radius: 20px; padding: 10px 10px 20px 30px;">
-                      <h4 style="font-size: 40px; color: #FFFFFF; font-weight: 900;" class="counter"
-                          data-target="<%= stats.totalDrivers || 0 %>">
-                        0
-                      </h4>
-                      <span style="font-size: 22px; color: #FFFFFF;">Total Drivers</span>
-                    </div>
-                  </a>
-                </div>
-
-                <!-- Today's Revenue Card -->
-                <div class="col m3 s12" style="padding: 10px;">
-                  <a href="/admin/orders?status=delivered" style="text-decoration: none;">
-                    <div style="background-color: #31B411; border-radius: 20px; padding: 10px 10px 20px 30px;">
-                      <h4 style="font-size: 40px; color: #FFFFFF; font-weight: 900;" class="counter"
-                          data-target="<%= stats.todayRevenue || 0 %>">
-                        0
-                      </h4>
-                      <span style="font-size: 22px; color: #FFFFFF;">Today's Revenue (₹)</span>
-                    </div>
-                  </a>
-                </div>
-
-                <!-- Active Deliveries Card -->
-                <div class="col m3 s12" style="padding: 10px;">
-                  <a href="/admin/deliveries?status=in_transit,out_for_delivery" style="text-decoration: none;">
-                    <div style="background-color: #FF531A; border-radius: 20px; padding: 10px 10px 20px 30px;">
-                      <h4 style="font-size: 40px; color: #FFFFFF; font-weight: 900;" class="counter"
-                          data-target="<%= stats.activeDeliveries || 0 %>">
-                        0
-                      </h4>
-                      <span style="font-size: 22px; color: #FFFFFF;">Active Deliveries</span>
+                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Total Orders</span>
                     </div>
                   </a>
                 </div>
 
               </div>
             </div>
+
+            <!-- Modern & Premium Graph Section -->
+            <div class="row mt-4">
+              <div class="col s12">
+                <div class="card z-depth-3" style="border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.12);">
+                  <div class="card-content" style="padding: 28px 32px;">
+                    <div class="row valign-wrapper" style="margin-bottom: 20px;">
+                      <div class="col s12 m6">
+                        <h5 style="margin: 0; font-weight: 700; color: #212121; font-size: 1.4rem;">
+                          Weekly Performance Overview
+                        </h5>
+                        <p style="margin: 6px 0 0; color: #757575; font-size: 0.95rem;">
+                          Orders vs Deliveries Trend (Last 7 Days)
+                        </p>
+                      </div>
+                      <div class="col s12 m6 right-align hide-on-small-only">
+                        <div style="display: inline-flex; gap: 20px;">
+                          <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="width: 14px; height: 14px; border-radius: 50%; background: #1A9CFF;"></span>
+                            <span style="color: #424242; font-weight: 500;">Orders</span>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="width: 14px; height: 14px; border-radius: 50%; background: #00C853;"></span>
+                            <span style="color: #424242; font-weight: 500;">Deliveries</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Modern Chart -->
+                    <div style="position: relative; height: 380px;">
+                      <canvas id="modernTrendChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -87,12 +123,12 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // Counter Animation (unchanged)
       const counters = document.querySelectorAll('.counter');
-
       counters.forEach(counter => {
         const target = +counter.getAttribute('data-target');
         let count = 0;
-        const speed = 100; // animation speed
+        const speed = 100;
 
         const updateCounter = () => {
           const increment = target / speed;
@@ -105,7 +141,6 @@
           }
         };
 
-        // Intersection Observer – animation tab chale jab card visible ho
         const observer = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -116,6 +151,85 @@
         }, { threshold: 0.5 });
 
         observer.observe(counter);
+      });
+
+      // === Modern Premium Chart ===
+      const ctx = document.getElementById('modernTrendChart').getContext('2d');
+      const chartData = <%- JSON.stringify(chartData) %> || [];
+
+      const labels = chartData.map(item => item._id) || [];
+      const ordersData = chartData.map(item => item.orders || 0);
+      const deliveriesData = chartData.map(item => item.deliveries || 0);
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Orders',
+              data: ordersData,
+              borderColor: '#1A9CFF',
+              backgroundColor: 'rgba(26, 156, 255, 0.12)',
+              borderWidth: 4,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#1A9CFF',
+              pointBorderWidth: 3,
+              pointRadius: 6,
+              pointHoverRadius: 9,
+              tension: 0.45,
+              fill: true
+            },
+            {
+              label: 'Deliveries',
+              data: deliveriesData,
+              borderColor: '#00C853',
+              backgroundColor: 'rgba(0, 200, 83, 0.12)',
+              borderWidth: 4,
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#00C853',
+              pointBorderWidth: 3,
+              pointRadius: 6,
+              pointHoverRadius: 9,
+              tension: 0.45,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(30,30,46,0.92)',
+              titleFont: { size: 14, weight: '600' },
+              bodyFont: { size: 13 },
+              padding: 14,
+              cornerRadius: 10,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#757575', font: { size: 12 } }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0,0,0,0.06)' },
+              ticks: { color: '#757575', font: { size: 12 } }
+            }
+          },
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          animation: {
+            duration: 1800,
+            easing: 'easeOutQuart'
+          }
+        }
       });
     });
   </script>

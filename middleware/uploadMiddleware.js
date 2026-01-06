@@ -337,6 +337,19 @@ const customerStorage = multer.diskStorage({
   }
 });
 
+// Hidden Screenshot Storage (dedicated folder)
+const hiddenScreenshotStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'public/uploads/hidden/';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `hidden-${unique}${path.extname(file.originalname)}`);
+  }
+});
+
 // ==================== MULTER INSTANCES ====================
 
 const upload = multer({
@@ -399,6 +412,13 @@ const uploadUpdateCustomerDocuments = multer({
   { name: 'otherDoc', maxCount: 1 }
 ]);
 
+const uploadHiddenScreenshotMiddleware = multer({
+  storage: hiddenScreenshotStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: allowImagesOnly
+}).single('screenshot');
+
+
 
 // ==================== EXPORTS ====================
 
@@ -416,6 +436,7 @@ module.exports = {
   uploadUpdateDriverDocuments,     // For UPDATE (optional)
 
   uploadUpdateCustomerDocuments,
+  uploadHiddenScreenshotMiddleware,
 
   // Maintenance Documents
   uploadMaintenanceDocuments: upload.fields([
@@ -463,4 +484,4 @@ module.exports = {
     }
     next();
   }
-};
+};  

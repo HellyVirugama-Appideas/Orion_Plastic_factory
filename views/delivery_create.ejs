@@ -5,9 +5,6 @@
     <%- include('_layouts/head') %>
     <title>Create Delivery | <%= title %></title>
     
-    <!-- Leaflet CSS for Map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
         .form-section {
             background: #fff;
@@ -27,7 +24,7 @@
         }
 
         #map {
-            height: 400px;
+            height: 450px;
             width: 100%;
             border-radius: 8px;
             margin-top: 15px;
@@ -49,16 +46,38 @@
         }
 
         .route-summary {
-            background: #e3f2fd;
-            padding: 15px;
-            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
             margin-top: 15px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .route-summary h6 {
+            color: white;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
 
         .route-summary-item {
             display: flex;
             justify-content: space-between;
-            padding: 5px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .route-summary-item:last-child {
+            border-bottom: none;
+        }
+
+        .route-summary-item .label {
+            opacity: 0.9;
+        }
+
+        .route-summary-item .value {
+            font-weight: 700;
+            font-size: 1.1rem;
         }
 
         .driver-card {
@@ -73,11 +92,14 @@
         .driver-card:hover {
             border-color: #2196F3;
             background: #f5f5f5;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         .driver-card.selected {
             border-color: #4CAF50;
             background: #e8f5e9;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
         }
 
         .driver-info {
@@ -91,6 +113,8 @@
             height: 60px;
             border-radius: 50%;
             object-fit: cover;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
 
         .driver-status {
@@ -109,6 +133,28 @@
         .driver-status.busy {
             background: #ffcdd2;
             color: #b71c1c;
+        }
+
+        .location-marker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .location-marker i {
+            color: #2196F3;
+        }
+
+        .location-marker.pickup {
+            border-left: 4px solid #4CAF50;
+        }
+
+        .location-marker.delivery {
+            border-left: 4px solid #f44336;
         }
     </style>
 </head>
@@ -142,7 +188,10 @@
                     
                     <!-- Order Information (Read-only) -->
                     <div class="form-section card">
-                        <h5 class="section-title">Order Information</h5>
+                        <h5 class="section-title">
+                            <i class="material-icons left">shopping_cart</i>
+                            Order Information
+                        </h5>
                         <div class="row">
                             <div class="col s12 m6">
                                 <p><strong>Order Number:</strong> <%= order.orderNumber %></p>
@@ -157,45 +206,73 @@
                         </div>
                     </div>
 
-                    <!-- Pickup & Delivery Locations -->
+                    <!-- Pickup & Delivery Locations with Map -->
                     <div class="form-section card">
-                        <h5 class="section-title">Pickup & Delivery Locations</h5>
+                        <h5 class="section-title">
+                            <i class="material-icons left">map</i>
+                            Delivery Route & Locations
+                        </h5>
+                        
                         <div class="row">
                             <div class="col s12 m6">
-                                <h6><i class="material-icons tiny">location_on</i> Pickup Location</h6>
-                                <p><strong><%= order.pickupLocation?.address %></strong></p>
-                                <p>Contact: <%= order.pickupLocation?.contactPerson || 'N/A' %></p>
-                                <p>Phone: <%= order.pickupLocation?.contactPhone || 'N/A' %></p>
+                                <h6 style="color: #4CAF50; font-weight: 600;">
+                                    <i class="material-icons tiny">location_on</i> Start Location (Pickup)
+                                </h6>
+                                <div class="location-marker pickup">
+                                    <i class="material-icons">my_location</i>
+                                    <div>
+                                        <strong><%= order.pickupLocation?.address || 'N/A' %></strong><br>
+                                        <small class="grey-text">
+                                            Contact: <%= order.pickupLocation?.contactPerson || 'N/A' %> 
+                                            (<%= order.pickupLocation?.contactPhone || 'N/A' %>)
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
                             <div class="col s12 m6">
-                                <h6><i class="material-icons tiny">flag</i> Delivery Location</h6>
-                                <p><strong><%= order.deliveryLocation?.address %></strong></p>
-                                <p><%= order.deliveryLocation?.city %>, <%= order.deliveryLocation?.state %> <%= order.deliveryLocation?.pincode %></p>
-                                <p>Contact: <%= order.deliveryLocation?.contactPerson %></p>
-                                <p>Phone: <%= order.deliveryLocation?.contactPhone %></p>
+                                <h6 style="color: #f44336; font-weight: 600;">
+                                    <i class="material-icons tiny">flag</i> Destination (Delivery)
+                                </h6>
+                                <div class="location-marker delivery">
+                                    <i class="material-icons">place</i>
+                                    <div>
+                                        <strong><%= order.deliveryLocation?.address || 'N/A' %></strong><br>
+                                        <small class="grey-text">
+                                            <%= order.deliveryLocation?.city %>, <%= order.deliveryLocation?.state %> <%= order.deliveryLocation?.pincode %><br>
+                                            Contact: <%= order.deliveryLocation?.contactPerson %> (<%= order.deliveryLocation?.contactPhone %>)
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Route Map -->
+                        <!-- Google Maps Route Display -->
                         <div id="map"></div>
                         
                         <!-- Route Summary -->
                         <div class="route-summary">
-                            <h6><strong>Route Summary</strong></h6>
+                            <h6><i class="material-icons left">timeline</i> Route Summary</h6>
                             <div class="route-summary-item">
-                                <span>Estimated Distance:</span>
-                                <span id="routeDistance">Calculating...</span>
+                                <span class="label">Total Distance:</span>
+                                <span class="value" id="routeDistance">Calculating...</span>
                             </div>
                             <div class="route-summary-item">
-                                <span>Estimated Duration:</span>
-                                <span id="routeDuration">Calculating...</span>
+                                <span class="label">Estimated Duration:</span>
+                                <span class="value" id="routeDuration">Calculating...</span>
+                            </div>
+                            <div class="route-summary-item">
+                                <span class="label">Route Type:</span>
+                                <span class="value">Optimized Driving Route</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Waypoints/Break Points -->
                     <div class="form-section card">
-                        <h5 class="section-title">Route Waypoints / Break Points</h5>
+                        <h5 class="section-title">
+                            <i class="material-icons left">add_location</i>
+                            Route Waypoints / Break Points
+                        </h5>
                         <p class="grey-text">Add intermediate stops or break points along the route</p>
                         
                         <div id="waypointsContainer">
@@ -203,13 +280,16 @@
                         </div>
 
                         <button type="button" onclick="addWaypoint()" class="btn blue">
-                            <i class="material-icons left">add_location</i>Add Waypoint
+                            <i class="material-icons left">add_circle</i>Add Waypoint
                         </button>
                     </div>
 
                     <!-- Driver Selection -->
                     <div class="form-section card">
-                        <h5 class="section-title">Select Driver</h5>
+                        <h5 class="section-title">
+                            <i class="material-icons left">person</i>
+                            Select Driver
+                        </h5>
                         
                         <div class="row">
                             <% if (drivers && drivers.length > 0) { %>
@@ -222,10 +302,14 @@
                                                      class="driver-avatar">
                                                 <div>
                                                     <h6 class="mb-0"><%= driver.name %></h6>
-                                                    <p class="grey-text mb-0"><%= driver.phone %></p>
-                                                    <p class="grey-text mb-0"><%= driver.vehicleNumber || 'No Vehicle' %></p>
+                                                    <p class="grey-text mb-0" style="font-size: 0.9rem;">
+                                                        <i class="material-icons tiny">phone</i> <%= driver.phone %>
+                                                    </p>
+                                                    <p class="grey-text mb-0" style="font-size: 0.9rem;">
+                                                        <i class="material-icons tiny">directions_car</i> <%= driver.vehicleNumber || 'No Vehicle' %>
+                                                    </p>
                                                     <span class="driver-status <%= driver.isAvailable ? 'available' : 'busy' %>">
-                                                        <%= driver.isAvailable ? 'Available' : 'Busy' %>
+                                                        <%= driver.isAvailable ? '✓ Available' : '✗ Busy' %>
                                                     </span>
                                                 </div>
                                             </div>
@@ -234,7 +318,10 @@
                                 <% }) %>
                             <% } else { %>
                                 <div class="col s12">
-                                    <p class="grey-text center-align">No available drivers found</p>
+                                    <p class="grey-text center-align">
+                                        <i class="material-icons large">person_off</i><br>
+                                        No available drivers found
+                                    </p>
                                 </div>
                             <% } %>
                         </div>
@@ -244,15 +331,22 @@
 
                     <!-- Schedule -->
                     <div class="form-section card">
-                        <h5 class="section-title">Schedule</h5>
+                        <h5 class="section-title">
+                            <i class="material-icons left">schedule</i>
+                            Delivery Schedule
+                        </h5>
                         <div class="row">
                             <div class="col s12 m6">
-                                <label for="scheduledPickupTime">Scheduled Pickup Time</label>
+                                <label for="scheduledPickupTime">
+                                    <i class="material-icons tiny">event</i> Scheduled Pickup Time
+                                </label>
                                 <input type="datetime-local" name="scheduledPickupTime" id="scheduledPickupTime" 
                                        value="<%= order.scheduledPickupDate ? new Date(order.scheduledPickupDate).toISOString().slice(0, 16) : '' %>">
                             </div>
                             <div class="col s12 m6">
-                                <label for="scheduledDeliveryTime">Scheduled Delivery Time</label>
+                                <label for="scheduledDeliveryTime">
+                                    <i class="material-icons tiny">event_available</i> Scheduled Delivery Time
+                                </label>
                                 <input type="datetime-local" name="scheduledDeliveryTime" id="scheduledDeliveryTime" 
                                        value="<%= order.scheduledDeliveryDate ? new Date(order.scheduledDeliveryDate).toISOString().slice(0, 16) : '' %>">
                             </div>
@@ -261,11 +355,17 @@
 
                     <!-- Additional Instructions -->
                     <div class="form-section card">
-                        <h5 class="section-title">Delivery Instructions</h5>
+                        <h5 class="section-title">
+                            <i class="material-icons left">description</i>
+                            Delivery Instructions
+                        </h5>
                         <div class="row">
                             <div class="col s12">
-                                <label for="instructions">Special Instructions for Driver</label>
-                                <textarea name="instructions" id="instructions" class="materialize-textarea" rows="4"><%= order.specialInstructions || '' %></textarea>
+                                <label for="instructions">
+                                    <i class="material-icons tiny">note</i> Special Instructions for Driver
+                                </label>
+                                <textarea name="instructions" id="instructions" class="materialize-textarea" rows="4" 
+                                          placeholder="Enter any special instructions for the driver..."><%= order.specialInstructions || '' %></textarea>
                             </div>
                         </div>
                     </div>
@@ -279,11 +379,13 @@
 
                     <!-- Submit Buttons -->
                     <div class="row">
-                        <div class="col s12">
-                            <button type="submit" class="btn green waves-effect waves-light">
+                        <div class="col s12 center-align">
+                            <button type="submit" class="btn-large green waves-effect waves-light" style="min-width: 200px;">
                                 <i class="material-icons left">local_shipping</i>Create Delivery
                             </button>
-                            <a href="/admin/orders/view/<%= order._id %>" class="btn-flat waves-effect">Cancel</a>
+                            <a href="/admin/orders/view/<%= order._id %>" class="btn-large btn-flat waves-effect" style="min-width: 150px;">
+                                <i class="material-icons left">cancel</i>Cancel
+                            </a>
                         </div>
                     </div>
                 </form>
@@ -293,99 +395,176 @@
 
     <%- include('_layouts/commonJs') %>
 
-    <!-- Leaflet JS -->
-    <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> -->
+    <!-- Google Maps API -->
+    <script>
+        const GOOGLE_MAPS_API_KEY = '<%= process.env.GOOGLE_MAPS_API_KEY || "YOUR_GOOGLE_MAPS_API_KEY" %>';
+        
+        (function() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+        })();
+    </script>
 
     <script>
         let map;
         let pickupMarker, deliveryMarker;
-        let routeLine;
+        let directionsService, directionsRenderer;
         let waypointMarkers = [];
         let waypointCount = 0;
 
-        // Initialize Map
-        document.addEventListener('DOMContentLoaded', function() {
-            // Pickup and delivery coordinates
-            <% 
-                // Default coordinates if not available
-                const pickupLat = order.pickupLocation?.coordinates?.latitude || 23.0225;
-                const pickupLng = order.pickupLocation?.coordinates?.longitude || 72.5714;
-                const deliveryLat = order.deliveryLocation?.coordinates?.latitude || 23.0225;
-                const deliveryLng = order.deliveryLocation?.coordinates?.longitude || 72.5714;
-            %>
-            const pickupCoords = [<%= pickupLat %>, <%= pickupLng %>];
-            const deliveryCoords = [<%= deliveryLat %>, <%= deliveryLng %>];
+        // Coordinates from order
+        <% 
+            const pickupLat = order.pickupLocation?.coordinates?.latitude || 23.0225;
+            const pickupLng = order.pickupLocation?.coordinates?.longitude || 72.5714;
+            const deliveryLat = order.deliveryLocation?.coordinates?.latitude || 23.0225;
+            const deliveryLng = order.deliveryLocation?.coordinates?.longitude || 72.5714;
+        %>
+        const pickupCoords = { lat: <%= pickupLat %>, lng: <%= pickupLng %> };
+        const deliveryCoords = { lat: <%= deliveryLat %>, lng: <%= deliveryLng %> };
 
-            // Initialize map
-            map = L.map('map').setView(pickupCoords, 12);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
+        // Initialize Google Map
+        function initMap() {
+            const centerLat = (pickupCoords.lat + deliveryCoords.lat) / 2;
+            const centerLng = (pickupCoords.lng + deliveryCoords.lng) / 2;
 
-            // Pickup marker
-            pickupMarker = L.marker(pickupCoords, {
-                icon: L.icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34],
-                    shadowSize: [41, 41]
-                })
-            }).addTo(map).bindPopup('Pickup Location');
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: centerLat, lng: centerLng },
+                zoom: 11,
+                mapTypeControl: true,
+                streetViewControl: false,
+                fullscreenControl: true
+            });
 
-            // Delivery marker
-            deliveryMarker = L.marker(deliveryCoords, {
-                icon: L.icon({
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34],
-                    shadowSize: [41, 41]
-                })
-            }).addTo(map).bindPopup('Delivery Location');
+            // Directions service for routing
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({
+                map: map,
+                suppressMarkers: true,
+                polylineOptions: {
+                    strokeColor: '#2196F3',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 6
+                }
+            });
 
-            // Draw route line
-            routeLine = L.polyline([pickupCoords, deliveryCoords], {
-                color: '#2196F3',
-                weight: 4,
-                opacity: 0.7
-            }).addTo(map);
+            // Pickup Marker (Green - Start)
+            pickupMarker = new google.maps.Marker({
+                position: pickupCoords,
+                map: map,
+                title: 'Pickup Location - Start',
+                label: {
+                    text: 'START',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px'
+                },
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                    scaledSize: new google.maps.Size(50, 50)
+                }
+            });
 
-            // Fit bounds
-            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+            const pickupInfo = new google.maps.InfoWindow({
+                content: `<div style="padding:10px; max-width: 250px;">
+                    <h6 style="margin:0 0 8px 0; color: #4CAF50;"><strong>📍 Pickup Location (Start)</strong></h6>
+                    <p style="margin:0;"><strong><%= order.pickupLocation?.address || 'Pickup Point' %></strong></p>
+                    <p style="margin:4px 0 0 0; font-size:0.9em; color:#666;">
+                        Contact: <%= order.pickupLocation?.contactPerson || 'N/A' %><br>
+                        Phone: <%= order.pickupLocation?.contactPhone || 'N/A' %>
+                    </p>
+                </div>`
+            });
+            pickupMarker.addListener('click', () => pickupInfo.open(map, pickupMarker));
 
-            // Calculate distance and duration
+            // Delivery Marker (Red - Destination)
+            deliveryMarker = new google.maps.Marker({
+                position: deliveryCoords,
+                map: map,
+                title: 'Delivery Location - Destination',
+                label: {
+                    text: 'END',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px'
+                },
+                icon: {
+                    url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                    scaledSize: new google.maps.Size(50, 50)
+                }
+            });
+
+            const deliveryInfo = new google.maps.InfoWindow({
+                content: `<div style="padding:10px; max-width: 250px;">
+                    <h6 style="margin:0 0 8px 0; color: #f44336;"><strong>🚩 Delivery Location (Destination)</strong></h6>
+                    <p style="margin:0;"><strong><%= order.deliveryLocation?.address || 'Delivery Point' %></strong></p>
+                    <p style="margin:4px 0 0 0; font-size:0.9em; color:#666;">
+                        <%= order.deliveryLocation?.city %>, <%= order.deliveryLocation?.state %> <%= order.deliveryLocation?.pincode %><br>
+                        Contact: <%= order.deliveryLocation?.contactPerson %><br>
+                        Phone: <%= order.deliveryLocation?.contactPhone %>
+                    </p>
+                </div>`
+            });
+            deliveryMarker.addListener('click', () => deliveryInfo.open(map, deliveryMarker));
+
+            // Calculate and display route
             calculateRoute();
 
             // Initialize Materialize
             M.updateTextFields();
-        });
+            M.textareaAutoResize(document.getElementById('instructions'));
+        }
 
-        // Calculate route distance and duration
+        // Calculate route using Google Directions API
         function calculateRoute() {
-            const pickup = [<%= order.pickupLocation.coordinates.latitude %>, <%= order.pickupLocation.coordinates.longitude %>];
-            const delivery = [<%= order.deliveryLocation.coordinates.latitude %>, <%= order.deliveryLocation.coordinates.longitude %>];
+            const request = {
+                origin: pickupCoords,
+                destination: deliveryCoords,
+                travelMode: google.maps.TravelMode.DRIVING,
+                optimizeWaypoints: true
+            };
 
-            // Simple distance calculation (Haversine formula)
-            const R = 6371; // Earth's radius in km
-            const dLat = (delivery[0] - pickup[0]) * Math.PI / 180;
-            const dLon = (delivery[1] - pickup[1]) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(pickup[0] * Math.PI / 180) * Math.cos(delivery[0] * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const distance = R * c;
+            directionsService.route(request, (result, status) => {
+                if (status === 'OK') {
+                    directionsRenderer.setDirections(result);
+                    
+                    // Extract route information
+                    const route = result.routes[0].legs[0];
+                    const distance = route.distance.text;
+                    const duration = route.duration.text;
 
-            // Estimated duration (assuming 40 km/h average speed)
-            const duration = (distance / 40) * 60; // in minutes
+                    // Update UI
+                    document.getElementById('routeDistance').textContent = distance;
+                    document.getElementById('routeDuration').textContent = duration;
+                    
+                    // Store values in hidden inputs (convert to km and minutes)
+                    document.getElementById('routeDistanceInput').value = (route.distance.value / 1000).toFixed(2);
+                    document.getElementById('routeDurationInput').value = Math.round(route.duration.value / 60);
 
-            document.getElementById('routeDistance').textContent = distance.toFixed(2) + ' km';
-            document.getElementById('routeDuration').textContent = Math.round(duration) + ' minutes';
-            document.getElementById('routeDistanceInput').value = distance.toFixed(2);
-            document.getElementById('routeDurationInput').value = Math.round(duration);
+                    console.log('Route calculated:', distance, duration);
+                } else {
+                    console.error('Directions request failed:', status);
+                    M.toast({html: 'Failed to calculate route. Using straight-line distance.', classes: 'orange'});
+                    
+                    // Fallback: Haversine formula
+                    const R = 6371;
+                    const dLat = (deliveryCoords.lat - pickupCoords.lat) * Math.PI / 180;
+                    const dLon = (deliveryCoords.lng - pickupCoords.lng) * Math.PI / 180;
+                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                              Math.cos(pickupCoords.lat * Math.PI / 180) * Math.cos(deliveryCoords.lat * Math.PI / 180) *
+                              Math.sin(dLon/2) * Math.sin(dLon/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    const distance = R * c;
+                    const duration = (distance / 40) * 60;
+
+                    document.getElementById('routeDistance').textContent = distance.toFixed(2) + ' km';
+                    document.getElementById('routeDuration').textContent = Math.round(duration) + ' minutes';
+                    document.getElementById('routeDistanceInput').value = distance.toFixed(2);
+                    document.getElementById('routeDurationInput').value = Math.round(duration);
+                }
+            });
         }
 
         // Add Waypoint
@@ -398,13 +577,15 @@
                     </button>
                     <div class="row">
                         <div class="col s12 m8">
-                            <input type="text" name="waypoint_address_${waypointCount}" placeholder="Waypoint Address" required>
+                            <input type="text" name="waypoint_address_${waypointCount}" 
+                                   placeholder="Enter waypoint address" required>
                         </div>  
                         <div class="col s12 m4">
                             <select name="waypoint_type_${waypointCount}">
                                 <option value="stop">Stop</option>
                                 <option value="break">Break Point</option>
                                 <option value="fuel">Fuel Stop</option>
+                                <option value="checkpoint">Checkpoint</option>
                             </select>
                         </div>
                     </div>
@@ -416,7 +597,10 @@
 
         // Remove Waypoint
         function removeWaypoint(id) {
-            document.getElementById(`waypoint-${id}`).remove();
+            const element = document.getElementById(`waypoint-${id}`);
+            if (element) {
+                element.remove();
+            }
         }
 
         // Select Driver
@@ -438,8 +622,8 @@
             // Collect waypoints
             const waypoints = [];
             document.querySelectorAll('.waypoint-item').forEach((item, index) => {
-                const address = item.querySelector('input[type="text"]').value;
-                const type = item.querySelector('select').value;
+                const address = item.querySelector('input[type="text"]')?.value;
+                const type = item.querySelector('select')?.value;
                 if (address) {
                     waypoints.push({ address, type, order: index + 1 });
                 }
@@ -453,6 +637,16 @@
                 M.toast({html: 'Please select a driver!', classes: 'red'});
                 return false;
             }
+
+            // Show loading
+            M.toast({html: 'Creating delivery...', classes: 'blue'});
+        });
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Create Delivery Page Loaded');
+            console.log('Pickup:', pickupCoords);
+            console.log('Delivery:', deliveryCoords);
         });
     </script>
 </body>

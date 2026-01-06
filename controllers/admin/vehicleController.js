@@ -584,7 +584,7 @@
 const Vehicle = require('../../models/Vehicle');
 const Driver = require('../../models/Driver');
 const mongoose = require('mongoose');
-const {successResponse, errorResponse} = require("../../utils/responseHelper")
+const { successResponse, errorResponse } = require("../../utils/responseHelper")
 
 // GET - List all vehicles (EJS render)
 exports.getAllVehicles = async (req, res) => {
@@ -704,11 +704,52 @@ exports.getCreateVehicle = async (req, res) => {
 //   }
 // };
 
+// exports.createVehicle = async (req, res) => {
+//   try {
+//     const data = req.body;
+
+//     // Required fields validation (client-side + server-side)
+//     const requiredFields = [
+//       'vehicleNumber', 'registrationNumber', 'vehicleType', 'manufacturer',
+//       'model', 'year', 'color', 'registrationDate', 'registrationExpiryDate',
+//       'insuranceProvider', 'insurancePolicyNumber', 'insuranceExpiryDate', 'insuranceAmount'
+//     ];
+
+//     for (const field of requiredFields) {
+//       if (!data[field]) {
+//         req.flash('error', `${field.replace(/([A-Z])/g, ' $1').trim()} is required`);
+//         return res.redirect('/admin/vehicles/create');
+//       }
+//     }
+
+//     const vehicle = await Vehicle.create({
+//       ...data,
+//       vehicleNumber: data.vehicleNumber.toUpperCase(),
+//       registrationNumber: data.registrationNumber.toUpperCase(),
+//       status: 'available',
+//       createdBy: req.admin._id
+//     });
+
+//     req.flash('success', 'Vehicle created successfully!');
+//     res.redirect('/admin/vehicles');
+
+//   } catch (error) {
+//     console.error('Create Vehicle Error:', error);
+//     if (error.name === 'ValidationError') {
+//       const messages = Object.values(error.errors).map(err => err.message).join(', ');
+//       req.flash('error', messages);
+//     } else {
+//       req.flash('error', 'Failed to create vehicle');
+//     }
+//     res.redirect('/admin/vehicles/create');
+//   }
+// };
+
 exports.createVehicle = async (req, res) => {
   try {
     const data = req.body;
 
-    // Required fields validation (client-side + server-side)
+    // Required fields validation
     const requiredFields = [
       'vehicleNumber', 'registrationNumber', 'vehicleType', 'manufacturer',
       'model', 'year', 'color', 'registrationDate', 'registrationExpiryDate',
@@ -722,11 +763,32 @@ exports.createVehicle = async (req, res) => {
       }
     }
 
+    // Special handling for assignedTo – agar empty string aaya to null kar do
+    let assignedTo = data.assignedTo;
+    if (assignedTo === "" || assignedTo === undefined || assignedTo === null) {
+      assignedTo = null; // ya undefined bhi chalega
+    }
+    // Optional: Agar assignedTo valid ObjectId nahi hai to bhi null kar do
+    else if (!mongoose.Types.ObjectId.isValid(assignedTo)) {
+      assignedTo = null;
+    }
+
+    // const vehicle = await Vehicle.create({
+    //   ...data,
+    //   vehicleNumber: data.vehicleNumber.toUpperCase(),
+    //   registrationNumber: data.registrationNumber.toUpperCase(),
+    //   assignedTo: assignedTo,           // ← Yeh line fix karegi error
+    //   status: 'available',
+    //   createdBy: req.admin._id
+    // });
+
     const vehicle = await Vehicle.create({
       ...data,
       vehicleNumber: data.vehicleNumber.toUpperCase(),
       registrationNumber: data.registrationNumber.toUpperCase(),
-      status: 'available',
+      assignedTo: assignedTo || null,         // already fixed
+      isAvailable: true,                      // ← Yeh line add kar do
+      status: 'available',                    // ← Yeh bhi add ya confirm karo
       createdBy: req.admin._id
     });
 
@@ -735,12 +797,17 @@ exports.createVehicle = async (req, res) => {
 
   } catch (error) {
     console.error('Create Vehicle Error:', error);
+
+    let errorMessage = 'Failed to create vehicle';
+
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message).join(', ');
-      req.flash('error', messages);
-    } else {
-      req.flash('error', 'Failed to create vehicle');
+      errorMessage = messages;
+    } else if (error.name === 'CastError') {
+      errorMessage = 'Invalid driver assignment (assignedTo must be valid ID or empty)';
     }
+
+    req.flash('error', errorMessage);
     res.redirect('/admin/vehicles/create');
   }
 };

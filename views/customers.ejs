@@ -3,7 +3,8 @@
 
 <head>
     <%- include('_layouts/head') %>
-        <title>Customers Management | <%= title %></title>
+        <title>Customers Management | <%= title %>
+        </title>
 
         <link rel="stylesheet" type="text/css" href="/app-assets/vendors/data-tables/css/jquery.dataTables.min.css">
         <link rel="stylesheet" type="text/css"
@@ -75,11 +76,24 @@
                                 <div class="col s12 m6 l6">
                                     <h6 class="breadcrumbs-title"><span>Manage Customers</span></h6>
                                 </div>
-                                <div class="col s12 m6 l6 right-align-md"
-                                    style="display: flex; justify-content: flex-end; gap: 10px;">
-                                    <a class="btn pull-right btn-add btn-breadcrumbs white-text"
-                                        href="/admin/customers/create-customer">Create Customer</a>
+                                <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                                    <ol class="breadcrumbs mb-0">
+                                        <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                        <li class="breadcrumb-item active">Customers</li>
+                                    </ol>
                                 </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="breadcrumbs-wrapper" style="background-color: white;">
+                <div class="container">
+                    <div class="row">
+                        <div class="col s12 right-align-md">
+                            <a class="btn pull-right btn-add btn-breadcrumbs white-text"
+                                href="/admin/customers/create-customer">Create Customer</a>
                         </div>
                     </div>
                 </div>
@@ -99,7 +113,8 @@
                                                         <tr>
                                                             <th>Sr</th>
                                                             <th style="width: 60px; text-align: center;">
-                                                                <label style="margin: 0; display: flex; align-items: center; justify-content: center;">
+                                                                <label
+                                                                    style="margin: 0; display: flex; align-items: center; justify-content: center;">
                                                                     <input type="checkbox" id="selectAll" />
                                                                     <span>Select</span>
                                                                 </label>
@@ -115,39 +130,52 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <% if (customers && customers.length > 0) { %>
-                                                            <% customers.forEach((customer, index) => { %>
-                                                                <% 
-                                                                    const primaryLocation = customer.getPrimaryLocation ? 
-                                                                        customer.getPrimaryLocation() :
-                                                                        customer.locations.find(loc => loc.isPrimary) || 
-                                                                        customer.locations[0] || 
-                                                                        {};
+                                                        <% if (customers && customers.length> 0) { %>
+                                                            <% customers.forEach((customer, index)=> { %>
+                                                                <% const primaryLocation=customer.getPrimaryLocation ?
+                                                                    customer.getPrimaryLocation() :
+                                                                    customer.locations.find(loc=> loc.isPrimary) ||
+                                                                    customer.locations[0] ||
+                                                                    {};
                                                                     const primaryAddress = primaryLocation
-                                                                        ? `${primaryLocation.city || ''}, ${primaryLocation.state || ''}`.trim()
-                                                                        : 'N/A';
-                                                                %>
-                                                                <tr>
-                                                                    <td><%= index + 1 + ((pagination?.page - 1) * (pagination?.limit || 20) || 0) %></td>
-                                                                    <td>
-                                                                        <label>
-                                                                            <input type="checkbox" name="selectedCustomers[]" value="<%= customer._id %>" />
-                                                                            <span></span>
-                                                                        </label>
-                                                                    </td>
-                                                                    <td class="name-cell" title="<%= customer.companyName || customer.name %>">
-                                                                        <% if (customer.companyName) { %>
-                                                                            <span class="company-name"><%= customer.companyName %></span>
-                                                                        <% } else { %>
-                                                                            <span class="individual-name"><%= customer.name %></span>
-                                                                        <% } %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <%= customer.phone || customer.alternatePhone || 'N/A' %>
-                                                                    </td>
-                                                                    <td><%= customer.email || 'N/A' %></td>
-                                                                    <td>
-                                                                        <span class="badge" style="background-color: <%= 
+                                                                    ? `${primaryLocation.city || ''},
+                                                                    ${primaryLocation.state || ''}`.trim()
+                                                                    : 'N/A';
+                                                                    %>
+                                                                    <tr>
+                                                                        <td>
+                                                                            <%= index + 1 + ((pagination?.page - 1) *
+                                                                                (pagination?.limit || 20) || 0) %>
+                                                                        </td>
+                                                                        <td>
+                                                                            <label>
+                                                                                <input type="checkbox"
+                                                                                    name="selectedCustomers[]"
+                                                                                    value="<%= customer._id %>" />
+                                                                                <span></span>
+                                                                            </label>
+                                                                        </td>
+                                                                        <td class="name-cell"
+                                                                            title="<%= customer.companyName || customer.name %>">
+                                                                            <% if (customer.companyName) { %>
+                                                                                <span class="company-name">
+                                                                                    <%= customer.companyName %>
+                                                                                </span>
+                                                                                <% } else { %>
+                                                                                    <span class="individual-name">
+                                                                                        <%= customer.name %>
+                                                                                    </span>
+                                                                                    <% } %>
+                                                                        </td>
+                                                                        <td>
+                                                                            <%= customer.phone ||
+                                                                                customer.alternatePhone || 'N/A' %>
+                                                                        </td>
+                                                                        <td>
+                                                                            <%= customer.email || 'N/A' %>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span class="badge" style="background-color: <%= 
                                                                             customer.customerType === 'enterprise' ? 'purple' :
                                                                             customer.customerType === 'business' ? 'rgb(214,221, 235)' :
                                                                             'rgb(212, 240, 216)'%>;
@@ -155,66 +183,74 @@
                                                                             customer.customerType === 'enterprise' ? 'white' :
                                                                             customer.customerType === 'business' ? 'blue' :
                                                                             'green'%>;">
-                                                                            <%= customer.customerType?.toUpperCase() || 'INDIVIDUAL' %>
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        <span class="badge" style="background-color: <%= customer.category === 'vip' ? 'rgb(243, 248, 174)' : 'rgb(180, 228, 228)' %>;
+                                                                                <%= customer.customerType?.toUpperCase()
+                                                                                    || 'INDIVIDUAL' %>
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span class="badge"
+                                                                                style="background-color: <%= customer.category === 'vip' ? 'rgb(243, 248, 174)' : 'rgb(180, 228, 228)' %>;
                                                                             color: <%= customer.category === 'vip' ? 'orange' : 'teal' %>;">
-                                                                            <%= customer.category?.toUpperCase() || 'REGULAR' %>
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        <span class="badge <%= customer.status === 'active' ? 'green' : 
+                                                                                <%= customer.category?.toUpperCase()
+                                                                                    || 'REGULAR' %>
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span
+                                                                                class="badge <%= customer.status === 'active' ? 'green' : 
                                                                             customer.status === 'inactive' ? 'red' : 'orange' %>">
-                                                                            <%= customer.status?.toUpperCase() || 'UNKNOWN' %>
-                                                                        </span>
-                                                                    </td>
-                                                                   
-                                                                    <td>
-                                                                        <% 
-                                                                            let formattedDate = '-';
-                                                                            if (customer.createdAt) {
-                                                                                const d = new Date(customer.createdAt);
-                                                                                const day = String(d.getUTCDate()).padStart(2, '0');
-                                                                                const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-                                                                                const year = d.getUTCFullYear();
-                                                                                const hours = String(d.getUTCHours()).padStart(2, '0');
-                                                                                const minutes = String(d.getUTCMinutes()).padStart(2, '0');
-                                                                                formattedDate = `${day}-${month}-${year} ${hours}:${minutes}`;
-                                                                            }
-                                                                        %>
-                                                                        <%= formattedDate %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <a href="/admin/customers/view/<%= customer._id %>"
-                                                                            class="waves-effect waves-light accent-2 btn-edit"
-                                                                            title="View Details">
-                                                                            <i class="material-icons">visibility</i>
-                                                                        </a>
-                                                                        &nbsp;&nbsp;
-                                                                        <a href="/admin/customers/<%= customer._id %>/edit"
-                                                                            class="btn-floating waves-effect waves-light accent-2 btn-edit"
-                                                                            title="Edit">
-                                                                            <i class="material-icons">edit</i>
-                                                                        </a>
-                                                                        &nbsp;&nbsp;
-                                                                        <a href="#"
-                                                                            class="btn-floating waves-effect waves-light red"
-                                                                            onclick="confirmCustomerDelete('<%= customer._id %>', '<%= (customer.companyName || customer.name || customer.customerId) %>')"
-                                                                            title="Delete Customer">
-                                                                            <i class="material-icons">delete</i>
-                                                                        </a>
-                                                                    </td>
-                                                                </tr>
-                                                            <% }) %>
-                                                        <% } else { %>
-                                                            <tr>
-                                                                <td colspan="11" class="center-align grey-text">
-                                                                    No customers found matching your criteria
-                                                                </td>
-                                                            </tr>
-                                                        <% } %>
+                                                                                <%= customer.status?.toUpperCase()
+                                                                                    || 'UNKNOWN' %>
+                                                                            </span>
+                                                                        </td>
+
+                                                                        <td>
+                                                                            <% let formattedDate='-' ; if
+                                                                                (customer.createdAt) { const d=new
+                                                                                Date(customer.createdAt); const
+                                                                                day=String(d.getUTCDate()).padStart(2, '0'
+                                                                                ); const month=String(d.getUTCMonth() +
+                                                                                1).padStart(2, '0' ); const
+                                                                                year=d.getUTCFullYear(); const
+                                                                                hours=String(d.getUTCHours()).padStart(2, '0'
+                                                                                ); const
+                                                                                minutes=String(d.getUTCMinutes()).padStart(2, '0'
+                                                                                );
+                                                                                formattedDate=`${day}-${month}-${year}
+                                                                                ${hours}:${minutes}`; } %>
+                                                                                <%= formattedDate %>
+                                                                        </td>
+                                                                        <td>
+                                                                            <a href="/admin/customers/view/<%= customer._id %>"
+                                                                                class="waves-effect waves-light accent-2 btn-edit"
+                                                                                title="View Details">
+                                                                                <i class="material-icons">visibility</i>
+                                                                            </a>
+                                                                            &nbsp;&nbsp;
+                                                                            <a href="/admin/customers/<%= customer._id %>/edit"
+                                                                                class="btn-floating waves-effect waves-light accent-2 btn-edit"
+                                                                                title="Edit">
+                                                                                <i class="material-icons">edit</i>
+                                                                            </a>
+                                                                            &nbsp;&nbsp;
+                                                                            <a href="#"
+                                                                                class="btn-floating waves-effect waves-light red"
+                                                                                onclick="confirmCustomerDelete('<%= customer._id %>', '<%= (customer.companyName || customer.name || customer.customerId) %>')"
+                                                                                title="Delete Customer">
+                                                                                <i class="material-icons">delete</i>
+                                                                            </a>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <% }) %>
+                                                                        <% } else { %>
+                                                                            <tr>
+                                                                                <td colspan="11"
+                                                                                    class="center-align grey-text">
+                                                                                    No customers found matching your
+                                                                                    criteria
+                                                                                </td>
+                                                                            </tr>
+                                                                            <% } %>
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -225,19 +261,19 @@
                         </div>
 
                         <!-- Pagination -->
-                        <% if (pagination && pagination.pages > 1) { %>
+                        <% if (pagination && pagination.pages> 1) { %>
                             <div class="right-align mt-2">
                                 Page <%= pagination.page %> of <%= pagination.pages %> (Total: <%= pagination.total %>)
-                                <% if (pagination.page > 1) { %>
-                                    <a href="?page=<%= pagination.page - 1 %>&<%= new URLSearchParams(Object.assign({}, req.query, {page: pagination.page - 1})).toString() %>"
-                                        class="btn-flat">Prev</a>
-                                <% } %>
-                                <% if (pagination.page < pagination.pages) { %>
-                                    <a href="?page=<%= pagination.page + 1 %>&<%= new URLSearchParams(Object.assign({}, req.query, {page: pagination.page + 1})).toString() %>"
-                                        class="btn-flat">Next</a>
-                                <% } %>
+                                            <% if (pagination.page> 1) { %>
+                                                <a href="?page=<%= pagination.page - 1 %>&<%= new URLSearchParams(Object.assign({}, req.query, {page: pagination.page - 1})).toString() %>"
+                                                    class="btn-flat">Prev</a>
+                                                <% } %>
+                                                    <% if (pagination.page < pagination.pages) { %>
+                                                        <a href="?page=<%= pagination.page + 1 %>&<%= new URLSearchParams(Object.assign({}, req.query, {page: pagination.page + 1})).toString() %>"
+                                                            class="btn-flat">Next</a>
+                                                        <% } %>
                             </div>
-                        <% } %>
+                            <% } %>
                     </div>
                 </div>
             </div>
