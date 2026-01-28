@@ -1,9 +1,32 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('./orionplastic-396de-firebase-adminsdk-fbsvc-cd15cc7779.json');
+// const serviceAccount = require('./orionplastic-396de-firebase-adminsdk-fbsvc-cd15cc7779.json');
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+
+let serviceAccount;
+
+try {
+  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (!serviceAccountString) {
+    throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_JSON in environment variables');
+  }
+
+  // Parse the string back to object
+  serviceAccount = JSON.parse(serviceAccountString);
+  
+  console.log('Firebase Admin SDK initialized successfully from environment variable');
+} catch (err) {
+  console.error('Firebase initialization failed:', err.message);
+  // Optional: in production you can choose to continue or crash
+  // process.exit(1); // uncomment if you want the app to stop if config is missing
+}
+
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+
+
+// admin.initializeApp({
+//   credential: admin.credential.cert(serviceAccount)
+// });
 
 const messaging = admin.messaging();
 
