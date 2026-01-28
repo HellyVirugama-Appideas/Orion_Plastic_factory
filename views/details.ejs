@@ -76,9 +76,12 @@
                             <div class="col s12 m6 l6">
                                 <h5 class="breadcrumbs-title"><span>Driver Details</span></h5>
                             </div>
-                            <div class="col s12 m6 l6 right-align-md">
-                                <a class="btn gradient-45deg-purple-deep-orange pull-right btn-breadcrumbs modal-trigger"
-                                    href="#modal">Send Notification</a>
+                            <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                                <ol class="breadcrumbs mb-0">
+                                    <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                    <li class="breadcrumb-item active"><a href="/admin/drivers">Drivers</a></li>
+                                    <li class="breadcrumb-item active">View</li>
+                                </ol>
                             </div>
                         </div>
                     </div>
@@ -113,7 +116,7 @@
                                             </div>
                                         </div>
 
-                                        <!-- RIGHT SIDE: STATUS TOGGLE + ACTIONS -->
+                                        <!-- RIGHT SIDE: STATUS TOGGLES + ACTIONS -->
                                         <div class="col s12 m5" style="text-align: right;">
                                             <div class="commission-section"
                                                 style="display: flex; align-items: center; justify-content: flex-end; gap: 20px; flex-wrap: wrap;">
@@ -133,21 +136,42 @@
                                                     </label>
                                                 </div>
 
+                                                <!-- Block/Unblock Toggle -->
+                                                <div class="switch">
+                                                    <label>
+                                                        <span
+                                                            style="color: #f44336; font-weight: bold;">Unblocked</span>
+                                                        <input type="checkbox" <%=driver.blockStatus?.isBlocked
+                                                            ? 'checked' : '' %>
+                                                        onchange="toggleBlockStatus('<%= driver._id %>',
+                                                            this.checked)">
+                                                            <span class="lever"
+                                                                style="background-color: #f44336;"></span>
+                                                            <span
+                                                                style="color: #f44336; font-weight: bold;">Blocked</span>
+                                                    </label>
+                                                </div>
+
                                                 <!-- Current Profile Status Badge -->
                                                 <span class="badge <%= driver.profileStatus === 'approved' ? 'green white-text' : 
                                                               driver.profileStatus === 'rejected' ? 'red white-text' : 
                                                               'orange white-text' %>">
-                                                    <%= driver.profileStatus==='approved' ? 'APPROVED' :
-                                                        driver.profileStatus==='rejected' ? 'REJECTED' : 'PENDING' %>
+                                                    <%= driver.profileStatus.toUpperCase() %>
+                                                </span>
+
+                                                <!-- Current Block Status Badge -->
+                                                <span
+                                                    class="badge <%= driver.blockStatus?.isBlocked ? 'red white-text' : 'green white-text' %>">
+                                                    <%= driver.blockStatus?.isBlocked ? 'BLOCKED' : 'UNBLOCKED' %>
                                                 </span>
                                             </div>
 
                                             <!-- Action Buttons -->
                                             <div
                                                 style="margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
-                                                <a href="/admin/drivers/live-tracking/<%= driver._id %>"
+                                                <a href="/admin/drivers/logs/<%= driver._id %>"
                                                     class="btn-small indigo waves-effect waves-light">
-                                                    Live Tracking
+                                                    Driver Activity
                                                 </a>
                                                 <a href="/admin/drivers/edit/<%= driver._id %>"
                                                     class="btn-small blue waves-effect waves-light">
@@ -157,7 +181,6 @@
                                                     onclick="confirmDelete('<%= driver._id %>', '<%= driver.name %>')">
                                                     Delete
                                                 </a>
-
                                             </div>
                                         </div>
                                     </div>
@@ -217,6 +240,16 @@
                                                                               driver.profileStatus === 'rejected' ? 'red white-text' : 
                                                                               'orange white-text' %>">
                                                                     <%= driver.profileStatus.toUpperCase() %>
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Block Status</th>
+                                                            <td>
+                                                                <span
+                                                                    class="badge <%= driver.blockStatus?.isBlocked ? 'red white-text' : 'green white-text' %>">
+                                                                    <%= driver.blockStatus?.isBlocked ? 'BLOCKED'
+                                                                        : 'UNBLOCKED' %>
                                                                 </span>
                                                             </td>
                                                         </tr>
@@ -436,9 +469,80 @@
                             location.reload();
                         }
                     }
+
+                    function toggleBlockStatus(driverId, shouldBlock) {
+                        const action = shouldBlock ? 'block' : 'unblock';
+                        const message = shouldBlock
+                            ? "Are you sure you want to BLOCK this driver?"
+                            : "Are you sure you want to UNBLOCK this driver?";
+
+                        if (confirm(message)) {
+                            // For blocking: optionally ask for reason, but provide default
+                            let reason = "Blocked by admin";
+                            let requestBody = {};
+
+                            if (shouldBlock) {
+                                const userReason = prompt("Enter block reason (optional):");
+                                if (userReason && userReason.trim()) {
+                                    reason = userReason.trim();
+                                }
+
+                                requestBody = {
+                                    reason: reason,
+                                    blockType: "temporary"
+                                    // Date is automatically set on backend
+                                };
+                            } else {
+                                // Unblocking
+                                const notes = prompt("Enter unblock notes (optional):");
+                                requestBody = {
+                                    notes: notes && notes.trim() ? notes.trim() : "Unblocked by admin"
+                                };
+                            }
+
+                            // Show loading indicator
+                            const originalToggle = event.target;
+                            originalToggle.disabled = true;
+
+                            fetch(`/admin/drivers/${driverId}/${action}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                    // Cookies are sent automatically, no need for Authorization header
+                                },
+                                credentials: 'include', // Important: include cookies
+                                body: JSON.stringify(requestBody)
+                            })
+                                .then(response => {
+                                    console.log('Response status:', response.status);
+                                    return response.json().then(data => {
+                                        return { status: response.status, data: data };
+                                    });
+                                })
+                                .then(({ status, data }) => {
+                                    console.log('Response data:', data);
+
+                                    if (data.success || status === 200) {
+                                        alert('Driver ' + (shouldBlock ? 'blocked' : 'unblocked') + ' successfully!');
+                                        location.reload();
+                                    } else {
+                                        alert('Error: ' + (data.message || 'Operation failed'));
+                                        location.reload();
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error('Request error:', err);
+                                    alert('Request failed: ' + err.message);
+                                    location.reload();
+                                });
+                        } else {
+                            // User cancelled, reload to reset toggle
+                            location.reload();
+                        }
+                    }
+
                     function confirmDelete(driverId, driverName) {
                         if (confirm(`Are you sure you want to delete driver "${driverName}"? This action cannot be undone.`)) {
-                            // Create form and submit POST request
                             const form = document.createElement('form');
                             form.method = 'POST';
                             form.action = `/admin/drivers/delete/${driverId}`;

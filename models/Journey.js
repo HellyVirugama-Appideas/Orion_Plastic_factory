@@ -589,7 +589,7 @@ journeySchema.virtual('distanceFormatted').get(function () {
 
 // Methods
 journeySchema.methods.isActive = function () {
-  return ['started', 'in_progress'].includes(this.status);
+  return ['started', 'in_progress'].includes(this.status); 
 };
 
 journeySchema.methods.getCurrentDuration = function () {

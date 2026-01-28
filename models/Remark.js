@@ -61,13 +61,6 @@ const remarkSchema = new mongoose.Schema({
     default: 0
   },
   
-  // Icon or Color (for UI)
-  icon: String,
-  color: {
-    type: String,
-    default: '#666666'
-  },
-  
   // Usage Statistics
   usageCount: {
     type: Number,

@@ -125,15 +125,15 @@
                         </button>
                     </div>
 
-                    <!-- Driver Selection -->
+                    <!-- Driver Selection – FIXED -->
                     <div class="form-section card">
                         <h5 class="section-title">Assign / Change Driver</h5>
                         
-                        <div class="row">
+                        <div class="row" id="driversList">
                             <% drivers.forEach(driver => { %>
                                 <div class="col s12 m6 l4">
-                                    <div class="driver-card <%= driver._id.toString() === delivery.driverId?.toString() ? 'selected' : '' %>" 
-                                         onclick="selectDriver('<%= driver._id %>')">
+                                    <div class="driver-card <%= driver._id.toString() === (delivery.driverId ? delivery.driverId.toString() : '') ? 'selected' : '' %>" 
+                                         onclick="selectDriver('<%= driver._id.toString() %>', '<%= driver.name %>')">
                                         <div class="driver-info">
                                             <img src="<%= driver.profileImage || '/img/avatar.png' %>" 
                                                  alt="<%= driver.name %>" class="driver-avatar">
@@ -151,7 +151,17 @@
                             <% }) %>
                         </div>
 
-                        <input type="hidden" name="driverId" id="selectedDriverId" value="<%= delivery.driverId %>" required>
+                        <!-- Hidden field – ALWAYS string -->
+                        <input type="hidden" name="driverId" id="selectedDriverId" 
+                               value="<%= delivery.driverId ? delivery.driverId.toString() : '' %>" required>
+
+                        <!-- Display selected driver name -->
+                        <p class="mt-2">
+                            Selected Driver: 
+                            <strong id="selectedDriverName">
+                                <%= delivery.driverId ? delivery.driverId.name : 'None selected' %>
+                            </strong>
+                        </p>
                     </div>
 
                     <!-- Schedule -->
@@ -223,8 +233,8 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
-            pickupMarker = L.marker(pickupCoords, { icon: greenIcon }).addTo(map).bindPopup('Pickup');
-            deliveryMarker = L.marker(deliveryCoords, { icon: redIcon }).addTo(map).bindPopup('Delivery');
+            pickupMarker = L.marker(pickupCoords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41], iconAnchor: [12, 41] }) }).addTo(map).bindPopup('Pickup');
+            deliveryMarker = L.marker(deliveryCoords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41] }) }).addTo(map).bindPopup('Delivery');
 
             routeLine = L.polyline([pickupCoords, deliveryCoords], { color: '#2196F3', weight: 4 }).addTo(map);
             map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
@@ -233,7 +243,6 @@
             M.FormSelect.init(document.querySelectorAll('select'));
         });
 
-        // Add new waypoint
         function addWaypoint() {
             waypointCount++;
             const html = `
@@ -258,20 +267,36 @@
             M.FormSelect.init(document.querySelectorAll('select'));
         }
 
-        // Remove waypoint
         function removeWaypoint(id) {
             document.getElementById(`waypoint-${id}`).remove();
         }
 
-        // Driver selection
-        function selectDriver(driverId) {
+        // FIXED: Always ensure string + update display name
+        function selectDriver(driverId, driverName) {
+            const driverIdStr = driverId.toString(); // force string
+
             document.querySelectorAll('.driver-card').forEach(card => card.classList.remove('selected'));
             event.currentTarget.classList.add('selected');
-            document.getElementById('selectedDriverId').value = driverId;
+
+            document.getElementById('selectedDriverId').value = driverIdStr;
+            document.getElementById('selectedDriverName').textContent = driverName;
+
+            console.log("Driver selected:", { id: driverIdStr, name: driverName }); // browser console debug
         }
 
-        // Prepare waypoints JSON before submit
+        // Prepare waypoints JSON + validate driverId before submit
         document.getElementById('editDeliveryForm').addEventListener('submit', function(e) {
+            const driverIdValue = document.getElementById('selectedDriverId').value.trim();
+
+            console.log("Form submitting with driverId:", driverIdValue);
+
+            if (!driverIdValue || driverIdValue === '[object Object]' || driverIdValue.length !== 24) {
+                e.preventDefault();
+                M.toast({html: 'Please select a valid driver before saving', classes: 'red'});
+                return false;
+            }
+
+            // Waypoints JSON
             const waypoints = [];
             document.querySelectorAll('.waypoint-item').forEach((item, index) => {
                 const addressInput = item.querySelector('input[type="text"]');
@@ -285,16 +310,19 @@
                 }
             });
             document.getElementById('waypointsJSON').value = JSON.stringify(waypoints);
-
-            if (!document.getElementById('selectedDriverId').value) {
-                e.preventDefault();
-                M.toast({html: 'Please select a driver', classes: 'red'});
-            }
         });
 
-        // Leaflet icons (you can define them globally or here)
-        const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', ... });
-        const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', ... });
+        // Leaflet icons
+        const greenIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        });
+        const redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        });
     </script>
 </body>
 </html>

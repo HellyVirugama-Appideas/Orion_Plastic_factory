@@ -3,11 +3,11 @@
 // const {  protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 // const { checkPermission } = require('../../middleware/roleMiddleware');
 // const { createDelivery, assignDriver, assignMultipleDeliveries, getAllDeliveries, getDeliveryDetails, trackDelivery, renderCreateDelivery, captureHiddenScreenshot, renderDeliveriesList } = require('../../controllers/admin/deliveryAdminController');
- 
+
 // // Admin Routes
 // router.get('/',protectAdmin,isAdmin , renderDeliveriesList);
 // router.get('/deliveries_create',protectAdmin,isAdmin, renderCreateDelivery);
- 
+
 // router.post( 
 //   '/',  
 //   protectAdmin,
@@ -61,7 +61,7 @@
 // // )
 
 // module.exports = router;
- 
+
 // const express = require('express');
 // const router = express.Router();
 // const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
@@ -177,10 +177,159 @@
 
 // module.exports = router;
 
+// const express = require('express');
+// const router = express.Router();
+// const { protectAdmin, isAdmin, checkPermission } = require('../../middleware/authMiddleware');
+// const deliveryController = require('../../controllers/admin/deliveryAdminController');
+
+// // ============= PAGE ROUTES =============
+
+// // Deliveries list
+// router.get(
+//   '/',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'read'),
+//   deliveryController.renderDeliveriesList
+// );
+
+// // Create delivery from order page
+// router.get(
+//   '/create-from-order/:orderId',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'create'),
+//   deliveryController.renderCreateDeliveryFromOrder
+// );
+
+// // Delivery details with live tracking
+// router.get(
+//   '/:deliveryId',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'read'),
+//   deliveryController.renderDeliveryDetails
+// );
+
+// // Edit delivery page
+// router.get(
+//   "/:deliveryId/edit",
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'update'),
+//   deliveryController.renderEditDelivery
+// );
+
+// // ============= POST ACTIONS (Admin can only CANCEL, not start/complete) =============
+
+// // Create delivery from order
+// router.post(
+//   '/create-from-order/:orderId',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'create'),
+//   deliveryController.createDeliveryFromOrder
+// );
+
+// // Cancel delivery (ONLY action admin can do)
+// router.post(
+//   "/:deliveryId/cancel",
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'delete'),
+//   deliveryController.cancelDelivery
+// );
+
+// // Update delivery details
+// router.post(
+//   "/:deliveryId/update",
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'update'),
+//   deliveryController.updateDelivery
+// );
+
+// // Add remark to delivery
+// router.post(
+//   '/:deliveryId/remarks',
+//   protectAdmin,
+//   isAdmin,
+//   checkPermission('deliveries', 'update'),
+//   deliveryController.addDeliveryRemark
+// );
+
+// // ============= API ENDPOINTS =============
+
+// // Get driver's current location (for live tracking)
+// router.get(
+//   '/:deliveryId/driver-location',
+//   protectAdmin,
+//   isAdmin,
+//   deliveryController.getDriverCurrentLocation
+// );
+
+// router.get(
+//   '/drivers/location',
+//   protectAdmin,
+//   isAdmin,
+//   deliveryController.getAllDriverLocations
+// )
+
+// router.get(
+//   "/:driverId/location",
+//   protectAdmin,
+//   isAdmin,
+//   deliveryController.getSingleDriverLocation
+// )
+
+// router.get(
+//   "/locations/by-status",
+//   protectAdmin,
+//   isAdmin,
+//   deliveryController.getDriversByStatus
+// )
+
+// module.exports = router;
+
+
 const express = require('express');
 const router = express.Router();
 const { protectAdmin, isAdmin, checkPermission } = require('../../middleware/authMiddleware');
 const deliveryController = require('../../controllers/admin/deliveryAdminController');
+
+// ============= API ENDPOINTS (MUST COME FIRST TO AVOID CONFLICTS) =============
+
+// Get all driver locations for dashboard (SPECIFIC ROUTE FIRST)
+router.get(
+  '/api/drivers/locations',
+  protectAdmin,
+  isAdmin,
+  deliveryController.getAllDriverLocations
+);
+
+// Get drivers by status (SPECIFIC ROUTE)
+router.get(
+  '/api/drivers/locations/by-status',
+  protectAdmin,
+  isAdmin,
+  deliveryController.getDriversByStatus
+);
+
+// Get single driver location (SPECIFIC ROUTE WITH 'drivers' PREFIX)
+router.get(
+  '/api/drivers/:driverId/location',
+  protectAdmin,
+  isAdmin,
+  deliveryController.getSingleDriverLocation
+);
+
+// Get driver's current location for a specific delivery
+router.get(
+  '/:deliveryId/driver-location',
+  protectAdmin,
+  isAdmin,
+  deliveryController.getDriverCurrentLocation
+);
 
 // ============= PAGE ROUTES =============
 
@@ -193,7 +342,7 @@ router.get(
   deliveryController.renderDeliveriesList
 );
 
-// Create delivery from order page
+// Create delivery from order page (SPECIFIC ROUTE BEFORE DYNAMIC PARAM)
 router.get(
   '/create-from-order/:orderId',
   protectAdmin,
@@ -202,7 +351,16 @@ router.get(
   deliveryController.renderCreateDeliveryFromOrder
 );
 
-// Delivery details with live tracking
+// Edit delivery page (SPECIFIC ROUTE BEFORE DYNAMIC PARAM)
+router.get(
+  '/:deliveryId/edit',
+  protectAdmin,
+  isAdmin,
+  checkPermission('deliveries', 'update'),
+  deliveryController.renderEditDelivery
+);
+
+// Delivery details with live tracking (DYNAMIC PARAM LAST)
 router.get(
   '/:deliveryId',
   protectAdmin,
@@ -211,16 +369,7 @@ router.get(
   deliveryController.renderDeliveryDetails
 );
 
-// Edit delivery page
-router.get(
-  "/:deliveryId/edit",
-  protectAdmin,
-  isAdmin,
-  checkPermission('deliveries', 'update'),
-  deliveryController.renderEditDelivery
-);
-
-// ============= POST ACTIONS (Admin can only CANCEL, not start/complete) =============
+// ============= POST ACTIONS =============
 
 // Create delivery from order
 router.post(
@@ -231,9 +380,9 @@ router.post(
   deliveryController.createDeliveryFromOrder
 );
 
-// Cancel delivery (ONLY action admin can do)
+// Cancel delivery
 router.post(
-  "/:deliveryId/cancel",
+  '/:deliveryId/cancel',
   protectAdmin,
   isAdmin,
   checkPermission('deliveries', 'delete'),
@@ -242,7 +391,7 @@ router.post(
 
 // Update delivery details
 router.post(
-  "/:deliveryId/update",
+  '/:deliveryId/update',
   protectAdmin,
   isAdmin,
   checkPermission('deliveries', 'update'),
@@ -256,16 +405,6 @@ router.post(
   isAdmin,
   checkPermission('deliveries', 'update'),
   deliveryController.addDeliveryRemark
-);
-
-// ============= API ENDPOINTS =============
-
-// Get driver's current location (for live tracking)
-router.get(
-  '/:deliveryId/driver-location',
-  protectAdmin,
-  isAdmin,
-  deliveryController.getDriverCurrentLocation
 );
 
 module.exports = router;

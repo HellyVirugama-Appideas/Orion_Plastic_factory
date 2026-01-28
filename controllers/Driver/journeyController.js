@@ -643,7 +643,7 @@
 
 
 
-
+const mongoose = require("mongoose");
 const Journey = require('../../models/Journey');
 const Delivery = require('../../models/Delivery');
 const Driver = require('../../models/Driver');
@@ -651,8 +651,99 @@ const Remark = require("../../models/Remark")
 const DeliveryStatusHistory = require('../../models/DeliveryStatusHistory');
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
 const { calculateDistance } = require('../../utils/geoHelper');
+const { logDriverActivity } = require("../../utils/activityLogger")
+const axios = require("axios")
+
 
 // START JOURNEY 
+// exports.startJourney = async (req, res) => {
+//   try {
+//     const { deliveryId, latitude, longitude, address } = req.body;
+
+//     if (!deliveryId || latitude === undefined || longitude === undefined) {
+//       return errorResponse(res, 'deliveryId, latitude and longitude are required', 400);
+//     }
+
+//     const driver = req.user;
+
+//     if (!driver) {
+//       return errorResponse(res, 'Driver not authenticated', 401);
+//     }
+
+//     // Verify delivery assigned to this driver
+//     const delivery = await Delivery.findOne({
+//       _id: deliveryId,
+//       driverId: driver._id,
+//       status: 'assigned'
+//     });
+
+//     if (!delivery) {
+//       return errorResponse(res, 'Delivery not found or not assigned to you', 404);
+//     }
+
+//     // Check if journey already exists
+//     const existingJourney = await Journey.findOne({
+//       deliveryId,
+//       status: { $in: ['started', 'in_progress'] }
+//     });
+
+//     if (existingJourney) {
+//       return errorResponse(res, 'Journey already started', 400);
+//     }
+
+//     // Create Journey
+//     const journey = await Journey.create({
+//       deliveryId,
+//       driverId: driver._id,
+//       startLocation: {
+//         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//         address: address || 'Location captured via GPS'
+//       },
+//       startTime: new Date(),
+//       status: 'started'
+//     });
+
+//     // Update Delivery Status to picked_up
+//     delivery.status = 'picked_up';
+//     delivery.actualPickupTime = new Date();
+//     await delivery.save();
+
+//     // Delivery Status History
+//     await DeliveryStatusHistory.create({
+//       deliveryId: delivery._id,
+//       status: 'picked_up',
+//       location: {
+//         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//         address: address || 'GPS Location'
+//       },
+//       remarks: 'Driver started journey - Package picked up',
+//       updatedBy: {
+//         userId: driver._id,
+//         userRole: 'driver',
+//         userName: driver.name
+//       }
+//     });
+
+//     // Update driver status
+//     await Driver.findByIdAndUpdate(driver._id, {
+//       isAvailable: false,
+//       currentJourney: journey._id,
+//       activeDelivery: delivery._id
+//     });
+
+//     return successResponse(res, 'Journey started successfully! Package picked up.', {
+//       journeyId: journey._id,
+//       deliveryStatus: delivery.status,
+//       trackingNumber: delivery.trackingNumber,
+//       pickupTime: delivery.actualPickupTime
+//     }, 201);
+
+//   } catch (error) {
+//     console.error('Start Journey Error:', error.message);
+//     return errorResponse(res, error.message || 'Failed to start journey', 500);
+//   }
+// };
+
 exports.startJourney = async (req, res) => {
   try {
     const { deliveryId, latitude, longitude, address } = req.body;
@@ -700,7 +791,6 @@ exports.startJourney = async (req, res) => {
       status: 'started'
     });
 
-    // Update Delivery Status to picked_up
     delivery.status = 'picked_up';
     delivery.actualPickupTime = new Date();
     await delivery.save();
@@ -728,6 +818,30 @@ exports.startJourney = async (req, res) => {
       activeDelivery: delivery._id
     });
 
+    // ────────────────── DRIVER ACTIVITY LOGGING ──────────────────
+    try {
+      await logDriverActivity(
+        driver._id,
+        'JOURNEY_STARTED',
+        {
+          journeyId: journey._id.toString(),
+          deliveryId: delivery._id.toString(),
+          trackingNumber: delivery.trackingNumber || 'N/A',
+          vehicleId: driver.vehicle ? driver.vehicle.toString() : null,
+          startLocation: {
+            latitude: Number(latitude),
+            longitude: Number(longitude),
+            address: address || 'GPS captured'
+          },
+          startTime: new Date().toISOString()
+        },
+        req  // for IP, user-agent etc
+      );
+    } catch (logError) {
+      console.error('Failed to log JOURNEY_STARTED activity:', logError.message);
+    }
+    // ─────────────────────────────────────────────────────────────
+
     return successResponse(res, 'Journey started successfully! Package picked up.', {
       journeyId: journey._id,
       deliveryStatus: delivery.status,
@@ -740,6 +854,7 @@ exports.startJourney = async (req, res) => {
     return errorResponse(res, error.message || 'Failed to start journey', 500);
   }
 };
+
 
 // ADD CHECKPOINT 
 exports.addCheckpoint = async (req, res) => {
@@ -1140,15 +1255,18 @@ exports.initiateWhatsApp = async (req, res) => {
   }
 };
 
-//  GET NAVIGATION 
 // exports.getNavigation = async (req, res) => {
 //   try {
 //     const { journeyId } = req.params;
-//     const { currentLatitude, currentLongitude, navigationType } = req.query;
+//     const { currentLatitude, currentLongitude } = req.query;
 
 //     const driver = req.user;
+
 //     const journey = await Journey.findById(journeyId)
-//       .populate('deliveryId', 'deliveryLocation recipientName recipientPhone');
+//       .populate({
+//         path: 'deliveryId',
+//         select: 'deliveryLocation recipientName recipientPhone'
+//       });
 
 //     if (!journey) {
 //       return errorResponse(res, 'Journey not found', 404);
@@ -1156,6 +1274,10 @@ exports.initiateWhatsApp = async (req, res) => {
 
 //     if (journey.driverId.toString() !== driver._id.toString()) {
 //       return errorResponse(res, 'Unauthorized', 403);
+//     }
+
+//     if (!journey.isActive()) {
+//       return errorResponse(res, 'Journey is not active', 400);
 //     }
 
 //     const delivery = journey.deliveryId;
@@ -1168,64 +1290,231 @@ exports.initiateWhatsApp = async (req, res) => {
 //     const destLat = destination.coordinates.latitude;
 //     const destLng = destination.coordinates.longitude;
 
-//     // Calculate distance if current location provided
-//     let estimatedDistance = null;
-//     let estimatedDuration = null;
+//     // Default values
+//     let distance = null;
+//     let duration = null;
+//     let routePolyline = null; // for drawing route on map
 
+//     // If current location provided, calculate real distance using Google Directions API
 //     if (currentLatitude && currentLongitude) {
-//       estimatedDistance = calculateDistance(
-//         parseFloat(currentLatitude),
-//         parseFloat(currentLongitude),
-//         destLat,
-//         destLng
-//       );
-//       // Rough estimate: 40 km/h average speed
-//       estimatedDuration = Math.round((estimatedDistance / 40) * 60); // in minutes
+//       const origin = `${currentLatitude},${currentLongitude}`;
+//       const destinationCoord = `${destLat},${destLng}`;
+
+//       try {
+//         const directionsResponse = await axios.get(
+//           `https://maps.googleapis.com/maps/api/directions/json`,
+//           {
+//             params: {
+//               origin,
+//               destination: destinationCoord,
+//               key: process.env.GOOGLE_MAPS_API_KEY,
+//               mode: 'driving',
+//               traffic_model: 'best_guess',
+//               departure_time: 'now'
+//             }
+//           }
+//         );
+
+//         const route = directionsResponse.data.routes[0];
+//         if (route) {
+//           const leg = route.legs[0];
+//           distance = leg.distance.value / 1000; // meters to km
+//           duration = Math.round(leg.duration_in_traffic?.value / 60) || Math.round(leg.duration.value / 60); // minutes
+
+//           // Polyline for drawing route on map
+//           routePolyline = route.overview_polyline.points;
+//         }
+//       } catch (apiError) {
+//         console.error('Google Directions API Error:', apiError.message);
+//         // Fallback to Haversine if API fails
+//         distance = calculateDistance(
+//           parseFloat(currentLatitude),
+//           parseFloat(currentLongitude),
+//           destLat,
+//           destLng
+//         );
+//         duration = Math.round((distance / 40) * 60); // rough estimate
+//       }
 //     }
 
-//     // Generate navigation URLs
-//     const navigationUrls = {
-//       googleMaps: `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`,
-//       appleMaps: `http://maps.apple.com/?daddr=${destLat},${destLng}&dirflg=d`,
-//       waze: `https://waze.com/ul?ll=${destLat},${destLng}&navigate=yes`
-//     };
-
-//     // Log navigation history
+//     // Log navigation
 //     const navLog = {
 //       destination: {
-//         address: destination.address,
-//         coordinates: {
-//           latitude: destLat,
-//           longitude: destLng
-//         }
+//         address: destination.address || 'Unknown',
+//         coordinates: { latitude: destLat, longitude: destLng }
 //       },
 //       startedAt: new Date(),
-//       navigationApp: navigationType || 'google_maps',
-//       estimatedDistance,
-//       estimatedDuration
+//       estimatedDistance: distance,
+//       estimatedDuration: duration
 //     };
 
 //     journey.navigationHistory.push(navLog);
 //     await journey.save();
 
-//     return successResponse(res, 'Navigation details retrieved', {
+//     return successResponse(res, 'Navigation data ready for in-app map', {
 //       destination: {
-//         address: destination.address,
+//         address: destination.address || 'Unknown Address',
 //         coordinates: { latitude: destLat, longitude: destLng },
-//         recipientName: delivery.recipientName,
-//         recipientPhone: delivery.recipientPhone
+//         recipientName: delivery.recipientName || 'Customer',
+//         recipientPhone: delivery.recipientPhone || null
 //       },
-//       navigation: navigationUrls,
-//       estimatedDistance: estimatedDistance ? `${estimatedDistance.toFixed(2)} km` : 'N/A',
-//       estimatedDuration: estimatedDuration ? `${estimatedDuration} mins` : 'N/A',
+//       driverCurrentLocation: currentLatitude && currentLongitude ? {
+//         latitude: parseFloat(currentLatitude),
+//         longitude: parseFloat(currentLongitude)
+//       } : null,
+//       distance: distance ? `${distance.toFixed(2)} km` : 'N/A',
+//       duration: duration ? `${duration} mins` : 'N/A',
+//       routePolyline: routePolyline || null, // frontend map pe route draw karega
 //       navigationHistoryId: journey.navigationHistory[journey.navigationHistory.length - 1]._id
 //     });
 
 //   } catch (error) {
-//     console.error('Get Navigation Error:', error.message);
-//     return errorResponse(res, error.message || 'Failed to get navigation', 500);
+//     console.error('Get Navigation Error:', error);
+//     return errorResponse(res, 'Failed to get navigation data', 500);
 //   }
 // };
+
+//  UPLOAD RECORDING/SCREENSHOT 
+
+// exports.getNavigation = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { currentLatitude, currentLongitude } = req.query;
+
+//     const driver = req.user; // this is your logged-in driver/salesman
+
+//     const journey = await Journey.findById(journeyId)
+//       .populate({
+//         path: 'deliveryId',
+//         select: 'deliveryLocation recipientName recipientPhone deliveryNumber companyName' // ← add deliveryNumber & companyName if they exist in your Delivery model
+//       });
+
+//     if (!journey) {
+//       return errorResponse(res, 'Journey not found', 404);
+//     }
+
+//     if (journey.driverId.toString() !== driver._id.toString()) {
+//       return errorResponse(res, 'Unauthorized', 403);
+//     }
+
+//     if (!journey.isActive()) {
+//       return errorResponse(res, 'Journey is not active', 400);
+//     }
+
+//     const delivery = journey.deliveryId;
+//     const destination = delivery.deliveryLocation;
+
+//     if (!destination || !destination.coordinates) {
+//       return errorResponse(res, 'Delivery location not available', 400);
+//     }
+
+//     const destLat  = destination.coordinates.latitude;
+//     const destLng  = destination.coordinates.longitude;
+
+//     let distance = null;
+//     let duration = null;           // in minutes
+//     let routePolyline = null;
+
+//     if (currentLatitude && currentLongitude) {
+//       const origin = `${currentLatitude},${currentLongitude}`;
+//       const destinationCoord = `${destLat},${destLng}`;
+
+//       try {
+//         const directionsResponse = await axios.get(
+//           `https://maps.googleapis.com/maps/api/directions/json`,
+//           {
+//             params: {
+//               origin,
+//               destination: destinationCoord,
+//               key: process.env.GOOGLE_MAPS_API_KEY,
+//               mode: 'driving',
+//               traffic_model: 'best_guess',
+//               departure_time: 'now'
+//             }
+//           }
+//         );
+
+//         const route = directionsResponse.data.routes[0];
+//         if (route) {
+//           const leg = route.legs[0];
+//           distance     = leg.distance.value / 1000; // km
+//           duration     = Math.round((leg.duration_in_traffic?.value || leg.duration.value) / 60); // minutes
+//           routePolyline = route.overview_polyline.points; // encoded polyline string
+//         }
+//       } catch (apiError) {
+//         console.error('Google Directions API Error:', apiError.message);
+//         distance = calculateDistance(
+//           parseFloat(currentLatitude),
+//           parseFloat(currentLongitude),
+//           destLat,
+//           destLng
+//         );
+//         duration = Math.round((distance / 40) * 60); // rough 40km/h avg
+//       }
+//     }
+
+//     // Log navigation
+//     const navLog = {
+//       destination: {
+//         address: destination.address || 'Unknown',
+//         coordinates: { latitude: destLat, longitude: destLng }
+//       },
+//       startedAt: new Date(),
+//       estimatedDistance: distance,
+//       estimatedDuration: duration
+//     };
+
+//     journey.navigationHistory.push(navLog);
+//     await journey.save();
+
+//     // Final response – added fields to match screenshot
+//     return successResponse(res, 'Navigation data ready for in-app map', {
+//       // ── Map & Route ───────────────────────────────────────
+//       currentLocation: currentLatitude && currentLongitude ? {
+//         latitude: parseFloat(currentLatitude),
+//         longitude: parseFloat(currentLongitude)
+//       } : null,
+//       destination: {
+//         address: destination.address || 'Unknown Address',
+//         coordinates: { latitude: destLat, longitude: destLng }
+//       },
+//       routePolyline: routePolyline || null,           // frontend decodes & draws pink line
+//       distance: distance ? `${distance.toFixed(2)} km` : 'N/A',
+//       durationMinutes: duration || null,              // used for "Max ETA xx Mins"
+
+//       // ── Stop / Delivery Info (like screenshot) ────────────
+//       currentStop: {
+//         number: 1,                                    // hardcoded or journey.stopIndex || 1
+//         deliveryNumber: delivery.deliveryNumber || 'DN-XXXXXX', // ← add this field in Delivery model if not present
+//         companyName: delivery.companyName || 'Acme Corporation', // ← add if you have it
+//         address: destination.address || 'Unknown',
+//         eta: duration ? `${duration} Mins` : 'N/A',   // or "Max ETA"
+//         status: 'In Transit'                          // you can make dynamic later
+//       },
+
+//       // ── Customer Info ─────────────────────────────────────
+//       customer: {
+//         name: delivery.recipientName || 'Customer',
+//         phone: delivery.recipientPhone || null,
+//         // whatsapp: delivery.recipientPhone ? `https://wa.me/${delivery.recipientPhone}` : null
+//       },
+
+//       // ── Salesman / Driver Info (logged in user) ───────────
+//       salesman: {
+//         name: driver.name || driver.fullName || 'Salesman', // adjust according to your User model
+//         phone: driver.phone || null
+//       },
+
+//       // optional – if you want to show navigation log id
+//       navigationHistoryId: journey.navigationHistory[journey.navigationHistory.length - 1]._id
+//     });
+
+//   } catch (error) {
+//     console.error('Get Navigation Error:', error);
+//     return errorResponse(res, 'Failed to get navigation data', 500);
+//   }
+// };
+
 
 exports.getNavigation = async (req, res) => {
   try {
@@ -1237,7 +1526,11 @@ exports.getNavigation = async (req, res) => {
     const journey = await Journey.findById(journeyId)
       .populate({
         path: 'deliveryId',
-        select: 'deliveryLocation recipientName recipientPhone'
+        select: 'deliveryLocation deliveryNumber companyName address customerId pickupLocation deliveryLocation recipientName recipientPhone',
+        populate: {
+          path: 'customerId',   
+          select: 'name fullName firstName lastName phone mobile number'  
+        }
       });
 
     if (!journey) {
@@ -1245,7 +1538,7 @@ exports.getNavigation = async (req, res) => {
     }
 
     if (journey.driverId.toString() !== driver._id.toString()) {
-      return errorResponse(res, 'Unauthorized', 403);
+      return errorResponse(res, 'Unauthorized access', 403);
     }
 
     if (!journey.isActive()) {
@@ -1256,25 +1549,28 @@ exports.getNavigation = async (req, res) => {
     const destination = delivery.deliveryLocation;
 
     if (!destination || !destination.coordinates) {
-      return errorResponse(res, 'Delivery location not available', 400);
+      return errorResponse(res, 'Delivery location coordinates not available', 400);
     }
 
     const destLat = destination.coordinates.latitude;
     const destLng = destination.coordinates.longitude;
 
-    // Default values
+    // ──────────────────────────────────────────────────────────────
+    // Google Directions part (unchanged from your latest version)
+    // ──────────────────────────────────────────────────────────────
     let distance = null;
     let duration = null;
-    let routePolyline = null; // for drawing route on map
+    let routePolyline = null;
 
-    // If current location provided, calculate real distance using Google Directions API
-    if (currentLatitude && currentLongitude) {
-      const origin = `${currentLatitude},${currentLongitude}`;
+    if (currentLatitude && currentLongitude && !isNaN(currentLatitude) && !isNaN(currentLongitude)) {
+      const origin = `${currentLatitude.trim()},${currentLongitude.trim()}`;
       const destinationCoord = `${destLat},${destLng}`;
+
+      console.log(`[Navigation] Requesting Google: ${origin} → ${destinationCoord}`);
 
       try {
         const directionsResponse = await axios.get(
-          `https://maps.googleapis.com/maps/api/directions/json`,
+          'https://maps.googleapis.com/maps/api/directions/json',
           {
             params: {
               origin,
@@ -1287,66 +1583,108 @@ exports.getNavigation = async (req, res) => {
           }
         );
 
-        const route = directionsResponse.data.routes[0];
-        if (route) {
-          const leg = route.legs[0];
-          distance = leg.distance.value / 1000; // meters to km
-          duration = Math.round(leg.duration_in_traffic?.value / 60) || Math.round(leg.duration.value / 60); // minutes
+        const apiData = directionsResponse.data;
+        console.log('[Navigation] Status:', apiData.status);
 
-          // Polyline for drawing route on map
-          routePolyline = route.overview_polyline.points;
+        if (apiData.status === 'OK' && apiData.routes?.length > 0) {
+          const leg = apiData.routes[0].legs[0];
+          distance = leg.distance?.value ? leg.distance.value / 1000 : null;
+          duration = leg.duration_in_traffic?.value
+            ? Math.round(leg.duration_in_traffic.value / 60)
+            : (leg.duration?.value ? Math.round(leg.duration.value / 60) : null);
+          routePolyline = apiData.routes[0].overview_polyline?.points || null;
+
+          console.log(`[Navigation] Success → ${distance?.toFixed(1)} km | ${duration} min`);
         }
       } catch (apiError) {
-        console.error('Google Directions API Error:', apiError.message);
-        // Fallback to Haversine if API fails
-        distance = calculateDistance(
-          parseFloat(currentLatitude),
-          parseFloat(currentLongitude),
-          destLat,
-          destLng
-        );
-        duration = Math.round((distance / 40) * 60); // rough estimate
+        console.error('[Navigation] Google API failed:', apiError.message);
       }
+    } else {
+      console.warn('[Navigation] No current location provided');
     }
 
     // Log navigation
     const navLog = {
-      destination: {
-        address: destination.address || 'Unknown',
-        coordinates: { latitude: destLat, longitude: destLng }
-      },
+      destination: { address: destination.address || 'Unknown', coordinates: { latitude: destLat, longitude: destLng } },
       startedAt: new Date(),
       estimatedDistance: distance,
-      estimatedDuration: duration
+      estimatedDuration: duration,
+      usedGoogle: !!routePolyline
     };
 
     journey.navigationHistory.push(navLog);
     await journey.save();
 
-    return successResponse(res, 'Navigation data ready for in-app map', {
-      destination: {
-        address: destination.address || 'Unknown Address',
-        coordinates: { latitude: destLat, longitude: destLng },
-        recipientName: delivery.recipientName || 'Customer',
-        recipientPhone: delivery.recipientPhone || null
-      },
-      driverCurrentLocation: currentLatitude && currentLongitude ? {
+    // ──────────────────────────────────────────────────────────────
+    // Customer from populated customerId
+    // ──────────────────────────────────────────────────────────────
+    const customerDoc = delivery.customerId;
+
+    const customerName = customerDoc
+      ? (customerDoc.name ||
+         customerDoc.fullName ||
+         [customerDoc.firstName, customerDoc.lastName].filter(Boolean).join(' ').trim() ||
+         'Unknown Customer')
+      : 'Unknown Customer';
+
+    const customerPhone = customerDoc?.phone || customerDoc?.mobile || customerDoc?.number || null;
+
+    // Salesman / Driver
+    const salesmanName = driver.name ||
+                        driver.fullName ||
+                        [driver.firstName, driver.lastName].filter(Boolean).join(' ').trim() ||
+                        driver.username ||
+                        'Salesman';
+
+    const salesmanPhone = driver.phone || driver.mobile || null;
+
+    // Response
+    return successResponse(res, 'Navigation data ready', {
+      currentLocation: currentLatitude && currentLongitude ? {
         latitude: parseFloat(currentLatitude),
         longitude: parseFloat(currentLongitude)
       } : null,
-      distance: distance ? `${distance.toFixed(2)} km` : 'N/A',
-      duration: duration ? `${duration} mins` : 'N/A',
-      routePolyline: routePolyline || null, // frontend map pe route draw karega
-      navigationHistoryId: journey.navigationHistory[journey.navigationHistory.length - 1]._id
+
+      destination: {
+        address: destination.address || 'Unknown Address',
+        coordinates: { latitude: destLat, longitude: destLng }
+      },
+
+      routePolyline: routePolyline || null,
+
+      distance: distance ? `${distance.toFixed(1)} km` : 'Calculating...',
+      durationMinutes: duration,
+      estimatedTime: duration ? `${duration} mins` : 'N/A',
+
+      currentStop: {
+        number: 1,
+        deliveryNumber: delivery.deliveryNumber || delivery.trackingNumber || 'N/A',
+        companyName: delivery.companyName || customerName || 'Customer',
+        address: destination.address || 'Address not available',
+        eta: duration ? `${duration} Mins` : 'N/A',
+        status: 'In Transit'
+      },
+
+      customer: {
+        name: customerName,
+        phone: customerPhone
+      },
+
+      salesman: {
+        name: salesmanName,
+        phone: salesmanPhone
+      },
+
+      navigationHistoryId: journey.navigationHistory[journey.navigationHistory.length - 1]._id,
+      isGoogleData: !!routePolyline
     });
 
   } catch (error) {
     console.error('Get Navigation Error:', error);
-    return errorResponse(res, 'Failed to get navigation data', 500);
+    return errorResponse(res, 'Failed to fetch navigation data', 500);
   }
-};
+};;
 
-//  UPLOAD RECORDING/SCREENSHOT 
 exports.uploadRecording = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -1455,18 +1793,100 @@ exports.getCommunicationHistory = async (req, res) => {
     console.error('Get Communication History Error:', error.message);
     return errorResponse(res, error.message || 'Failed to get communication history', 500);
   }
-}; 
+};
 
-//  UPLOAD SIGNATURE  
+
+// exports.uploadProofSignature = async (req, res) => {
+//   try {
+//     const { deliveryId } = req.params;
+
+//     if (!req.file) {
+//       return errorResponse(res, 'Signature image is required', 400);
+//     }
+
+//     const delivery = await Delivery.findById(deliveryId)
+//       .populate({
+//         path: 'journeyId',
+//         select: 'deliveryProof status'
+//       });
+
+//     if (!delivery) {
+//       return errorResponse(res, 'Delivery not found', 404);
+//     }
+
+//     if (delivery.driverId.toString() !== req.user._id.toString()) {
+//       return errorResponse(res, 'Unauthorized: You are not assigned to this delivery', 403);
+//     } 
+
+//     const validStatuses = ['picked_up', 'in_transit', 'arrived'];
+//     if (!validStatuses.includes(delivery.status)) {
+//       return errorResponse(res, `Delivery not in valid state for signature. Current status: ${delivery.status}`, 400);
+//     }
+
+//     const signatureUrl = `/uploads/signatures/${req.file.filename}`;
+
+//     delivery.deliveryProof = delivery.deliveryProof || {};
+//     delivery.deliveryProof.signature = signatureUrl;
+//     delivery.deliveryProof.signedBy = customerName || delivery.recipientName || 'Customer';
+//     delivery.deliveryProof.signedAt = new Date();
+//     delivery.deliveryProof.customerPhone = customerPhone || delivery.recipientPhone;
+
+//     if (latitude && longitude) {
+//       delivery.deliveryProof.location = {
+//         latitude: Number(latitude),
+//         longitude: Number(longitude)
+//       };
+//     }
+
+//     delivery.status = 'delivered';
+
+//     await delivery.save();
+
+//     if (delivery.journeyId) {
+//       delivery.journeyId.deliveryProof = delivery.journeyId.deliveryProof || {};
+//       delivery.journeyId.deliveryProof.signature = signatureUrl;
+//       delivery.journeyId.deliveryProof.signedBy = delivery.deliveryProof.signedBy;
+//       delivery.journeyId.deliveryProof.signedAt = new Date();
+//       delivery.journeyId.deliveryProof.customerPhone = delivery.deliveryProof.customerPhone;
+
+//       if (latitude && longitude) {
+//         delivery.journeyId.deliveryProof.location = {
+//           latitude: Number(latitude),
+//           longitude: Number(longitude)
+//         };
+//       }
+
+//       delivery.journeyId.status = 'signature_obtained';
+
+//       await delivery.journeyId.save();
+//     }
+
+//     return successResponse(res, 'Customer signature uploaded successfully!', {
+//       signatureUrl,
+//       deliveryStatus: delivery.status,
+//       // journeyStatus: delivery.journeyId ? delivery.journeyId.status : null,
+//       nextStep: 'upload-proof-photos',
+//       message: 'Signature saved. Now please upload delivery proof photos.'
+//     });
+
+//   } catch (error) {
+//     console.error('Upload Signature Error:', error);
+//     return errorResponse(res, 'Failed to upload signature', 500);
+//   }
+// };
+
+// UPLOAD SIGNATURE - only deliveryId + signature image required
+
 exports.uploadProofSignature = async (req, res) => {
   try {
     const { deliveryId } = req.params;
-    const { customerName, customerPhone, latitude, longitude } = req.body;
 
+    // 1. Check if file is uploaded
     if (!req.file) {
       return errorResponse(res, 'Signature image is required', 400);
     }
 
+    // 2. Find delivery
     const delivery = await Delivery.findById(deliveryId)
       .populate({
         path: 'journeyId',
@@ -1477,57 +1897,42 @@ exports.uploadProofSignature = async (req, res) => {
       return errorResponse(res, 'Delivery not found', 404);
     }
 
+    // 3. Authorization check
     if (delivery.driverId.toString() !== req.user._id.toString()) {
       return errorResponse(res, 'Unauthorized: You are not assigned to this delivery', 403);
     }
 
+    // 4. Validate current delivery status
     const validStatuses = ['picked_up', 'in_transit', 'arrived'];
     if (!validStatuses.includes(delivery.status)) {
       return errorResponse(res, `Delivery not in valid state for signature. Current status: ${delivery.status}`, 400);
     }
 
+    // 5. Save signature URL
     const signatureUrl = `/uploads/signatures/${req.file.filename}`;
 
+    // 6. Update Delivery
     delivery.deliveryProof = delivery.deliveryProof || {};
     delivery.deliveryProof.signature = signatureUrl;
-    delivery.deliveryProof.signedBy = customerName || delivery.recipientName || 'Customer';
     delivery.deliveryProof.signedAt = new Date();
-    delivery.deliveryProof.customerPhone = customerPhone || delivery.recipientPhone;
-
-    if (latitude && longitude) {
-      delivery.deliveryProof.location = {
-        latitude: Number(latitude),
-        longitude: Number(longitude)
-      };
-    }
-
     delivery.status = 'delivered';
 
     await delivery.save();
 
+    // 7. Sync to Journey (if exists)
     if (delivery.journeyId) {
       delivery.journeyId.deliveryProof = delivery.journeyId.deliveryProof || {};
       delivery.journeyId.deliveryProof.signature = signatureUrl;
-      delivery.journeyId.deliveryProof.signedBy = delivery.deliveryProof.signedBy;
       delivery.journeyId.deliveryProof.signedAt = new Date();
-      delivery.journeyId.deliveryProof.customerPhone = delivery.deliveryProof.customerPhone;
-
-      if (latitude && longitude) {
-        delivery.journeyId.deliveryProof.location = {
-          latitude: Number(latitude),
-          longitude: Number(longitude)
-        };
-      }
-
       delivery.journeyId.status = 'signature_obtained';
 
       await delivery.journeyId.save();
     }
 
+    // 8. Success response
     return successResponse(res, 'Customer signature uploaded successfully!', {
       signatureUrl,
       deliveryStatus: delivery.status,
-      // journeyStatus: delivery.journeyId ? delivery.journeyId.status : null,
       nextStep: 'upload-proof-photos',
       message: 'Signature saved. Now please upload delivery proof photos.'
     });
@@ -1538,13 +1943,28 @@ exports.uploadProofSignature = async (req, res) => {
   }
 };
 
-//  upload proof-photos
+
+// upload proof-photos (Delivery Proof Photo Capture)
 exports.uploadProofPhotos = async (req, res) => {
   try {
     const { deliveryId } = req.params;
 
+    // ─── Fields from frontend ───
+    const {
+      recipientName,
+      mobileNumber,
+      remarks = '',           // optional remark text from driver
+    } = req.body;
+
     if (!req.files || req.files.length === 0) {
       return errorResponse(res, 'At least one proof photo is required', 400);
+    }
+
+    if (!recipientName?.trim()) {
+      return errorResponse(res, 'Recipient name is required', 400);
+    }
+    if (!mobileNumber?.trim()) {
+      return errorResponse(res, 'Mobile number is required', 400);
     }
 
     const delivery = await Delivery.findById(deliveryId);
@@ -1560,22 +1980,71 @@ exports.uploadProofPhotos = async (req, res) => {
 
     const photoUrls = req.files.map(file => `/uploads/proof/${file.filename}`);
 
+    // ─── Update Delivery Proof ───
     delivery.deliveryProof = delivery.deliveryProof || {};
     delivery.deliveryProof.photos = photoUrls;
     delivery.deliveryProof.photosTakenAt = new Date();
+    delivery.deliveryProof.recipientName = recipientName.trim();
+    delivery.deliveryProof.mobileNumber = mobileNumber.trim();
+
+    // ─── Handle Remarks – Store in Remark collection (like driver custom remark) ───
+    let savedRemark = null;
+    if (remarks?.trim()) {
+      const remarkText = remarks.trim();
+
+      // Create new custom remark document
+      const newRemark = new Remark({
+        remarkType: 'custom',
+        remarkText: remarkText,
+        category: 'delivery_status',          // or 'other' — you can make this dynamic
+        severity: 'medium',                   // default or make dynamic
+        isPredefined: false,
+        isActive: true,
+        createdBy: req.user._id,              // driver who added it
+        approvalStatus: 'approved',           // or 'pending' if you want admin approval
+        requiresApproval: false,
+        usageCount: 1,
+        lastUsedAt: new Date(),
+        associatedDeliveries: [delivery._id]  // link to this delivery
+      });
+
+      savedRemark = await newRemark.save();
+
+      // Also save reference or text in deliveryProof for quick access
+      delivery.deliveryProof.remarks = remarkText;
+      delivery.deliveryProof.remarkId = savedRemark._id; // optional: store remark ID
+    }
 
     await delivery.save();
 
-    // Update journey
+    // ─── Sync to Journey ───
     if (delivery.journeyId) {
+      delivery.journeyId.deliveryProof = delivery.journeyId.deliveryProof || {};
       delivery.journeyId.deliveryProof.photos = photoUrls;
+      delivery.journeyId.deliveryProof.photosTakenAt = new Date();
+      delivery.journeyId.deliveryProof.recipientName = delivery.deliveryProof.recipientName;
+      delivery.journeyId.deliveryProof.mobileNumber = delivery.deliveryProof.mobileNumber;
+
+      if (delivery.deliveryProof.remarks) {
+        delivery.journeyId.deliveryProof.remarks = delivery.deliveryProof.remarks;
+      }
+      if (delivery.deliveryProof.remarkId) {
+        delivery.journeyId.deliveryProof.remarkId = delivery.deliveryProof.remarkId;
+      }
+
       await delivery.journeyId.save();
     }
 
+    // ─── Success Response ───
     return successResponse(res, 'Proof photos uploaded successfully!', {
       photoUrls,
+      recipientName: delivery.deliveryProof.recipientName,
+      mobileNumber: delivery.deliveryProof.mobileNumber,
+      remarks: delivery.deliveryProof.remarks || null,
+      remarkId: delivery.deliveryProof.remarkId || null, // if you want to show ID
+      deliveryStatus: delivery.status,
       nextStep: 'complete-delivery',
-      message: 'All proofs collected. Ready to complete delivery!'
+      message: 'Proof photos & details saved. Ready to complete delivery!'
     });
 
   } catch (error) {
@@ -1584,76 +2053,8 @@ exports.uploadProofPhotos = async (req, res) => {
   }
 };
 
-// POST /api/journey/:journeyId/complete-delivery
-// exports.completeDelivery = async (req, res) => {
-//   try {
-//     const { journeyId } = req.params;
-//     const { latitude, longitude, finalRemarks, verificationMethod = 'signature' } = req.body;
 
-//     if (!latitude || !longitude) {
-//       return errorResponse(res, 'Location is required to complete delivery', 400);
-//     }
-
-//     const journey = await Journey.findById(journeyId)
-//       .populate('deliveryId');
-
-//     if (!journey) return errorResponse(res, 'Journey not found', 404);
-
-//     if (journey.driverId.toString() !== req.user._id.toString()) {
-//       return errorResponse(res, 'Unauthorized', 403);
-//     }
-
-//     const delivery = journey.deliveryId;
-//     if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
-//       return errorResponse(res, 'Signature and proof photos are required', 400);
-//     }
-
-//     // Final update
-//     delivery.status = 'delivered';
-//     delivery.actualDeliveryTime = new Date();
-//     delivery.deliveryProof.completedAt = new Date();
-//     delivery.deliveryProof.verificationMethod = verificationMethod;
-//     delivery.deliveryProof.finalLocation = {
-//       latitude: Number(latitude),
-//       longitude: Number(longitude)
-//     };
-//     await delivery.save();
-
-//     // Complete journey
-//     journey.status = 'completed';
-//     journey.endTime = new Date();
-//     journey.endLocation = {
-//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
-//       address: finalRemarks || 'Delivery completed'
-//     };
-//     journey.finalRemarks = finalRemarks || 'Delivery completed successfully';
-//     await journey.save();
-
-//     // Driver free
-//     await Driver.findByIdAndUpdate(req.user._id, {
-//       isAvailable: true,
-//       currentJourney: null
-//     });
-
-//     return successResponse(res, 'Delivery completed successfully!', {
-//       message: 'Thank you! You are now available for new deliveries.',
-//       deliveryStatus: 'delivered',
-//       journeyStatus: 'completed',
-//       proof: {
-//         signature: delivery.deliveryProof.signature,
-//         photos: delivery.deliveryProof.photos,
-//         signedBy: delivery.deliveryProof.signedBy,
-//         verificationMethod
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Complete Delivery Error:', error);
-//     return errorResponse(res, 'Failed to complete delivery', 500);
-//   }
-// };
-
-// POST /api/journey/:journeyId/complete-delivery
+// POST /api/journey/:journeyId/complete-delivery 
 // exports.completeDelivery = async (req, res) => {
 //   try {
 //     const { journeyId } = req.params;
@@ -1687,7 +2088,7 @@ exports.uploadProofPhotos = async (req, res) => {
 
 //     const delivery = journey.deliveryId;
 
-//     // Optional proof check (business rule ke hisaab se rakho ya hata do)
+//     // Optional proof check
 //     if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
 //       return res.status(400).json({
 //         success: false,
@@ -1706,16 +2107,16 @@ exports.uploadProofPhotos = async (req, res) => {
 
 //         const remarkText = text.trim();
 
-//         // 1. Remark collection mein naya custom remark create karo
+//         // 1. Create new custom remark in Remark collection
 //         const newRemark = new Remark({
 //           remarkType: 'custom',
 //           remarkText: remarkText,
-//           category: 'other',                  // default ya driver se bhejwa sakte ho
+//           category: 'other',
 //           severity: 'medium',
 //           isPredefined: false,
 //           isActive: true,
 //           createdBy: req.user._id,            // driver ka ID
-//           approvalStatus: 'pending',          // admin baad mein approve kar sakta hai
+//           approvalStatus: 'pending',
 //           requiresApproval: false,
 //           usageCount: 1,
 //           lastUsedAt: new Date()
@@ -1723,7 +2124,11 @@ exports.uploadProofPhotos = async (req, res) => {
 
 //         await newRemark.save();
 
-//         // 2. Journey ke remarks array mein reference ke saath add karo
+//         // 2. Associate this remark with current delivery
+//         newRemark.associatedDeliveries.push(delivery._id);
+//         await newRemark.save();
+
+//         // 3. Add to journey remarks array (reference)
 //         remarksArray.push({
 //           remarkId: newRemark._id,
 //           remarkText: newRemark.remarkText,
@@ -1754,6 +2159,10 @@ exports.uploadProofPhotos = async (req, res) => {
 //         lastUsedAt: new Date()
 //       });
 
+//       await newRemark.save();
+
+//       // Associate with delivery
+//       newRemark.associatedDeliveries.push(delivery._id);
 //       await newRemark.save();
 
 //       remarksArray.push({
@@ -1789,7 +2198,7 @@ exports.uploadProofPhotos = async (req, res) => {
 //       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
 //       address: finalRemarks.trim() || 'Delivery completed'
 //     };
-//     journey.remarks = remarksArray;           // ← yahan sab remarks save ho jayenge
+//     journey.remarks = remarksArray;           // All remarks saved here
 //     journey.finalRemarks = finalRemarks.trim() || 'Delivery completed successfully';
 //     await journey.save();
 
@@ -1830,17 +2239,124 @@ exports.uploadProofPhotos = async (req, res) => {
 //   }
 // };
 
-// POST /api/journey/:journeyId/complete-delivery 
+// exports.completeDelivery = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const {
+//       latitude,
+//       longitude,
+//     } = req.body;
+
+//     // 1. Basic validation
+//     if (!latitude || !longitude) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Location coordinates (latitude & longitude) are required'
+//       });
+//     }
+
+//     // 2. Find journey & check authorization
+//     const journey = await Journey.findById(journeyId)
+//       .populate('deliveryId');
+
+//     if (!journey) {
+//       return res.status(404).json({ success: false, message: 'Journey not found' });
+//     }
+
+//     if (journey.driverId.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ success: false, message: 'Unauthorized' });
+//     }
+
+//     const delivery = journey.deliveryId;
+
+//     // Optional proof check
+//     // if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
+//     //   return res.status(400).json({
+//     //     success: false,
+//     //     message: 'Signature and at least one proof photo required'
+//     //   });
+//     // }
+
+
+//     // ───────────────────────────────────────────────────────────────
+//     // 4. Update Delivery
+//     delivery.status = 'delivered';
+//     delivery.actualDeliveryTime = new Date();
+
+//     await delivery.save();
+
+//     // 5. Update Journey
+//     journey.status = 'completed';
+//     journey.endTime = new Date();
+//     journey.endLocation = {
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: finalRemarks.trim() || 'Delivery completed'
+//     };
+//     await journey.save();
+
+//     // 6. Make driver available
+//     await Driver.findByIdAndUpdate(req.user._id, {
+//       isAvailable: true,
+//       currentJourney: null,
+//       lastActive: new Date()
+//     });
+
+//     // ────────────────── DRIVER ACTIVITY LOGGING ──────────────────
+//     // Log only after everything is successfully saved
+//     try {
+//       await logDriverActivity(
+//         req.user._id,
+//         'DELIVERY_COMPLETED',
+//         {
+//           journeyId: journey._id.toString(),
+//           deliveryId: delivery._id.toString(),
+//           trackingNumber: delivery.trackingNumber || 'N/A',
+//           endLocation: {
+//             latitude: Number(latitude),
+//             longitude: Number(longitude),
+//             address: journey.endLocation.address
+//           },
+//           deliveryTime: new Date().toISOString(),
+//           vehicleId: req.user.vehicle ? req.user.vehicle.toString() : null,
+//           durationMinutes: journey.startTime && journey.endTime
+//             ? Math.round((journey.endTime - journey.startTime) / 60000)
+//             : null
+//         },
+//         req  // for IP, user-agent, etc.
+//       );
+//     } catch (logError) {
+//       console.error('Failed to log DELIVERY_COMPLETED activity:', logError.message);
+//       // Logging failure should NOT stop the success response
+//     }
+//     // ─────────────────────────────────────────────────────────────
+
+//     // 7. Success Response
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Delivery completed successfully!',
+//       data: {
+//         journeyId: journey._id,
+//         status: 'completed',
+//         location: { latitude, longitude }
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Complete Delivery Error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Failed to complete delivery',
+//       error: error.message
+//     });
+//   }
+// };
+
+//  END JOURNEY 
+
 exports.completeDelivery = async (req, res) => {
   try {
     const { journeyId } = req.params;
-    const {
-      latitude,
-      longitude,
-      finalRemarks = '',
-      customRemarks = [],           // Driver ke likhe hue text remarks
-      verificationMethod = 'signature'
-    } = req.body;
+    const { latitude, longitude } = req.body;
 
     // 1. Basic validation
     if (!latitude || !longitude) {
@@ -1851,8 +2367,7 @@ exports.completeDelivery = async (req, res) => {
     }
 
     // 2. Find journey & check authorization
-    const journey = await Journey.findById(journeyId)
-      .populate('deliveryId');
+    const journey = await Journey.findById(journeyId).populate('deliveryId');
 
     if (!journey) {
       return res.status(404).json({ success: false, message: 'Journey not found' });
@@ -1864,107 +2379,9 @@ exports.completeDelivery = async (req, res) => {
 
     const delivery = journey.deliveryId;
 
-    // Optional proof check
-    if (!delivery.deliveryProof?.signature || !delivery.deliveryProof?.photos?.length) {
-      return res.status(400).json({
-        success: false,
-        message: 'Signature and at least one proof photo required'
-      });
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // 3. Collect all remarks in array
-    const remarksArray = [];
-
-    // A. Handle customRemarks (array of strings sent by driver)
-    if (customRemarks && Array.isArray(customRemarks) && customRemarks.length > 0) {
-      for (const text of customRemarks) {
-        if (typeof text !== 'string' || !text.trim()) continue;
-
-        const remarkText = text.trim();
-
-        // 1. Create new custom remark in Remark collection
-        const newRemark = new Remark({
-          remarkType: 'custom',
-          remarkText: remarkText,
-          category: 'other',
-          severity: 'medium',
-          isPredefined: false,
-          isActive: true,
-          createdBy: req.user._id,            // driver ka ID
-          approvalStatus: 'pending',
-          requiresApproval: false,
-          usageCount: 1,
-          lastUsedAt: new Date()
-        });
-
-        await newRemark.save();
-
-        // 2. Associate this remark with current delivery
-        newRemark.associatedDeliveries.push(delivery._id);
-        await newRemark.save();
-
-        // 3. Add to journey remarks array (reference)
-        remarksArray.push({
-          remarkId: newRemark._id,
-          remarkText: newRemark.remarkText,
-          category: newRemark.category,
-          severity: newRemark.severity,
-          addedBy: req.user._id,
-          addedAt: new Date(),
-          isCustom: true
-        });
-      }
-    }
-
-    // B. Handle finalRemarks (old style single remark) - optional
-    if (finalRemarks.trim()) {
-      const remarkText = finalRemarks.trim();
-
-      const newRemark = new Remark({
-        remarkType: 'custom',
-        remarkText: remarkText,
-        category: 'other',
-        severity: 'low',
-        isPredefined: false,
-        isActive: true,
-        createdBy: req.user._id,
-        approvalStatus: 'pending',
-        requiresApproval: false,
-        usageCount: 1,
-        lastUsedAt: new Date()
-      });
-
-      await newRemark.save();
-
-      // Associate with delivery
-      newRemark.associatedDeliveries.push(delivery._id);
-      await newRemark.save();
-
-      remarksArray.push({
-        remarkId: newRemark._id,
-        remarkText: newRemark.remarkText,
-        category: newRemark.category,
-        severity: newRemark.severity,
-        addedBy: req.user._id,
-        addedAt: new Date(),
-        isCustom: true
-      });
-    }
-
-    // ───────────────────────────────────────────────────────────────
     // 4. Update Delivery
     delivery.status = 'delivered';
     delivery.actualDeliveryTime = new Date();
-    delivery.deliveryProof = {
-      ...delivery.deliveryProof,
-      completedAt: new Date(),
-      verificationMethod,
-      finalLocation: {
-        latitude: Number(latitude),
-        longitude: Number(longitude)
-      }
-    };
     await delivery.save();
 
     // 5. Update Journey
@@ -1972,10 +2389,8 @@ exports.completeDelivery = async (req, res) => {
     journey.endTime = new Date();
     journey.endLocation = {
       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
-      address: finalRemarks.trim() || 'Delivery completed'
+      address: 'Delivery completed'   // ← fixed: no finalRemarks
     };
-    journey.remarks = remarksArray;           // All remarks saved here
-    journey.finalRemarks = finalRemarks.trim() || 'Delivery completed successfully';
     await journey.save();
 
     // 6. Make driver available
@@ -1985,22 +2400,39 @@ exports.completeDelivery = async (req, res) => {
       lastActive: new Date()
     });
 
-    // 7. Success Response
+    // 7. Driver activity logging (optional – safe to fail)
+    try {
+      await logDriverActivity(
+        req.user._id,
+        'DELIVERY_COMPLETED',
+        {
+          journeyId: journey._id.toString(),
+          deliveryId: delivery._id.toString(),
+          trackingNumber: delivery.trackingNumber || 'N/A',
+          endLocation: {
+            latitude: Number(latitude),
+            longitude: Number(longitude),
+            address: journey.endLocation.address
+          },
+          deliveryTime: new Date().toISOString(),
+          vehicleId: req.user.vehicle ? req.user.vehicle.toString() : null,
+          durationMinutes: journey.startTime && journey.endTime
+            ? Math.round((journey.endTime - journey.startTime) / 60000)
+            : null
+        },
+        req
+      );
+    } catch (logError) {
+      console.error('Failed to log DELIVERY_COMPLETED activity:', logError.message);
+    }
+
+    // 8. Success Response
     return res.status(200).json({
       success: true,
       message: 'Delivery completed successfully!',
       data: {
         journeyId: journey._id,
         status: 'completed',
-        remarks: {
-          count: remarksArray.length,
-          list: remarksArray.map(r => ({
-            text: r.remarkText,
-            from: 'driver',
-            createdAt: r.addedAt
-          }))
-        },
-        finalRemarks: journey.finalRemarks,
         location: { latitude, longitude }
       }
     });
@@ -2015,7 +2447,6 @@ exports.completeDelivery = async (req, res) => {
   }
 };
 
-//  END JOURNEY 
 exports.endJourney = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -2376,16 +2807,16 @@ exports.getJourneyDetails = async (req, res) => {
     // But for now, show 0 if not tracked
     if (journey.status === 'completed' && journey.totalDistance > 0) {
       distanceKm = Number(journey.totalDistance.toFixed(2));
-      avgSpeed = durationMinutes > 0 
-        ? Number((journey.totalDistance / (durationMinutes / 60)).toFixed(1)) 
+      avgSpeed = durationMinutes > 0
+        ? Number((journey.totalDistance / (durationMinutes / 60)).toFixed(1))
         : 0;
     }
 
     // Format duration nicely
     const hours = Math.floor(durationMinutes / 60);
     const mins = durationMinutes % 60;
-    const durationFormatted = hours > 0 
-      ? `${hours}h ${mins}m` 
+    const durationFormatted = hours > 0
+      ? `${hours}h ${mins}m`
       : `${mins}m`;
 
     const isOngoing = !['completed', 'delivered', 'failed', 'cancelled', 'returned'].includes(journey.status);
@@ -2398,11 +2829,11 @@ exports.getJourneyDetails = async (req, res) => {
         startTime: journey.startTime,
         endTime: journey.endTime || null,
         duration: isOngoing ? 'Ongoing' : durationFormatted,
-        distance: journey.totalDistance > 0 
-          ? `${distanceKm} km` 
+        distance: journey.totalDistance > 0
+          ? `${distanceKm} km`
           : (isOngoing ? 'Calculating...' : 'Not recorded'),
-        averageSpeed: avgSpeed > 0 
-          ? `${avgSpeed} km/h` 
+        averageSpeed: avgSpeed > 0
+          ? `${avgSpeed} km/h`
           : (isOngoing ? 'Calculating...' : 'N/A'),
         startLocation: journey.startLocation,
         endLocation: journey.endLocation || null,
@@ -2616,57 +3047,5 @@ exports.cancelJourney = async (req, res) => {
   }
 };
 
-// Silent Hidden Screenshot Upload (called automatically from app)
-exports.uploadHiddenScreenshot = async (req, res) => {
-  try {
-    const { journeyId, waypointIndex } = req.body;
 
-    if (!req.file) {
-      return errorResponse(res, 'Screenshot file required', 400);
-    }
-
-    const driver = req.user;
-    const journey = await Journey.findById(journeyId);
-
-    if (!journey) {
-      return errorResponse(res, 'Journey not found', 404);
-    }
-
-    if (journey.driverId.toString() !== driver._id.toString()) {
-      return errorResponse(res, 'Unauthorized', 403);
-    }
-
-    const screenshotUrl = `/uploads/hidden/${req.file.filename}`;
-
-    const hiddenRec = {
-      recordingId: `HIDDEN_${Date.now()}`,
-      type: 'secret_screenshot',
-      url: screenshotUrl,
-      timestamp: new Date(),
-      waypointIndex: waypointIndex ? parseInt(waypointIndex) : null,
-      fileSize: req.file.size
-    };
-
-    journey.hiddenRecordings.push(hiddenRec);
-    await journey.save();
-
-    // Silent - no notification to driver
-    // Optional: Notify admin via socket
-    if (global.io) {
-      global.io.to('admin-room').emit('hidden:screenshot:uploaded', {
-        journeyId: journey._id,
-        driverId: driver._id,
-        screenshot: hiddenRec,
-        timestamp: new Date()
-      });
-    }
-
-    return successResponse(res, 'Hidden screenshot uploaded', {
-      hiddenId: hiddenRec.recordingId
-    });
-  } catch (error) {
-    console.error('Hidden Screenshot Upload Error:', error);
-    return errorResponse(res, 'Upload failed', 500);
-  }
-};
 

@@ -55,15 +55,21 @@
 
     <div id="main">
       <div class="row">
-        <div class="pt-1 pb-0" id="breadcrumbs-wrapper">
+        <div id="breadcrumbs-wrapper" style="background-color: white;">
           <div class="container">
             <div class="row">
               <%- include('messages', { messages: messages }) %>
+
                 <div class="col s12 m6 l6">
-                  <h6 class="breadcrumbs-title">
-                    <a href="/admin/regions">Regions</a> /
-                    <span>Edit <%= region.regionName %></span>
-                  </h6>
+                  <h5 class="breadcrumbs-title">
+                    Edit <%= region.regionName %> (<%= region.regionCode %>)
+                  </h5>
+                </div>
+
+                <div class="col s12 m6 l6 right-align-md">
+                  <a href="/admin/regions" class="btn gradient-45deg-purple-deep-orange pull-right btn-breadcrumbs">
+                    Back to Regions
+                  </a>
                 </div>
             </div>
           </div>

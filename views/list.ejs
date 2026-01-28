@@ -26,6 +26,62 @@
                 border-right-color: black;
                 border-bottom-color: black;
             }
+
+            /* Name cell with ellipsis */
+            .name-cell {
+                max-width: 240px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .company-name {
+                font-weight: bold;
+                display: block;
+            }
+
+            .individual-name {
+                font-size: 0.9em;
+                color: #555;
+            }
+
+            /* ✅ REMOVED - Don't hide sorting icons anymore */
+            /* table.dataTable thead th {
+                background-image: none !important;
+            }
+
+            table.dataTable thead .sorting:before,
+            table.dataTable thead .sorting:after,
+            table.dataTable thead .sorting_asc:before,
+            table.dataTable thead .sorting_asc:after,
+            table.dataTable thead .sorting_desc:before,
+            table.dataTable thead .sorting_desc:after {
+                display: none !important;
+            } */
+
+            /* Clickable row styling */
+            tr.driver-row {
+                cursor: pointer;
+                transition: background-color 0.2s;
+            }
+
+            tr.driver-row:hover {
+                background-color: #f5f5f5 !important;
+            }
+
+            /* Prevent row click on special columns */
+            td.checkbox-column,
+            td.actions-column {
+                cursor: default;
+            }
+
+            td.actions-column a,
+            td.checkbox-column input,
+            td.checkbox-column label,
+            .status-toggle,
+            .lever {
+                pointer-events: auto !important;
+            }
         </style>
 </head>
 
@@ -44,12 +100,23 @@
                                 <div class="col s12 m6 l6">
                                     <h6 class="breadcrumbs-title"><span>Manage Drivers</span></h6>
                                 </div>
-                                <div class="col s12 m6 l6 right-align-md"
-                                    style="display: flex; justify-content: flex-end; gap: 10px;">
-                                    <a class="btn pull-right btn-add btn-breadcrumbs white-text"
-                                        href="/admin/drivers/create">Create Driver</a>
-                                    <!-- <a class="btn gradient-45deg-purple-deep-orange modal-trigger" href="#modal">Send Notification</a> -->
+                                <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                                    <ol class="breadcrumbs mb-0">
+                                        <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                        <li class="breadcrumb-item active">Drivers</li>
+                                    </ol>
                                 </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="breadcrumbs-wrapper" style="background-color: white;">
+                <div class="container">
+                    <div class="row">
+                        <div class="col s12 right-align-md">
+                            <a class="btn pull-right btn-add btn-breadcrumbs white-text"
+                                href="/admin/drivers/create">Create Driver</a>
                         </div>
                     </div>
                 </div>
@@ -58,7 +125,6 @@
             <div class="col s12">
                 <div class="container">
                     <div class="section section-data-tables">
-                        <!-- Page Length Options -->
                         <div class="row">
                             <div class="col s12">
                                 <div class="card">
@@ -69,13 +135,6 @@
                                                     <thead>
                                                         <tr>
                                                             <th>Sr</th>
-                                                            <th style="width: 60px; text-align: center;">
-                                                                <label
-                                                                    style="margin: 0; display: flex; align-items: center; justify-content: center;">
-                                                                    <input type="checkbox" id="selectAll" />
-                                                                    <span style="margin-left: 4px;">All</span>
-                                                                </label>
-                                                            </th>
                                                             <th>Profile</th>
                                                             <th>Name</th>
                                                             <th>Phone</th>
@@ -90,18 +149,13 @@
                                                     <tbody>
                                                         <% if (drivers && drivers.length> 0) { %>
                                                             <% drivers.forEach((driver, index)=> { %>
-                                                                <tr>
+                                                                <!-- Clickable row -->
+                                                                <tr class="driver-row"
+                                                                    data-href="/admin/drivers/view/<%= driver._id %>">
                                                                     <td>
                                                                         <%= index + 1 %>
                                                                     </td>
-                                                                    <td>
-                                                                        <label>
-                                                                            <input type="checkbox"
-                                                                                name="selectedUsers[]"
-                                                                                value="<%= driver._id %>" />
-                                                                            <span></span>
-                                                                        </label>
-                                                                    </td>
+
                                                                     <td>
                                                                         <img src="<%= driver.profileImage || '/img/avatar.png' %>"
                                                                             alt="Profile"
@@ -119,36 +173,30 @@
                                                                     <td>
                                                                         <%= driver.vehicleNumber || 'Not Assigned' %>
                                                                     </td>
+
+                                                                    <!-- Toggle Switch for Status -->
                                                                     <td>
-                                                                        <span
-                                                                            class="badge <%= driver.isActive ? 'green' : 'red' %>">
-                                                                            <%= driver.isActive ? 'Active' : 'Inactive'
-                                                                                %>
-                                                                        </span>
+                                                                        <div class="switch">
+                                                                            <label>
+                                                                                <input type="checkbox"
+                                                                                    class="status-toggle"
+                                                                                    data-driver-id="<%= driver._id %>"
+                                                                                    <%=driver.isActive ? 'checked' : ''
+                                                                                    %>>
+                                                                                <span class="lever"></span>
+                                                                            </label>
+                                                                        </div>
                                                                     </td>
-                                                                    <!-- Replace this column -->
+
                                                                     <td>
                                                                         <span class="badge" style="
-            background-color:
-            <%= driver.profileStatus === 'approved'
-                ? 'rgb(212, 240, 216)'
-                : driver.profileStatus === 'rejected'
-                ? 'rgb(240, 212, 212)'
-                : driver.profileStatus === 'pending'
-                ? 'orange'
-                : 'rgba(163, 149, 149, 0.263)' %>;
-            
-            color:
-            <%= driver.profileStatus === 'approved'
-                ? 'green'
-                : driver.profileStatus === 'rejected'
-                ? 'red'
-                : driver.profileStatus === 'pending'
-                ? '#fff'
-                : '#000' %>;
-
-            border-radius: 5px;
-        ">
+                                                                        background-color: <%= driver.profileStatus === 'approved' ? 'rgb(212, 240, 216)' : 
+                                                                        driver.profileStatus === 'rejected' ? 'rgb(240, 212, 212)' : 
+                                                                        driver.profileStatus === 'pending' ? 'orange' : 'rgba(163, 149, 149, 0.263)' %>;
+                                                                        color: <%= driver.profileStatus === 'approved' ? 'green' : 
+                                                                        driver.profileStatus === 'rejected' ? 'red' : 
+                                                                        driver.profileStatus === 'pending' ? '#fff' : '#000' %>;
+                                                                        border-radius: 5px;">
                                                                             <%= driver.profileStatus==='approved'
                                                                                 ? 'Approved' :
                                                                                 driver.profileStatus==='rejected'
@@ -158,45 +206,39 @@
                                                                         </span>
                                                                     </td>
 
-
                                                                     <td>
                                                                         <% let formattedDate='-' ; if (driver.createdAt)
-                                                                            { const createdAt=new
-                                                                            Date(driver.createdAt); const
-                                                                            day=String(createdAt.getUTCDate()).padStart(2, '0'
-                                                                            ); const
-                                                                            month=String(createdAt.getUTCMonth() +
+                                                                            { const d=new Date(driver.createdAt); const
+                                                                            day=String(d.getUTCDate()).padStart(2, '0'
+                                                                            ); const month=String(d.getUTCMonth() +
                                                                             1).padStart(2, '0' ); const
-                                                                            year=createdAt.getUTCFullYear(); const
-                                                                            hours=String(createdAt.getUTCHours()).padStart(2, '0'
+                                                                            year=d.getUTCFullYear(); const
+                                                                            hours=String(d.getUTCHours()).padStart(2, '0'
                                                                             ); const
-                                                                            minutes=String(createdAt.getUTCMinutes()).padStart(2, '0'
+                                                                            minutes=String(d.getUTCMinutes()).padStart(2, '0'
                                                                             ); formattedDate=`${day}-${month}-${year}
                                                                             ${hours}:${minutes}`; } %>
                                                                             <%= formattedDate %>
                                                                     </td>
-                                                                    <td>
+
+                                                                    <td class="actions-column">
                                                                         <a href="/admin/drivers/view/<%= driver._id %>"
-                                                                            class="waves-effect waves-light accent-2 btn-edit">
+                                                                            class="waves-effect waves-light accent-2 btn-edit"
+                                                                            title="View Details">
                                                                             <i class="material-icons">visibility</i>
                                                                         </a>
                                                                         &nbsp;&nbsp;
                                                                         <a href="/admin/drivers/edit/<%= driver._id %>"
-                                                                            class="btn-floating waves-effect waves-light accent-2 btn-edit">
+                                                                            class="btn-floating waves-effect waves-light accent-2 btn-edit"
+                                                                            title="Edit">
                                                                             <i class="material-icons">edit</i>
                                                                         </a>
                                                                         &nbsp;&nbsp;
-                                                                        <!-- <a href="/admin/drivers/delete/<%= driver._id %>"
-                                                                            class="btn-floating waves-effect waves-light accent-2 btn-delete"
-                                                                            onclick="return confirm('Are you sure want to delete this driver?');">
-                                                                            <i class="material-icons">delete</i>
-                                                                        </a> -->
-
-                                                                        <!-- In action buttons section -->
                                                                         <a href="#"
-                                                                            class="btn-floating waves-effect waves-light accent-2 btn-delete"
-                                                                            onclick="confirmDelete('<%= driver._id %>', '<%= driver.name %>')"
-                                                                            style="margin-left: 10px;">
+                                                                            class="btn-floating waves-effect waves-light red delete-driver"
+                                                                            data-driver-id="<%= driver._id %>"
+                                                                            data-driver-name="<%= driver.name %>"
+                                                                            title="Delete Driver">
                                                                             <i class="material-icons">delete</i>
                                                                         </a>
                                                                     </td>
@@ -205,8 +247,9 @@
                                                                     <% } else { %>
                                                                         <tr>
                                                                             <td colspan="10"
-                                                                                class="center-align grey-text">No
-                                                                                drivers found matching your criteria
+                                                                                class="center-align grey-text">
+                                                                                No drivers found matching
+                                                                                your criteria
                                                                             </td>
                                                                         </tr>
                                                                         <% } %>
@@ -219,7 +262,7 @@
                             </div>
                         </div>
 
-                        <!-- Pagination (same as vendor example) -->
+                        <!-- Pagination -->
                         <% if (pagination && pagination.totalPages> 1) { %>
                             <div class="right-align mt-2">
                                 Page <%= pagination.currentPage %> of <%= pagination.totalPages %>
@@ -244,29 +287,92 @@
             <script src="/app-assets/js/scripts/data-tables.js"></script>
 
             <script>
-                // Select All Checkbox
                 document.addEventListener('DOMContentLoaded', function () {
+                    // Select All Checkbox
                     const selectAll = document.getElementById('selectAll');
                     const checkboxes = document.querySelectorAll('input[name="selectedUsers[]"]');
 
-                    selectAll.addEventListener('change', function () {
-                        checkboxes.forEach(cb => cb.checked = this.checked);
+                    if (selectAll) {
+                        selectAll.addEventListener('change', function () {
+                            checkboxes.forEach(cb => cb.checked = this.checked);
+                        });
+                    }
+
+                    M.FormSelect.init(document.querySelectorAll('select'));
+
+                    // Status Toggle AJAX
+                    document.querySelectorAll('.status-toggle').forEach(toggle => {
+                        toggle.addEventListener('change', async function () {
+                            const driverId = this.getAttribute('data-driver-id');
+                            const isActive = this.checked;
+                            const newStatus = isActive ? 'active' : 'inactive';
+
+                            this.disabled = true;
+
+                            try {
+                                const response = await fetch(`/admin/drivers/${driverId}/toggle-status`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({ isActive: isActive })
+                                });
+
+                                const result = await response.json();
+
+                                if (result.success) {
+                                    M.toast({ html: `Driver status updated to ${newStatus.toUpperCase()}`, classes: 'green' });
+                                } else {
+                                    this.checked = !isActive;
+                                    M.toast({ html: result.message || 'Failed to update status', classes: 'red' });
+                                }
+                            } catch (err) {
+                                this.checked = !isActive;
+                                M.toast({ html: 'Network error. Try again.', classes: 'red' });
+                            } finally {
+                                this.disabled = false;
+                            }
+                        });
                     });
 
-                    // Initialize Materialize selects
-                    M.FormSelect.init(document.querySelectorAll('select'));
-                });
-                function confirmDelete(driverId, driverName) {
-                    if (confirm(`Are you sure you want to delete driver "${driverName}"? This action cannot be undone.`)) {
-                        // Create form and submit POST request
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = `/admin/drivers/delete/${driverId}`;
+                    // Make entire row clickable (except special areas)
+                    document.querySelectorAll('tr.driver-row').forEach(row => {
+                        row.addEventListener('click', function (e) {
+                            // Prevent navigation if clicked on these elements
+                            if (e.target.closest('.checkbox-column') ||
+                                e.target.closest('.actions-column') ||
+                                e.target.closest('.status-toggle') ||
+                                e.target.closest('.lever') ||
+                                e.target.tagName === 'INPUT' ||
+                                e.target.tagName === 'LABEL' ||
+                                e.target.tagName === 'A') {
+                                return;
+                            }
 
-                        document.body.appendChild(form);
-                        form.submit();
-                    }
-                }
+                            const href = this.getAttribute('data-href');
+                            if (href) {
+                                window.location.href = href;
+                            }
+                        });
+                    });
+
+                    // Delete Confirmation with Event Listener
+                    document.querySelectorAll('.delete-driver').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const driverId = this.getAttribute('data-driver-id');
+                            const driverName = this.getAttribute('data-driver-name');
+                            
+                            if (confirm(`Are you sure you want to delete driver "${driverName}"? This action cannot be undone.`)) {
+                                const form = document.createElement('form');
+                                form.method = 'POST';
+                                form.action = `/admin/drivers/delete/${driverId}`;
+                                document.body.appendChild(form);
+                                form.submit();
+                            }
+                        });
+                    });
+                });
             </script>
 </body>
 

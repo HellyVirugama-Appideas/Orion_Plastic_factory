@@ -18,6 +18,15 @@
         [type='checkbox']:checked+span:not(.lever):before { border-right-color: black; border-bottom-color: black; }
         .badge { padding: 5px 10px; border-radius: 12px; font-size: 12px; }
         .action-btn { margin: 0 5px; }
+
+        /* Only minimal change for clickable row - just cursor, no style change */
+        tr.remark-row {
+            cursor: pointer;
+        }
+
+        td.actions-column {
+            cursor: default;
+        }
     </style>
 </head>
 
@@ -35,11 +44,24 @@
                         <div class="col s12 m6 l6">
                             <h6 class="breadcrumbs-title"><span>Manage Remarks</span></h6>
                         </div>
-                        <div class="col s12 m6 l6 right-align-md" style="display: flex; justify-content: flex-end; gap: 10px;">
-                            <a class="btn pull-right btn-add btn-breadcrumbs white-text" href="/admin/remarks/create">
-                                Create Predefined Remark
-                            </a>
+                        <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                            <ol class="breadcrumbs mb-0">
+                                <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                <li class="breadcrumb-item active">Remarks</li>
+                            </ol>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="breadcrumbs-wrapper" style="background-color: white;">
+            <div class="container">
+                <div class="row">
+                    <div class="col s12 right-align-md">
+                        <a class="btn pull-right btn-add btn-breadcrumbs white-text" href="/admin/remarks/create">
+                            Create Predefined Remark
+                        </a>
                     </div>
                 </div>
             </div>
@@ -58,12 +80,6 @@
                                         <thead>
                                             <tr>
                                                 <th>Sr</th>
-                                                <th style="width: 60px; text-align: center;">
-                                                    <label style="margin: 0; display: flex; align-items: center; justify-content: center;">
-                                                        <input type="checkbox" id="selectAll" />
-                                                        <span style="margin-left: 4px;">All</span>
-                                                    </label>
-                                                </th>
                                                 <th>Remark Text</th>
                                                 <th>Type</th>
                                                 <th>Category</th>
@@ -76,14 +92,10 @@
                                         <tbody>
                                             <% if (remarks && remarks.length > 0) { %>
                                                 <% remarks.forEach((remark, index) => { %>
-                                                    <tr>
+                                                    <!-- Added row click feature -->
+                                                    <tr class="remark-row" data-href="/admin/remarks/<%= remark._id %>/view">
                                                         <td><%= index + 1 %></td>
-                                                        <td>
-                                                            <label>
-                                                                <input type="checkbox" name="selectedRemarks[]" value="<%= remark._id %>" />
-                                                                <span></span>
-                                                            </label>
-                                                        </td>
+                                                        
                                                         <td><%= remark.remarkText.substring(0, 50) %><%= remark.remarkText.length > 50 ? '...' : '' %></td>
                                                         <td>
                                                             <span class="badge <%= remark.isPredefined ? 'blue' : 'purple' %>">
@@ -112,7 +124,8 @@
                                                             <% } %>
                                                             <%= formattedDate %>
                                                         </td>
-                                                        <td>
+                                                        <!-- Protected actions column -->
+                                                        <td class="actions-column">
                                                             <!-- View -->
                                                             <a href="/admin/remarks/<%= remark._id %>/view" class="waves-effect waves-light accent-2 btn-edit action-btn">
                                                                 <i class="material-icons">visibility</i>
@@ -125,8 +138,9 @@
                                                                 </a>
 
                                                                 <!-- Delete -->
-                                                                <a href="#" class="waves-effect waves-light accent-2 action-btn"
-                                                                   onclick="confirmDelete('<%= remark._id %>', '<%= remark.remarkText.replace(/'/g, "\\'") %>')">
+                                                                <a href="#" class="waves-effect waves-light accent-2 action-btn delete-remark"
+                                                                   data-remark-id="<%= remark._id %>"
+                                                                   data-remark-text="<%= remark.remarkText.substring(0, 50) %>">
                                                                     <i class="material-icons">delete</i>
                                                                 </a>
                                                             <% } %>
@@ -168,29 +182,58 @@
     <script src="/app-assets/js/scripts/data-tables.js"></script>
 
     <script>
-        // Select All Checkbox
+        // Select All Checkbox + Row Click Feature
         document.addEventListener('DOMContentLoaded', function () {
             const selectAll = document.getElementById('selectAll');
             const checkboxes = document.querySelectorAll('input[name="selectedRemarks[]"]');
 
-            selectAll.addEventListener('change', function () {
-                checkboxes.forEach(cb => cb.checked = this.checked);
-            });
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    checkboxes.forEach(cb => cb.checked = this.checked);
+                });
+            }
 
             // Initialize Materialize selects
             M.FormSelect.init(document.querySelectorAll('select'));
-        });
 
-        // Delete Confirmation
-        function confirmDelete(remarkId, remarkText) {
-            if (confirm(`Are you sure you want to delete remark "${remarkText.substring(0, 50)}..."? This action cannot be undone.`)) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `/admin/remarks/${remarkId}/delete`;
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
+            // Make entire row clickable (except actions column & checkbox)
+            document.querySelectorAll('tr.remark-row').forEach(row => {
+                row.addEventListener('click', function (e) {
+                    // Prevent navigation if clicked on protected areas
+                    if (e.target.closest('.actions-column') || 
+                        e.target.tagName === 'INPUT' || 
+                        e.target.tagName === 'LABEL' ||
+                        e.target.tagName === 'A' ||
+                        e.target.closest('.action-btn') ||
+                        e.target.closest('.btn-edit')) {
+                        return;
+                    }
+
+                    const href = this.getAttribute('data-href');
+                    if (href) {
+                        window.location.href = href;
+                    }
+                });
+            });
+
+            // Delete Confirmation with Event Listener (Fixed)
+            document.querySelectorAll('.delete-remark').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const remarkId = this.getAttribute('data-remark-id');
+                    const remarkText = this.getAttribute('data-remark-text');
+                    
+                    if (confirm(`Are you sure you want to delete remark "${remarkText}..."? This action cannot be undone.`)) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `/admin/remarks/${remarkId}/delete`;
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                });
+            });
+        });
     </script>
 </body>
-</html> 
+
+</html>

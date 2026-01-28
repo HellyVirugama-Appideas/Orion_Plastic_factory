@@ -585,6 +585,7 @@ const Vehicle = require('../../models/Vehicle');
 const Driver = require('../../models/Driver');
 const mongoose = require('mongoose');
 const { successResponse, errorResponse } = require("../../utils/responseHelper")
+const {logDriverActivity} = require("../../utils/activityLogger")
 
 // GET - List all vehicles (EJS render)
 exports.getAllVehicles = async (req, res) => {
@@ -910,6 +911,7 @@ exports.deleteVehicle = async (req, res) => {
   }
 };
 
+// POST - Assign vehicle to driver
 exports.assignVehicleToDriver = async (req, res) => {
   try {
     const { vehicleId } = req.params;
@@ -927,6 +929,19 @@ exports.assignVehicleToDriver = async (req, res) => {
       if (oldDriver) {
         oldDriver.vehicle = null;
         await oldDriver.save();
+
+        // ← Optional: Log unassignment from old driver
+        await logDriverActivity(
+          oldDriver._id,
+          'VEHICLE_UNASSIGNED_BY_ADMIN',
+          {
+            vehicleId: vehicle._id,
+            vehicleNumber: vehicle.vehicleNumber,
+            assignedBy: req.admin?._id || 'system',
+            previous: true
+          },
+          req
+        );
       }
     }
 
@@ -936,25 +951,31 @@ exports.assignVehicleToDriver = async (req, res) => {
     vehicle.assignedAt = new Date();
     vehicle.status = 'assigned';
 
-    driver.vehicle = vehicle._id; // Optional - if you want to keep driver's own field
+    driver.vehicle = vehicle._id;
 
     await vehicle.save();
     await driver.save();
 
-    // return successResponse(res, 'Vehicle assigned successfully', {
-    //   vehicle: {
-    //     id: vehicle._id,
-    //     vehicleNumber: vehicle.vehicleNumber,
-    //     status: vehicle.status,
-    //     assignedTo: driver.name
-    //   }
-    // });
+    // ★★★ IMPORTANT: Log the assignment for the new driver ★★★
+    await logDriverActivity(
+      driver._id,
+      'VEHICLE_ASSIGNED',
+      {
+        vehicleId: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        assignedBy: req.admin._id || 'system',
+        assignedAt: vehicle.assignedAt
+      },
+      req
+    );
 
-    res.redirect("/admin/vehicles")
+    req.flash('success', 'Vehicle assigned successfully!');
+    res.redirect("/admin/vehicles");
 
   } catch (error) {
     console.error('Assign Error:', error);
-    return errorResponse(res, 'Failed to assign vehicle', 500);
+    req.flash('error', 'Failed to assign vehicle');
+    res.redirect("/admin/vehicles");
   }
 };
 
@@ -975,9 +996,23 @@ exports.unassignVehicle = async (req, res) => {
     }
 
     const driver = await Driver.findById(vehicle.assignedTo);
+    
     if (driver) {
       driver.vehicle = null;
       await driver.save();
+
+      // ★★★ Log unassignment for the driver ★★★
+      await logDriverActivity(
+        driver._id,
+        'VEHICLE_UNASSIGNED',
+        {
+          vehicleId: vehicle._id,
+          vehicleNumber: vehicle.vehicleNumber,
+          unassignedBy: req.admin?._id || 'system',
+          previousDriver: true
+        },
+        req
+      );
     }
 
     vehicle.assignedTo = null;
@@ -989,7 +1024,7 @@ exports.unassignVehicle = async (req, res) => {
 
   } catch (error) {
     console.error('Unassign Error:', error);
-    req.flash('error', 'Failed to unassign');
+    req.flash('error', 'Failed to unassign vehicle');
     res.redirect('/admin/vehicles');
   }
 };

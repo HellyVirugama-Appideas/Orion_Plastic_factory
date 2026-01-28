@@ -463,7 +463,8 @@ const OrderStatusHistory = require('../../models/OrderStatusHistory');
 const Delivery = require('../../models/Delivery');
 const mongoose = require('mongoose');
 const Customer = require("../../models/Customer")
-const {successResponse, errorResponse} = require("../../utils/responseHelper")
+const { successResponse, errorResponse } = require("../../utils/responseHelper")
+const Category = require("../../models/Category")
 
 // ============= RENDER ORDERS LIST PAGE =============
 exports.renderOrdersList = async (req, res) => {
@@ -552,25 +553,47 @@ exports.renderOrdersList = async (req, res) => {
 };
 
 // ============= RENDER CREATE ORDER PAGE =============
+// exports.renderCreateOrder = async (req, res) => {
+//   try {
+//     const customers = await Customer.find()
+//       .select('name companyName phone email')    
+//       .sort({ name: 1 })                          
+//       .lean();                                    
+
+//     console.log(`Found ${customers.length} customers for dropdown`);
+
+//     res.render('order_create', {
+//       title: 'Create New Order',
+//       user: req.user,
+//       customers,            
+//       url: req.originalUrl,
+//       messages: req.flash()
+//     });
+
+//   } catch (error) {
+//     console.error('[CREATE-ORDER-PAGE] Error:', error);
+//     req.flash('error', 'Failed to load create order page');
+//     res.redirect('/admin/orders');
+//   }
+// };
+
 exports.renderCreateOrder = async (req, res) => {
   try {
-    const customers = await Customer.find()
-      .select('name companyName phone email')    
-      .sort({ name: 1 })                          
-      .lean();                                    
-
-    console.log(`Found ${customers.length} customers for dropdown`);
+    const customers = await Customer.find({}).select('name companyName phone').lean();
+    const categories = await Category.find({ isActive: true })
+      .sort({ displayOrder: 1, name: 1 })
+      .lean();
 
     res.render('order_create', {
       title: 'Create New Order',
-      user: req.user,
-      customers,            
+      customers,
+      categories,
+      messages: req.flash(),
+      admin: req.user,
       url: req.originalUrl,
-      messages: req.flash()
     });
-
-  } catch (error) {
-    console.error('[CREATE-ORDER-PAGE] Error:', error);
+  } catch (err) {
+    console.error(err);
     req.flash('error', 'Failed to load create order page');
     res.redirect('/admin/orders');
   }
@@ -580,7 +603,7 @@ exports.createOrder = async (req, res) => {
   try {
     const {
       customerId,
-      items,                    
+      items,
       deliveryLocation,
       pickupLocation,
       scheduledPickupDate,
@@ -630,11 +653,11 @@ exports.createOrder = async (req, res) => {
     const finalPickupLocation = pickupLocation && pickupLocation.address
       ? pickupLocation
       : {
-          address: 'Orion Plastic Factory, Plot 45, GIDC Vatva, Ahmedabad',
-          coordinates: { latitude: 22.9871, longitude: 72.6369 },
-          contactPerson: 'Factory Manager',
-          contactPhone: '9876543200'
-        };
+        address: 'Orion Plastic Factory, Plot 45, GIDC Vatva, Ahmedabad',
+        coordinates: { latitude: 22.9871, longitude: 72.6369 },
+        contactPerson: 'Factory Manager',
+        contactPhone: '9876543200'
+      };
 
     // 6. Admin info
     const adminId = req.user?._id || null;
@@ -766,7 +789,7 @@ exports.renderEditOrder = async (req, res) => {
       title: `Edit Order - ${order.orderNumber}`,
       user: req.user,
       order,
-      customers,             
+      customers,
       url: req.originalUrl,
       messages: req.flash()
     });
@@ -968,10 +991,10 @@ exports.renderCreateDeliveryFromOrder = async (req, res) => {
     }
 
     // Get available drivers
-    const drivers = await User.find({ 
-      role: 'driver', 
+    const drivers = await User.find({
+      role: 'driver',
       isActive: true,
-      isAvailable: true 
+      isAvailable: true
     })
       .select('name phone email')
       .sort({ name: 1 })

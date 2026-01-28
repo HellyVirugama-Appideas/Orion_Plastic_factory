@@ -189,13 +189,12 @@ const driverSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Phone is required'],
     unique: true,
-    trim: true,
-    match: [/^\+91[0-9]{10}$/, 'Valid Indian phone number required (+91 followed by 10 digits)']
+    trim: true
   },
 
   countryCode: {
     type: String,
-    default: '+91',
+    default: '+971',
     trim: true
   },
 
@@ -272,7 +271,9 @@ const driverSchema = new mongoose.Schema({
     type: String,
     // required: [true, 'PIN is required']
   },
-
+  fcmToken: {
+    type: String,
+  },
   // Profile status
   profileStatus: {
     type: String,
@@ -548,7 +549,7 @@ driverSchema.methods.toJSON = function () {
 };
 
 // Method to update driver's current location
-driverSchema.methods.updateLocation = async function(locationData) {
+driverSchema.methods.updateLocation = async function (locationData) {
   this.currentLocation = {
     latitude: locationData.latitude,
     longitude: locationData.longitude,
@@ -563,7 +564,7 @@ driverSchema.methods.updateLocation = async function(locationData) {
   if (this.locationHistory && this.locationHistory.length > 100) {
     this.locationHistory = this.locationHistory.slice(-99);
   }
-  
+
   this.locationHistory = this.locationHistory || [];
   this.locationHistory.push({
     latitude: locationData.latitude,
@@ -577,7 +578,7 @@ driverSchema.methods.updateLocation = async function(locationData) {
 };
 
 // Method to clear location when delivery completes
-driverSchema.methods.clearLocation = async function() {
+driverSchema.methods.clearLocation = async function () {
   this.currentLocation = {
     latitude: null,
     longitude: null,
@@ -587,7 +588,7 @@ driverSchema.methods.clearLocation = async function() {
     timestamp: null,
     deliveryId: null
   };
-  
+
   await this.save();
 };
 

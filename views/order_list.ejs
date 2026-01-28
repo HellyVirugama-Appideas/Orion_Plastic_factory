@@ -112,7 +112,7 @@
                 color: #757575;
             }
 
-            /* Table & Other Styles (unchanged but kept for completeness) */
+            /* Table & Other Styles (unchanged) */
             table tr td,
             th {
                 text-align: center;
@@ -133,6 +133,21 @@
                     align-items: center;
                 }
             }
+
+            /* Only minimal changes for row click feature */
+            tr.order-row {
+                cursor: pointer;
+            }
+
+            tr.order-row:hover {
+                background-color: #f5f5f5;
+            }
+
+            td.checkbox-column,
+            td.actions-column,
+            td.status-column {
+                cursor: default;
+            }
         </style>
 </head>
 
@@ -151,242 +166,274 @@
                                 <div class="col s12 m6 l6">
                                     <h6 class="breadcrumbs-title"><span>Manage Orders</span></h6>
                                 </div>
-                                <div class="col s12 m6 l6 right-align-md"
-                                    style="display: flex; justify-content: flex-end; gap: 10px;">
-                                    <a class="btn pull-right btn-add btn-breadcrumbs white-text"
-                                        href="/admin/orders/create">Create Order</a>
+                                <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                                    <ol class="breadcrumbs mb-0">
+                                        <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                        <li class="breadcrumb-item active">Orders</li>
+                                    </ol>
                                 </div>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <div class="col s12">
-                <div class="container">
-                    <div class="section section-data-tables">
-                        <div class="row">
-                            <div class="col s12">
-                                <div class="card">
-                                    <div class="card-content">
-                                        <div class="row">
-                                            <div class="col s12 overflow">
-                                                <table id="page-length-option" class="display">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Sr</th>
-                                                            <th style="width: 60px; text-align: center;">
-                                                                <label
-                                                                    style="margin: 0; display: flex; align-items: center; justify-content: center;">
-                                                                    <input type="checkbox" id="selectAll" />
-                                                                    <span style="margin-left: 4px;">All</span>
-                                                                </label>
-                                                            </th>
-                                                            <th>Order Number</th>
-                                                            <th>Customer</th>
-                                                            <th>Items</th>
-                                                            <th>Status</th>
-                                                            <th>Priority</th>
-                                                            <th>Created Date</th>
-                                                            <th>Actions</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <% if (orders && orders.length> 0) { %>
-                                                            <% orders.forEach((order, index)=> { %>
-                                                                <tr>
-                                                                    <td>
-                                                                        <%= index + 1 %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <label>
-                                                                            <input type="checkbox"
-                                                                                name="selectedOrders[]"
-                                                                                value="<%= order._id %>" />
-                                                                            <span></span>
-                                                                        </label>
-                                                                    </td>
-                                                                    <td><strong>
-                                                                            <%= order.orderNumber %>
-                                                                        </strong></td>
-                                                                    <td>
-                                                                        <% if (order.customerId) { %>
-                                                                            <%= order.customerId.companyName ||
-                                                                                order.customerId.name || 'N/A' %><br>
-                                                                                <% if (order.customerId.customerId) { %>
-                                                                                    <br><small class="grey-text">ID: <%=
-                                                                                            order.customerId.customerId
-                                                                                            %></small>
-                                                                                    <% } %>
-                                                                                        <% } else { %>
-                                                                                            <span
-                                                                                                class="grey-text">Customer
-                                                                                                N/A</span>
-                                                                                            <% } %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <%= order.items?.length || 0 %> item(s)
-                                                                    </td>
-
-                                                                    <td>
-                                                                        <span class="badge status-<%= order.status %>">
-                                                                            <%= order.status?.replace(/_/g, ' '
-                                                                                ).toUpperCase() || 'UNKNOWN' %>
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        <span
-                                                                            class="priority-<%= order.priority || 'medium' %>">
-                                                                            <%= (order.priority || 'medium'
-                                                                                ).toUpperCase() %>
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        <% let formattedDate='-' ; if (order.createdAt)
-                                                                            { const createdAt=new Date(order.createdAt);
-                                                                            const
-                                                                            day=String(createdAt.getUTCDate()).padStart(2, '0'
-                                                                            ); const
-                                                                            month=String(createdAt.getUTCMonth() +
-                                                                            1).padStart(2, '0' ); const
-                                                                            year=createdAt.getUTCFullYear(); const
-                                                                            hours=String(createdAt.getUTCHours()).padStart(2, '0'
-                                                                            ); const
-                                                                            minutes=String(createdAt.getUTCMinutes()).padStart(2, '0'
-                                                                            ); formattedDate=`${day}-${month}-${year}
-                                                                            ${hours}:${minutes}`; } %>
-                                                                            <%= formattedDate %>
-                                                                    </td>
-                                                                    <td>
-                                                                        <a href="/admin/orders/view/<%= order._id %>"
-                                                                            class="waves-effect waves-light accent-2 btn-edit">
-                                                                            <i class="material-icons">visibility</i>
-                                                                        </a>
-                                                                        &nbsp;&nbsp;
-                                                                        <a href="/admin/orders/edit/<%= order._id %>"
-                                                                            class="btn-floating waves-effect waves-light accent-2 btn-edit">
-                                                                            <i class="material-icons">edit</i>
-                                                                        </a>
-                                                                        &nbsp;&nbsp;
-                                                                        <a href="#"
-                                                                            class="btn-floating waves-effect waves-light accent-2 btn-delete"
-                                                                            onclick="confirmDelete('<%= order._id %>', '<%= order.orderNumber %>')"
-                                                                            style="margin-left: 10px;">
-                                                                            <i class="material-icons">delete</i>
-                                                                        </a>
-                                                                        &nbsp;&nbsp;
-                                                                                                                                             <!-- Truck Icon - Create Delivery -->
-                                                                        <% if (!order.deliveryId && 
-                                                                               ['confirmed', 'processing', 'ready_for_pickup'].includes(order.status)) { %>
-                                                                            <a href="/admin/deliveries/create-from-order/<%= order._id %>"
-                                                                                class="btn-floating waves-effect waves-light green btn-create-delivery"
-                                                                                title="Create Delivery">
-                                                                                <i class="material-icons">local_shipping</i>
-                                                                            </a>
-                                                                        <% } %>
-                                                                                <% if (order.status==='pending' ) { %>
-                                                                                    &nbsp;&nbsp;
-                                                                                    <a href="#"
-                                                                                        onclick="confirmOrder('<%= order._id %>')"
-                                                                                        class="btn-floating waves-effect waves-light orange">
-                                                                                        <i
-                                                                                            class="material-icons">check</i>
-                                                                                    </a>
-                                                                                    <% } %>
-                                                                    </td>
-                                                                </tr>
-                                                                <% }) %>
-                                                                    <% } else { %>
-                                                                        <tr>
-                                                                            <td colspan="11"
-                                                                                class="center-align grey-text">No orders
-                                                                                found matching your criteria</td>
-                                                                        </tr>
-                                                                        <% } %>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
+                        <div id="breadcrumbs-wrapper" style="background-color: white;">
+                            <div class="container">
+                                <div class="row">
+                                    <div class="col s12  right-align-md"
+                                        style="display: flex; justify-content: flex-end; gap: 10px;">
+                                        <a class="btn pull-right btn-add btn-breadcrumbs white-text"
+                                            href="/admin/orders/create">Create Order</a>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Pagination -->
-                        <% if (pagination && pagination.pages> 1) { %>
-                            <div class="right-align mt-2">
-                                Page <%= pagination.page %> of <%= pagination.pages %>
-                                        <% if (pagination.page> 1) { %>
-                                            <a href="?page=<%= pagination.page - 1 %>&<%= new URLSearchParams(Object.assign({}, filters, {page: pagination.page - 1})).toString() %>"
-                                                class="btn-flat">Prev</a>
-                                            <% } %>
-                                                <% if (pagination.page < pagination.pages) { %>
-                                                    <a href="?page=<%= pagination.page + 1 %>&<%= new URLSearchParams(Object.assign({}, filters, {page: pagination.page + 1})).toString() %>"
-                                                        class="btn-flat">Next</a>
-                                                    <% } %>
+                        <div class="col s12">
+                            <div class="container">
+                                <div class="section section-data-tables">
+                                    <div class="row">
+                                        <div class="col s12">
+                                            <div class="card">
+                                                <div class="card-content">
+                                                    <div class="row">
+                                                        <div class="col s12 overflow">
+                                                            <table id="page-length-option" class="display">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Sr</th>
+                                                                        <th>Order Number</th>
+                                                                        <th>Customer</th>
+                                                                        <th>Items</th>
+                                                                        <th>Status</th>
+                                                                        <th>Priority</th>
+                                                                        <th>Created Date</th>
+                                                                        <th>Actions</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <% if (orders && orders.length> 0) { %>
+                                                                        <% orders.forEach((order, index)=> { %>
+                                                                            <tr class="order-row"
+                                                                                data-href="/admin/orders/view/<%= order._id %>">
+                                                                                <td>
+                                                                                    <%= index + 1 %>
+                                                                                </td>
+
+                                                                                <td><strong>
+                                                                                        <%= order.orderNumber %>
+                                                                                    </strong></td>
+
+                                                                                <td>
+                                                                                    <% if (order.customerId) { %>
+                                                                                        <%= order.customerId.companyName
+                                                                                            || order.customerId.name
+                                                                                            || 'N/A' %><br>
+                                                                                            <% if
+                                                                                                (order.customerId.customerId)
+                                                                                                { %>
+                                                                                                <br><small
+                                                                                                    class="grey-text">ID:
+                                                                                                    <%= order.customerId.customerId
+                                                                                                        %>
+                                                                                                </small>
+                                                                                                <% } %>
+                                                                                                    <% } else { %>
+                                                                                                        <span
+                                                                                                            class="grey-text">Customer
+                                                                                                            N/A</span>
+                                                                                                        <% } %>
+                                                                                </td>
+
+                                                                                <td>
+                                                                                    <%= order.items?.length || 0 %>
+                                                                                        item(s)
+                                                                                </td>
+
+                                                                                <td class="status-column">
+                                                                                    <span
+                                                                                        class="badge status-<%= order.status %>">
+                                                                                        <%= order.status?.replace(/_/g, ' '
+                                                                                            ).toUpperCase() || 'UNKNOWN'
+                                                                                            %>
+                                                                                    </span>
+                                                                                </td>
+
+                                                                                <td>
+                                                                                    <span
+                                                                                        class="priority-<%= order.priority || 'medium' %>">
+                                                                                        <%= (order.priority || 'medium'
+                                                                                            ).toUpperCase() %>
+                                                                                    </span>
+                                                                                </td>
+
+                                                                                <td>
+                                                                                    <% let formattedDate='-' ; if
+                                                                                        (order.createdAt) { const
+                                                                                        createdAt=new
+                                                                                        Date(order.createdAt); const
+                                                                                        day=String(createdAt.getUTCDate()).padStart(2, '0'
+                                                                                        ); const
+                                                                                        month=String(createdAt.getUTCMonth()
+                                                                                        + 1).padStart(2, '0' ); const
+                                                                                        year=createdAt.getUTCFullYear();
+                                                                                        const
+                                                                                        hours=String(createdAt.getUTCHours()).padStart(2, '0'
+                                                                                        ); const
+                                                                                        minutes=String(createdAt.getUTCMinutes()).padStart(2, '0'
+                                                                                        );
+                                                                                        formattedDate=`${day}-${month}-${year}
+                                                                                        ${hours}:${minutes}`; } %>
+                                                                                        <%= formattedDate %>
+                                                                                </td>
+
+                                                                                <td class="actions-column">
+                                                                                    <a href="/admin/orders/view/<%= order._id %>"
+                                                                                        class="waves-effect waves-light accent-2 btn-edit">
+                                                                                        <i
+                                                                                            class="material-icons">visibility</i>
+                                                                                    </a>
+                                                                                    &nbsp;&nbsp;
+                                                                                    <a href="/admin/orders/edit/<%= order._id %>"
+                                                                                        class="btn-floating waves-effect waves-light accent-2 btn-edit">
+                                                                                        <i
+                                                                                            class="material-icons">edit</i>
+                                                                                    </a>
+                                                                                    &nbsp;&nbsp;
+                                                                                    <a href="#"
+                                                                                        class="btn-floating waves-effect waves-light accent-2 btn-delete"
+                                                                                        onclick="confirmDelete('<%= order._id %>', '<%= order.orderNumber %>')"
+                                                                                        style="margin-left: 10px;">
+                                                                                        <i
+                                                                                            class="material-icons">delete</i>
+                                                                                    </a>
+                                                                                    &nbsp;&nbsp;
+                                                                                    <!-- Truck Icon - Create Delivery -->
+                                                                                    <% if (!order.deliveryId &&
+                                                                                        ['confirmed', 'processing'
+                                                                                        , 'ready_for_pickup'
+                                                                                        ].includes(order.status)) { %>
+                                                                                        <a href="/admin/deliveries/create-from-order/<%= order._id %>"
+                                                                                            class="btn-floating waves-effect waves-light green btn-create-delivery"
+                                                                                            title="Create Delivery">
+                                                                                            <i
+                                                                                                class="material-icons">local_shipping</i>
+                                                                                        </a>
+                                                                                        <% } %>
+                                                                                            <% if
+                                                                                                (order.status==='pending'
+                                                                                                ) { %>
+                                                                                                &nbsp;&nbsp;
+                                                                                                <a href="#"
+                                                                                                    onclick="confirmOrder('<%= order._id %>')"
+                                                                                                    class="btn-floating waves-effect waves-light orange">
+                                                                                                    <i
+                                                                                                        class="material-icons">check</i>
+                                                                                                </a>
+                                                                                                <% } %>
+                                                                                </td>
+                                                                            </tr>
+                                                                            <% }) %>
+                                                                                <% } else { %>
+                                                                                    <tr>
+                                                                                        <td colspan="11"
+                                                                                            class="center-align grey-text">
+                                                                                            No orders found matching
+                                                                                            your criteria
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                    <% } %>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                
+                                </div>
                             </div>
-                            <% } %>
-                    </div>
-                </div>
-            </div>
-        </div>
+                        </div>
 
-        <%- include('_layouts/commonJs') %>
+                        <%- include('_layouts/commonJs') %>
 
-            <script src="/app-assets/vendors/data-tables/js/jquery.dataTables.min.js"></script>
-            <script src="/app-assets/js/scripts/data-tables.js"></script>
+                            <script src="/app-assets/vendors/data-tables/js/jquery.dataTables.min.js"></script>
+                            <script src="/app-assets/js/scripts/data-tables.js"></script>
 
-            <script>
-                // Select All Checkbox
-                document.addEventListener('DOMContentLoaded', function () {
-                    const selectAll = document.getElementById('selectAll');
-                    const checkboxes = document.querySelectorAll('input[name="selectedOrders[]"]');
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    // Select All Checkbox
+                                    const selectAll = document.getElementById('selectAll');
+                                    const checkboxes = document.querySelectorAll('input[name="selectedOrders[]"]');
 
-                    if (selectAll) {
-                        selectAll.addEventListener('change', function () {
-                            checkboxes.forEach(cb => cb.checked = this.checked);
-                        });
-                    }
+                                    if (selectAll) {
+                                        selectAll.addEventListener('change', function () {
+                                            checkboxes.forEach(cb => cb.checked = this.checked);
+                                        });
+                                    }
 
-                    // Initialize Materialize selects
-                    M.FormSelect.init(document.querySelectorAll('select'));
-                });
+                                    // Initialize Materialize selects
+                                    M.FormSelect.init(document.querySelectorAll('select'));
 
-                // Confirm Order
-                function confirmOrder(orderId) {
-                    if (!confirm('Confirm this order?')) return;
+                                    // Make entire row clickable (except special areas)
+                                    document.querySelectorAll('tr.order-row').forEach(row => {
+                                        row.addEventListener('click', function (e) {
+                                            // Prevent navigation if clicked on these protected areas
+                                            if (e.target.closest('.checkbox-column') ||
+                                                e.target.closest('.actions-column') ||
+                                                e.target.closest('.status-column') ||
+                                                e.target.closest('.status-badge') ||
+                                                e.target.tagName === 'INPUT' ||
+                                                e.target.tagName === 'LABEL' ||
+                                                e.target.tagName === 'A' ||
+                                                e.target.closest('.btn-floating') ||
+                                                e.target.closest('.btn-edit') ||
+                                                e.target.closest('.btn-delete') ||
+                                                e.target.closest('.btn-create-delivery')) {
+                                                return;
+                                            }
 
-                    fetch(`/admin/orders/${orderId}/confirm`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ remarks: 'Confirmed by admin' })
-                    })
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.success) {
-                                M.toast({ html: 'Order confirmed successfully!', classes: 'green rounded' });
-                                setTimeout(() => location.reload(), 1200);
-                            } else {
-                                M.toast({ html: data.message || 'Failed to confirm', classes: 'red rounded' });
-                            }
-                        })
-                        .catch(() => M.toast({ html: 'Network error', classes: 'red rounded' }));
-                }
+                                            const href = this.getAttribute('data-href');
+                                            if (href) {
+                                                window.location.href = href;
+                                            }
+                                        });
+                                    });
+                                });
 
-                // Confirm Delete
-                function confirmDelete(orderId, orderNumber) {
-                    if (!confirm(`Are you sure you want to delete order "${orderNumber}"? This action cannot be undone.`)) {
-                        return;
-                    }
+                                // Confirm Order
+                                function confirmOrder(orderId) {
+                                    if (!confirm('Confirm this order?')) return;
 
-                    // Create form and submit POST request
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = `/admin/orders/delete/${orderId}`;
+                                    fetch(`/admin/orders/${orderId}/confirm`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ remarks: 'Confirmed by admin' })
+                                    })
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (data.success) {
+                                                M.toast({ html: 'Order confirmed successfully!', classes: 'green rounded' });
+                                                setTimeout(() => location.reload(), 1200);
+                                            } else {
+                                                M.toast({ html: data.message || 'Failed to confirm', classes: 'red rounded' });
+                                            }
+                                        })
+                                        .catch(() => M.toast({ html: 'Network error', classes: 'red rounded' }));
+                                }
 
-                    document.body.appendChild(form);
-                    form.submit();
-                }
-            </script>
+                                // Confirm Delete
+                                function confirmDelete(orderId, orderNumber) {
+                                    if (!confirm(`Are you sure you want to delete order "${orderNumber}"? This action cannot be undone.`)) {
+                                        return;
+                                    }
+
+                                    const form = document.createElement('form');
+                                    form.method = 'POST';
+                                    form.action = `/admin/orders/delete/${orderId}`;
+                                    document.body.appendChild(form);
+                                    form.submit();
+                                }
+                            </script>
 </body>
 
 </html>

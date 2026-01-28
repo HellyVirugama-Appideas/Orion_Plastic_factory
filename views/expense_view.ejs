@@ -42,22 +42,17 @@
                 display: inline-block;
             }
 
-            .pending {
+            .Pending {
                 background: #fff3cd;
                 color: #856404;
             }
 
-            .approved_by_admin {
+            .Approved {
                 background: #d4edda;
                 color: #155724;
             }
 
-            .approved_by_finance {
-                background: #cce5ff;
-                color: #004085;
-            }
-
-            .rejected {
+            .Rejected {
                 background: #f8d7da;
                 color: #721c24;
             }
@@ -126,11 +121,12 @@
                             <div class="col s12 m6 l6">
                                 <h5 class="breadcrumbs-title"><span>Expense Details</span></h5>
                             </div>
-                            <div class="col s12 m6 l6 right-align-md">
-                                <a href="/admin/expenses"
-                                    class="btn gradient-45deg-purple-deep-orange pull-right btn-breadcrumbs">
-                                    Back to Expenses
-                                </a>
+                            <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                                <ol class="breadcrumbs mb-0">
+                                    <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                    <li class="breadcrumb-item"><a href="/admin/expenses">Expense</a></li>
+                                    <li class="breadcrumb-item active">View</li>
+                                </ol>
                             </div>
                         </div>
                     </div>
@@ -176,7 +172,7 @@
                                                 <!-- Action Buttons -->
                                                 <div
                                                     style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
-                                                    <% if (expense.approvalStatus==='pending' ) { %>
+                                                    <% if (expense.approvalStatus==='Pending' ) { %>
                                                         <a href="#approveModal"
                                                             class="btn-small green modal-trigger waves-effect waves-light">
                                                             Approve
@@ -186,8 +182,7 @@
                                                             Reject
                                                         </a>
                                                         <% } else { %>
-                                                            <span class="btn-small grey disabled">Action
-                                                                Completed</span>
+                                                            <span class="btn-small grey disabled">Action Completed</span>
                                                             <% } %>
                                                 </div>
                                             </div>

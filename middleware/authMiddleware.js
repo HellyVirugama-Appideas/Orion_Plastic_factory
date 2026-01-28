@@ -754,7 +754,7 @@ exports.checkPermission = (moduleKey, action) => {
       }
 
       // Action mapping
-      const map = { read: 'isView', create: 'isAdd', update: 'isEdit', delete: 'isDelete' };
+      const map = { read: 'isView', view: 'isView', create: 'isAdd', update: 'isEdit', edit: 'isEdit', delete: 'isDelete' };
       const field = map[action.toLowerCase()];
 
       if (!field) {
@@ -801,11 +801,74 @@ const getToken = (req) => {
 };
 
 // Main admin protection middleware (for both API & EJS)
+// exports.protectAdmin = async (req, res, next) => {
+//   try {
+//     console.log('[MIDDLEWARE] Request method:', req.method, 'Path:', req.path);
+//     const token = getToken(req);
+//     if (!token) {
+//       req.flash('red', 'Please login as admin');
+//       return res.redirect('/admin/signin');
+//     }
+
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+//     console.log('[protectAdmin] Decoded token:', decoded);
+
+//     const admin = await Admin.findById(decoded.id || decoded.userId || decoded._id)
+//       .select('-password');
+
+//     if (!admin) {
+//       console.log('[protectAdmin] Admin not found');
+//       res.clearCookie('jwtAdmin');
+//       req.flash('red', 'Admin account not found');
+//       return res.redirect('/admin/signin');
+//     }
+
+//     if (!admin.isActive) {
+//       res.clearCookie('jwtAdmin');
+//       req.flash('red', 'Admin account deactivated');
+//       return res.redirect('/admin/signin');
+//     }
+
+//     // Direct assign – NO .toObject()
+//     req.admin = admin;
+//     req.admin.role = admin.role;  // Safety net
+
+//     req.user = admin;
+//     req.user.role = admin.role;
+
+//     console.log('[protectAdmin] Admin attached (direct):', {
+//       id: req.admin._id.toString(),
+//       email: req.admin.email,
+//       role: req.admin.role
+//     });
+
+//     next();
+
+//   } catch (error) {
+//     console.error('[protectAdmin] Error:', error.message);
+//     res.clearCookie('jwtAdmin');
+//     req.flash('red', 'Authentication failed');
+//     return res.redirect('/admin/signin');
+//   }
+// };
+
 exports.protectAdmin = async (req, res, next) => {
   try {
     console.log('[MIDDLEWARE] Request method:', req.method, 'Path:', req.path);
+
     const token = getToken(req);
+
     if (!token) {
+      console.log('[protectAdmin] No token found');
+
+      // Check if this is an API request (JSON) or web request
+      if (req.accepts('json') && !req.accepts('html')) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
       req.flash('red', 'Please login as admin');
       return res.redirect('/admin/signin');
     }
@@ -818,25 +881,44 @@ exports.protectAdmin = async (req, res, next) => {
 
     if (!admin) {
       console.log('[protectAdmin] Admin not found');
+
+      // Don't clear cookie on API requests during operation
+      if (req.accepts('json') && !req.accepts('html')) {
+        return res.status(401).json({
+          success: false,
+          message: 'Admin account not found'
+        });
+      }
+
       res.clearCookie('jwtAdmin');
       req.flash('red', 'Admin account not found');
       return res.redirect('/admin/signin');
     }
 
     if (!admin.isActive) {
+      console.log('[protectAdmin] Admin account deactivated');
+
+      // Don't clear cookie on API requests during operation
+      if (req.accepts('json') && !req.accepts('html')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin account deactivated'
+        });
+      }
+
       res.clearCookie('jwtAdmin');
       req.flash('red', 'Admin account deactivated');
       return res.redirect('/admin/signin');
     }
 
-    // Direct assign – NO .toObject()
+    // Attach admin to request
     req.admin = admin;
-    req.admin.role = admin.role;  // Safety net
+    req.admin.role = admin.role;
 
     req.user = admin;
     req.user.role = admin.role;
 
-    console.log('[protectAdmin] Admin attached (direct):', {
+    console.log('[protectAdmin] Admin authenticated:', {
       id: req.admin._id.toString(),
       email: req.admin.email,
       role: req.admin.role
@@ -846,11 +928,37 @@ exports.protectAdmin = async (req, res, next) => {
 
   } catch (error) {
     console.error('[protectAdmin] Error:', error.message);
-    res.clearCookie('jwtAdmin');
+
+    // Check if this is a token verification error
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+
+      // For API requests, don't clear cookie, just return error
+      if (req.accepts('json') && !req.accepts('html')) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired token'
+        });
+      }
+
+      // Only clear cookie for web navigation
+      res.clearCookie('jwtAdmin');
+      req.flash('red', 'Session expired. Please login again');
+      return res.redirect('/admin/signin');
+    }
+
+    // For other errors, don't clear cookie
+    if (req.accepts('json') && !req.accepts('html')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Authentication failed'
+      });
+    }
+
     req.flash('red', 'Authentication failed');
     return res.redirect('/admin/signin');
   }
 };
+
 
 // Super Admin only middleware
 exports.isSuperAdmin = (req, res, next) => {

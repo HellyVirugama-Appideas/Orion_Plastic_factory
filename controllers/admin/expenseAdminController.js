@@ -1,5 +1,7 @@
 const Expense = require('../../models/Expense');
 const Driver = require('../../models/Driver');
+const Notification = require("../../models/Notification")
+const { sendNotification } = require("../../utils/sendNotification")
 
 //  GET ALL EXPENSES (ADMIN) 
 // exports.getAllExpenses = async (req, res) => {
@@ -200,10 +202,10 @@ exports.getAllExpenses = async (req, res) => {
           $group: {
             _id: null,
             totalExpenses: { $sum: '$totalAmount' },
-            pendingCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'pending'] }, 1, 0] } },
-            approvedByAdminCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_admin'] }, 1, 0] } },
-            approvedByFinanceCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'approved_by_finance'] }, 1, 0] } },
-            rejectedCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'rejected'] }, 1, 0] } }
+            pendingCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Pending'] }, 1, 0] } },
+            approvedByAdminCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Approved'] }, 1, 0] } },
+            approvedByFinanceCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Approved'] }, 1, 0] } },
+            rejectedCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Rejected'] }, 1, 0] } }
           }
         }
       ])
@@ -243,7 +245,7 @@ exports.getExpenseById = async (req, res) => {
       .populate('delivery')
       .populate('approvalWorkflow.adminApproval.approvedBy', 'name email')
       .populate('approvalWorkflow.financeApproval.approvedBy', 'name email')
-      // .lean();
+    // .lean();
 
     if (!expense) {
       req.flash('error', 'Expense not found');
@@ -318,115 +320,270 @@ exports.getPendingExpenses = async (req, res) => {
   }
 };
 
-//  APPROVE EXPENSE (ADMIN LEVEL) 
+
 exports.approveExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
     const { comments } = req.body;
 
-    const expense = await Expense.findById(expenseId);
+    const expense = await Expense.findById(expenseId)
+      .populate('driver', 'name fcmToken');
+
     if (!expense) {
-      return res.status(404).json({
-        success: false,
-        message: 'Expense not found'
-      });
+      req.flash('error', 'Expense not found');
+      return res.redirect('/admin/expenses');
+    }``
+
+    if (expense.approvalStatus !== 'Pending') {
+      req.flash('error', `Expense is already ${expense.approvalStatus}`);
+      return res.redirect('/admin/expenses');
     }
 
-    if (expense.approvalStatus !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'Expense is not in pending status'
-      });
-    }
-
-    // Update admin approval
+    // Update approval
     expense.approvalWorkflow.adminApproval = {
       approvedBy: req.user._id,
-      approvedAt: Date.now(),
+      approvedAt: new Date(),
       comments: comments || 'Approved by admin',
-      status: 'approved'
+      status: 'Approved'
     };
 
-    expense.approvalStatus = 'approved_by_admin';
+    expense.approvalStatus = 'Approved';
     await expense.save();
 
-    await expense.populate([
-      { path: 'driver', select: 'name email phone vehicleNumber' },
-      { path: 'approvalWorkflow.adminApproval.approvedBy', select: 'name email' }
-    ]);
+    // ────────────────────────────────────────────────
+    // CALCULATE REAL AMOUNT (FIXED)
+    // ────────────────────────────────────────────────
+    let realAmount = 0;
+    if (expense.expenseType === 'fuel' && expense.fuelDetails) {
+      realAmount = expense.fuelDetails.totalFuelCost || 0;
+    } else if (expense.expenseType === 'vehicle' && expense.vehicleExpenseDetails) {
+      realAmount = expense.vehicleExpenseDetails.expenseAmount || 0;
+    }
 
-    // res.status(200).json({
-    //   success: true,
-    //   message: 'Expense approved by admin. Forwarded to finance for final approval.',
-    //   data: { expense }
-    // });
+    // ────────────────────────────────────────────────
+    // NOTIFICATIONS TO DRIVER
+    // ────────────────────────────────────────────────
+    const driver = expense.driver;
+    if (driver) {
+      console.log(`[EXPENSE-APPROVE-NOTIF] Sending to driver ${driver._id} (${driver.name})`);
 
-    res.redirect("/admin/expenses")
+      // 1. Push Notification (FCM)
+      if (driver.fcmToken && driver.fcmToken.trim().length > 20) {
+        console.log(`[EXPENSE-FCM] Attempting send to: ${driver.fcmToken.substring(0, 20)}...`);
+        try {
+          await sendNotification(
+            driver.name || "Driver",
+            "english",
+            driver.fcmToken,
+            "expense_approved",
+            {
+              expenseId: expense._id.toString(),
+              amount: realAmount,
+              expenseType: expense.expenseType,
+              message: comments || "Your expense has been approved",
+              type: "expense_approved"
+            }
+          );
+          console.log(`[EXPENSE-NOTIF-SUCCESS] FCM sent for approval`);
+        } catch (pushErr) {
+          console.error("[EXPENSE-FCM-ERROR]", pushErr.message || pushErr);
+        }
+      } else {
+        console.warn("[EXPENSE-NOTIF] No valid FCM token for driver");
+      }
+
+      // 2. In-app Notification – FIXED AMOUNT
+      try {
+        await Notification.create({
+          recipientId: driver._id,
+          recipientType: 'Driver',
+          type: 'expense_approved',
+          title: 'Expense Approved',
+          message: `Your ${expense.expenseType} expense of ₹${realAmount} has been approved by admin.${comments ? ` Comment: ${comments}` : ''}`,
+          referenceId: expense._id,
+          referenceModel: 'Expense',
+          priority: 'medium',
+          createdAt: new Date()
+        });
+        console.log(`[EXPENSE-NOTIF-SUCCESS] In-app notification created for approval`);
+      } catch (notifErr) {
+        console.error("[EXPENSE-INAPP-ERROR]", notifErr.message || notifErr);
+      }
+    }
+
+    req.flash('success', 'Expense approved successfully. Driver notified.');
+    res.redirect("/admin/expenses");
 
   } catch (error) {
     console.error('Admin approve expense error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to approve expense',
-      error: error.message
-    });
+    req.flash('error', 'Failed to approve expense');
+    res.redirect('/admin/expenses');
   }
 };
 
+
+
 //  REJECT EXPENSE (ADMIN) 
+// exports.rejectExpense = async (req, res) => {
+//   try {
+//     const { expenseId } = req.params;
+//     const { reason } = req.body;
+
+//     if (!reason) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Rejection reason is required'
+//       });
+//     }
+
+//     const expense = await Expense.findById(expenseId);
+//     if (!expense) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Expense not found'
+//       });
+//     }
+
+//     expense.approvalStatus = 'rejected';
+//     expense.rejectionReason = reason;
+//     expense.rejectedBy = req.user._id;
+//     expense.rejectedAt = Date.now();
+
+//     // Update workflow based on current status
+//     if (expense.approvalStatus === 'pending') {
+//       expense.approvalWorkflow.adminApproval = {
+//         status: 'rejected',
+//         comments: reason,
+//         approvedBy: req.user._id,
+//         approvedAt: Date.now()
+//       };
+//     }
+
+//     await expense.save();
+//     await expense.populate('driver', 'name email phone');
+
+//     // res.status(200).json({
+//     //   success: true,
+//     //   message: 'Expense rejected',
+//     //   data: { expense }
+//     // });
+
+//     res.redirect("/admin/expenses")
+
+//   } catch (error) {
+//     console.error('Reject expense error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to reject expense',
+//       error: error.message
+//     });
+//   }
+// };
+
+// REJECT EXPENSE (ADMIN)
 exports.rejectExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
     const { reason } = req.body;
 
     if (!reason) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rejection reason is required'
-      });
+      req.flash('error', 'Rejection reason is required');
+      return res.redirect('/admin/expenses');
     }
 
-    const expense = await Expense.findById(expenseId);
+    const expense = await Expense.findById(expenseId)
+      .populate('driver', 'name fcmToken');
+
     if (!expense) {
-      return res.status(404).json({
-        success: false,
-        message: 'Expense not found'
-      });
+      req.flash('error', 'Expense not found');
+      return res.redirect('/admin/expenses');
     }
 
-    expense.approvalStatus = 'rejected';
+    expense.approvalStatus = 'Rejected';
     expense.rejectionReason = reason;
     expense.rejectedBy = req.user._id;
-    expense.rejectedAt = Date.now();
+    expense.rejectedAt = new Date();
 
-    // Update workflow based on current status
-    if (expense.approvalStatus === 'pending') {
+    // Update workflow
+    if (expense.approvalWorkflow.adminApproval?.status === 'Pending') {
       expense.approvalWorkflow.adminApproval = {
-        status: 'rejected',
+        status: 'Rejected',
         comments: reason,
         approvedBy: req.user._id,
-        approvedAt: Date.now()
+        approvedAt: new Date()
       };
     }
 
     await expense.save();
-    await expense.populate('driver', 'name email phone');
 
-    // res.status(200).json({
-    //   success: true,
-    //   message: 'Expense rejected',
-    //   data: { expense }
-    // });
+    // ────────────────────────────────────────────────
+    // CALCULATE REAL AMOUNT (FIXED)
+    // ────────────────────────────────────────────────
+    let realAmount = 0;
+    if (expense.expenseType === 'fuel' && expense.fuelDetails) {
+      realAmount = expense.fuelDetails.totalFuelCost || 0;
+    } else if (expense.expenseType === 'vehicle' && expense.vehicleExpenseDetails) {
+      realAmount = expense.vehicleExpenseDetails.expenseAmount || 0;
+    }
 
-    res.redirect("/admin/expenses")
+    // ────────────────────────────────────────────────
+    // NOTIFICATIONS TO DRIVER
+    // ────────────────────────────────────────────────
+    const driver = expense.driver;
+    if (driver) {
+      console.log(`[EXPENSE-REJECT-NOTIF] Sending to driver ${driver._id} (${driver.name})`);
+
+      // 1. Push Notification (FCM)
+      if (driver.fcmToken && driver.fcmToken.trim().length > 20) {
+        console.log(`[EXPENSE-FCM] Attempting send to: ${driver.fcmToken.substring(0, 20)}...`);
+        try {
+          await sendNotification(
+            driver.name || "Driver",
+            "english",
+            driver.fcmToken,
+            "expense_rejected",
+            {
+              expenseId: expense._id.toString(),
+              amount: realAmount,
+              expenseType: expense.expenseType,
+              reason: reason,
+              type: "expense_rejected"
+            }
+          );
+          console.log(`[EXPENSE-NOTIF-SUCCESS] FCM sent for rejection`);
+        } catch (pushErr) {
+          console.error("[EXPENSE-FCM-ERROR]", pushErr.message || pushErr);
+        }
+      } else {
+        console.warn("[EXPENSE-NOTIF] No valid FCM token for driver");
+      }
+
+      // 2. In-app Notification – FIXED AMOUNT
+      try {
+        await Notification.create({
+          recipientId: driver._id,
+          recipientType: 'Driver',
+          type: 'expense_rejected',
+          title: 'Expense Rejected',
+          message: `Your ${expense.expenseType} expense of ₹${realAmount} was rejected.${reason ? ` Reason: ${reason}` : ''}`,
+          referenceId: expense._id,
+          referenceModel: 'Expense',
+          priority: 'high',
+          createdAt: new Date()
+        });
+        console.log(`[EXPENSE-NOTIF-SUCCESS] In-app notification created for rejection`);
+      } catch (notifErr) {
+        console.error("[EXPENSE-INAPP-ERROR]", notifErr.message || notifErr);
+      }
+    }
+
+    req.flash('success', 'Expense rejected. Driver notified.');
+    res.redirect("/admin/expenses");
 
   } catch (error) {
     console.error('Reject expense error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to reject expense',
-      error: error.message
-    });
+    req.flash('error', 'Failed to reject expense');
+    res.redirect('/admin/expenses');
   }
 };
 

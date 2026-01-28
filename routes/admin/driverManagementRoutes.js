@@ -216,4 +216,21 @@ router.get('/documents/:driverId', protectAdmin, isAdmin, checkPermission('drive
 router.get('/document/:driverId/:documentId/verify', protectAdmin, isAdmin, checkPermission('drivers', 'update'), verifySingleDocument);
 router.post('/document/:driverId/:documentId/reject', protectAdmin, isAdmin, checkPermission('drivers', 'update'), rejectSingleDocument);
 
+router.post(
+  '/:driverId/toggle-status',
+  protectAdmin,
+  isAdmin,
+  checkPermission('drivers', 'update'),
+  driverManagementController.toggleDriverStatus
+);
+
+router.get(
+  "/logs/:driverId",
+  protectAdmin,
+  isAdmin,
+  checkPermission("drivers","read"),
+  driverManagementController.getDriverLogs
+)
+
+
 module.exports = router;

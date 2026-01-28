@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
   recipientId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true,
+    required: false,
     refPath: 'recipientType'
   },
   recipientType: {
     type: String,
-    required: true,
+    required: false,
     enum: ['Admin', 'Driver', 'Customer']
   },
   type: {
@@ -19,13 +19,14 @@ const notificationSchema = new mongoose.Schema({
       'journey_started',
       'journey_ended',
       'delivery_completed',
-      'delivery_failed',
+      'delivery_cancelled',
+      'delivery_updated',
       'new_message',
       'admin_announcement',
-      'payment_received',
       'expense_approved',
       'expense_rejected',
       'maintenance_due',
+      'chat_message',
       'custom'
     ]
   },

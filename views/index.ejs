@@ -4,8 +4,114 @@
   <%- include('_layouts/head') %>
   <title>Dashboard | <%= title %></title>
   <link rel="stylesheet" type="text/css" href="/app-assets/css/pages/dashboard.css">
-  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    #driversMap {
+      height: 500px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .map-card {
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+
+    .live-badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 1000;
+      background: linear-gradient(135deg, #4CAF50, #45a049);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 25px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    }
+
+    .live-pulse-dot {
+      width: 10px;
+      height: 10px;
+      background: white;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.8); }
+    }
+
+    .map-controls {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      display: flex;
+      gap: 10px;
+    }
+
+    .map-control-btn {
+      background: white;
+      border: 1px solid #ddd;
+      padding: 8px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .map-control-btn:hover {
+      background: #f5f5f5;
+      border-color: #2196F3;
+    }
+
+    .map-control-btn.active {
+      background: #2196F3;
+      color: white;
+    }
+
+    .driver-legend {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 20px;
+      padding: 5px 12px;
+      background: #f5f5f5;
+      border-radius: 20px;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .legend-dot.available { background: #4CAF50; }
+    .legend-dot.busy { background: #FF9800; }
+    .legend-dot.offline { background: #9E9E9E; }
+
+    
+  </style>
 </head>
 
 <body class="vertical-layout page-header-light vertical-menu-collapsible vertical-dark-menu preload-transitions 2-columns"
@@ -23,88 +129,117 @@
                 <%- include('messages', { messages: messages }) %>
               </div>
 
+              <!-- Stats Cards -->
               <div class="row mt-2">
-
-                <!-- Today’s Deliveries -->
                 <div class="col m3 s12" style="padding: 10px;">
                   <a href="/admin/deliveries?status=delivered&date=today" style="text-decoration: none;">
-                    <div class="stat-card" style="background: linear-gradient(135deg, #00C853, #009624); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(0,200,83,0.25);">
-                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.todayDeliveries || 0 %>">
-                        0
-                      </h4>
-                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Today’s Deliveries</span>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #00C853, #009624); border-radius: 16px; padding: 24px 20px;">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.todayDeliveries || 0 %>">0</h4>
+                      <span class="white-text" style="font-size: 18px;">Today's Deliveries</span>
                     </div>
                   </a>
                 </div>
 
-                <!-- Available Drivers -->
                 <div class="col m3 s12" style="padding: 10px;">
                   <a href="/admin/drivers?status=available" style="text-decoration: none;">
-                    <div class="stat-card" style="background: linear-gradient(135deg, #3F51B5, #303F9F); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(63,81,181,0.25);">
-                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.availableDrivers || 0 %>">
-                        0
-                      </h4>
-                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Available Drivers</span>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #3F51B5, #303F9F); border-radius: 16px; padding: 24px 20px;">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.availableDrivers || 0 %>">0</h4>
+                      <span class="white-text" style="font-size: 18px;">Available Drivers</span>
                     </div>
                   </a>
                 </div>
 
-                <!-- Available Vehicles -->
                 <div class="col m3 s12" style="padding: 10px;">
                   <a href="/admin/vehicles?status=available" style="text-decoration: none;">
-                    <div class="stat-card" style="background: linear-gradient(135deg, #FF6D00, #EF6C00); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(255,109,0,0.25);">
-                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.availableVehicles || 0 %>">
-                        0
-                      </h4>
-                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Available Vehicles</span>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #FF6D00, #EF6C00); border-radius: 16px; padding: 24px 20px;">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.availableVehicles || 0 %>">0</h4>
+                      <span class="white-text" style="font-size: 18px;">Available Vehicles</span>
                     </div>
                   </a>
                 </div>
 
-                <!-- Total Orders -->
                 <div class="col m3 s12" style="padding: 10px;">
                   <a href="/admin/orders" style="text-decoration: none;">
-                    <div class="stat-card" style="background: linear-gradient(135deg, #1A9CFF, #1976D2); border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 24px rgba(26,156,255,0.25);">
-                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.totalOrders || 0 %>">
-                        0
-                      </h4>
-                      <span class="white-text" style="font-size: 18px; opacity: 0.9;">Total Orders</span>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #1A9CFF, #1976D2); border-radius: 16px; padding: 24px 20px;">
+                      <h4 class="counter white-text" style="font-size: 42px; font-weight: 800; margin: 0;" data-target="<%= stats.totalOrders || 0 %>">0</h4>
+                      <span class="white-text" style="font-size: 18px;">Total Orders</span>
                     </div>
                   </a>
                 </div>
-
               </div>
             </div>
 
-            <!-- Modern & Premium Graph Section -->
+            <!-- Live Drivers Map Section -->
             <div class="row mt-4">
               <div class="col s12">
-                <div class="card z-depth-3" style="border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.12);">
+                <div class="card map-card z-depth-3">
                   <div class="card-content" style="padding: 28px 32px;">
                     <div class="row valign-wrapper" style="margin-bottom: 20px;">
                       <div class="col s12 m6">
-                        <h5 style="margin: 0; font-weight: 700; color: #212121; font-size: 1.4rem;">
-                          Weekly Performance Overview
+                        <h5 style="margin: 0; font-weight: 700; color: #212121;">
+                          <i class="material-icons left">location_on</i>
+                          Live Driver Tracking
                         </h5>
-                        <p style="margin: 6px 0 0; color: #757575; font-size: 0.95rem;">
-                          Orders vs Deliveries Trend (Last 7 Days)
+                        <p style="margin: 6px 0 0; color: #757575;">
+                          Real-time location of all active drivers
                         </p>
                       </div>
-                      <div class="col s12 m6 right-align hide-on-small-only">
-                        <div style="display: inline-flex; gap: 20px;">
-                          <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="width: 14px; height: 14px; border-radius: 50%; background: #1A9CFF;"></span>
-                            <span style="color: #424242; font-weight: 500;">Orders</span>
-                          </div>
-                          <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="width: 14px; height: 14px; border-radius: 50%; background: #00C853;"></span>
-                            <span style="color: #424242; font-weight: 500;">Deliveries</span>
-                          </div>
-                        </div>
+                      <div class="col s12 m6 right-align">
+                        <span id="activeDriversCount" class="badge blue white-text" style="padding: 8px 16px; border-radius: 20px;">
+                          0 Drivers Online
+                        </span>
                       </div>
                     </div>
 
-                    <!-- Modern Chart -->
+                    <!-- Map Container -->
+                    <div style="position: relative;">
+                      <div id="driversMap"></div>
+                      
+                      <!-- <div class="live-badge">
+                        <span class="live-pulse-dot"></span>
+                        <span>LIVE TRACKING</span>
+                      </div> -->
+
+                      <!-- <div class="map-controls">
+                        <button class="map-control-btn active" id="showAllBtn" onclick="showAllDrivers()">
+                          <i class="material-icons tiny">visibility</i> Show All
+                        </button>
+                        <button class="map-control-btn" id="showAvailableBtn" onclick="filterDrivers('available')">
+                          <i class="material-icons tiny">check_circle</i> Available
+                        </button>
+                        <button class="map-control-btn" id="showBusyBtn" onclick="filterDrivers('busy')">
+                          <i class="material-icons tiny">local_shipping</i> Busy
+                        </button>
+                      </div> -->
+                    </div>
+
+                    <!-- Driver Legend -->
+                    <div class="driver-legend">
+                      <strong style="margin-right: 15px;">Driver Status:</strong>
+                      <div class="legend-item">
+                        <span class="legend-dot available"></span>
+                        <span>Available (<span id="availableCount">0</span>)</span>
+                      </div>
+                      <div class="legend-item">
+                        <span class="legend-dot busy"></span>
+                        <span>Busy (<span id="busyCount">0</span>)</span>
+                      </div>
+                      <div class="legend-item">
+                        <span class="legend-dot offline"></span>
+                        <span>Offline (<span id="offlineCount">0</span>)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Performance Graph -->
+            <div class="row mt-4">
+              <div class="col s12">
+                <div class="card z-depth-3" style="border-radius: 16px; overflow: hidden;">
+                  <div class="card-content" style="padding: 28px 32px;">
+                    <h5 style="margin: 0 0 20px 0; font-weight: 700;">Weekly Performance Overview</h5>
                     <div style="position: relative; height: 380px;">
                       <canvas id="modernTrendChart"></canvas>
                     </div>
@@ -119,11 +254,243 @@
     </div>
   </div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <%- include('_layouts/commonJs') %>
 
+  <!-- Google Maps API -->
   <script>
+    const GOOGLE_MAPS_API_KEY = '<%= process.env.GOOGLE_MAPS_API_KEY || "YOUR_API_KEY" %>';
+    
+    (function() {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initDriversMap`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  </script>
+
+  <script>
+    let driversMap, socket;
+    let driverMarkers = {};
+    let driverData = {};
+    let currentFilter = 'all';
+
+    function initDriversMap() {
+      const defaultCenter = { lat: 23.0225, lng: 72.5714 };
+
+      driversMap = new google.maps.Map(document.getElementById('driversMap'), {
+        center: defaultCenter,
+        zoom: 12,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true
+      });
+
+      console.log('✅ Drivers Map Initialized');
+      initializeDriverSocket();
+      fetchAllDriverLocations();
+    }
+
+    function initializeDriverSocket() {
+      const socketUrl = '<%= process.env.FRONTEND_URL || "http://localhost:8000" %>';
+      socket = io(socketUrl, {
+        transports: ['websocket', 'polling']
+      });
+
+      socket.on('connect', () => {
+        console.log('✅ Socket connected');
+        socket.emit('join-admin-room');
+      });
+
+      socket.on('driver:location:update', (data) => {
+        console.log('📍 Driver location update:', data);
+        updateDriverMarker(data);
+      });
+
+      socket.on('driver:status:change', (data) => {
+        console.log('🔄 Driver status change:', data);
+        updateDriverStatus(data);
+      });
+    }
+
+    async function fetchAllDriverLocations() {
+      try {
+        const response = await fetch('/admin/api/drivers/locations');
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          result.data.forEach(driver => {
+            updateDriverMarker({
+              driverId: driver._id,
+              driverName: driver.name,
+              vehicleNumber: driver.vehicleNumber,
+              location: driver.currentLocation,
+              isAvailable: driver.isAvailable,
+              status: driver.isAvailable ? 'available' : 'busy'
+            });
+          });
+
+          updateDriverCounts();
+          fitMapToDrivers();
+        }
+      } catch (error) {
+        console.error('Failed to fetch driver locations:', error);
+      }
+    }
+
+    function updateDriverMarker(data) {
+      const { driverId, driverName, vehicleNumber, location, isAvailable, status } = data;
+
+      if (!location?.latitude || !location?.longitude) {
+        console.warn('Invalid location for driver:', driverId);
+        return;
+      }
+
+      const position = { lat: location.latitude, lng: location.longitude };
+      let markerColor = isAvailable ? 'green' : 'orange';
+
+      if (driverMarkers[driverId]) {
+        driverMarkers[driverId].setPosition(position);
+        driverMarkers[driverId].setIcon({
+          url: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+          scaledSize: new google.maps.Size(40, 40)
+        });
+      } else {
+        const marker = new google.maps.Marker({
+          position: position,
+          map: driversMap,
+          title: driverName || 'Driver',
+          icon: {
+            url: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+            scaledSize: new google.maps.Size(40, 40)
+          }
+        });
+
+        const infoWindow = new google.maps.InfoWindow({
+          content: `
+            <div style="padding: 10px;">
+              <h6 style="margin: 0 0 8px 0;">${driverName || 'Driver'}</h6>
+              <p style="margin: 5px 0;"><strong>Vehicle:</strong> ${vehicleNumber || 'N/A'}</p>
+              <p style="margin: 5px 0;"><strong>Status:</strong> ${status || 'unknown'}</p>
+            </div>
+          `
+        });
+
+        marker.addListener('click', () => {
+          Object.values(driverMarkers).forEach(m => {
+            if (m.infoWindow) m.infoWindow.close();
+          });
+          infoWindow.open(driversMap, marker);
+        });
+
+        marker.infoWindow = infoWindow;
+        driverMarkers[driverId] = marker;
+      }
+
+      driverData[driverId] = {
+        name: driverName,
+        vehicleNumber: vehicleNumber,
+        status: status || (isAvailable ? 'available' : 'busy'),
+        location: location
+      };
+
+      updateDriverCounts();
+      applyCurrentFilter();
+    }
+
+    function updateDriverStatus(data) {
+      const { driverId, isAvailable, status } = data;
+
+      if (driverData[driverId]) {
+        driverData[driverId].status = status || (isAvailable ? 'available' : 'busy');
+        
+        const marker = driverMarkers[driverId];
+        if (marker) {
+          const markerColor = isAvailable ? 'green' : 'orange';
+          marker.setIcon({
+            url: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+            scaledSize: new google.maps.Size(40, 40)
+          });
+        }
+
+        updateDriverCounts();
+        applyCurrentFilter();
+      }
+    }
+
+    function updateDriverCounts() {
+      let available = 0, busy = 0, offline = 0, total = 0;
+
+      Object.values(driverData).forEach(driver => {
+        total++;
+        if (driver.status === 'available') available++;
+        else if (driver.status === 'busy') busy++;
+        else offline++;
+      });
+
+      document.getElementById('activeDriversCount').textContent = `${total} Drivers Online`;
+      document.getElementById('availableCount').textContent = available;
+      document.getElementById('busyCount').textContent = busy;
+      document.getElementById('offlineCount').textContent = offline;
+    }
+
+    function fitMapToDrivers() {
+      const bounds = new google.maps.LatLngBounds();
+      let hasDrivers = false;
+
+      Object.values(driverMarkers).forEach(marker => {
+        if (marker.getMap()) {
+          bounds.extend(marker.getPosition());
+          hasDrivers = true;
+        }
+      });
+
+      if (hasDrivers) {
+        driversMap.fitBounds(bounds);
+      }
+    }
+
+    function showAllDrivers() {
+      currentFilter = 'all';
+      Object.values(driverMarkers).forEach(marker => marker.setMap(driversMap));
+      updateFilterButtons('showAllBtn');
+      fitMapToDrivers();
+    }
+
+    function filterDrivers(status) {
+      currentFilter = status;
+      
+      Object.entries(driverMarkers).forEach(([driverId, marker]) => {
+        const driver = driverData[driverId];
+        if (driver && driver.status === status) {
+          marker.setMap(driversMap);
+        } else {
+          marker.setMap(null);
+        }
+      });
+
+      updateFilterButtons(status === 'available' ? 'showAvailableBtn' : 'showBusyBtn');
+      fitMapToDrivers();
+    }
+
+    function applyCurrentFilter() {
+      if (currentFilter === 'all') {
+        showAllDrivers();
+      } else {
+        filterDrivers(currentFilter);
+      }
+    }
+
+    function updateFilterButtons(activeId) {
+      document.querySelectorAll('.map-control-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(activeId).classList.add('active');
+    }
+
+    // Counter Animation & Chart (existing code)
     document.addEventListener('DOMContentLoaded', () => {
-      // Counter Animation (unchanged)
       const counters = document.querySelectorAll('.counter');
       counters.forEach(counter => {
         const target = +counter.getAttribute('data-target');
@@ -141,56 +508,33 @@
           }
         };
 
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              updateCounter();
-              observer.unobserve(counter);
-            }
-          });
-        }, { threshold: 0.5 });
-
-        observer.observe(counter);
+        updateCounter();
       });
 
-      // === Modern Premium Chart ===
+      // Chart
       const ctx = document.getElementById('modernTrendChart').getContext('2d');
       const chartData = <%- JSON.stringify(chartData) %> || [];
-
-      const labels = chartData.map(item => item._id) || [];
-      const ordersData = chartData.map(item => item.orders || 0);
-      const deliveriesData = chartData.map(item => item.deliveries || 0);
 
       new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels,
+          labels: chartData.map(item => item._id) || [],
           datasets: [
             {
               label: 'Orders',
-              data: ordersData,
+              data: chartData.map(item => item.orders || 0),
               borderColor: '#1A9CFF',
               backgroundColor: 'rgba(26, 156, 255, 0.12)',
               borderWidth: 4,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#1A9CFF',
-              pointBorderWidth: 3,
-              pointRadius: 6,
-              pointHoverRadius: 9,
               tension: 0.45,
               fill: true
             },
             {
               label: 'Deliveries',
-              data: deliveriesData,
+              data: chartData.map(item => item.deliveries || 0),
               borderColor: '#00C853',
               backgroundColor: 'rgba(0, 200, 83, 0.12)',
               borderWidth: 4,
-              pointBackgroundColor: '#ffffff',
-              pointBorderColor: '#00C853',
-              pointBorderWidth: 3,
-              pointRadius: 6,
-              pointHoverRadius: 9,
               tension: 0.45,
               fill: true
             }
@@ -199,35 +543,9 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: 'rgba(30,30,46,0.92)',
-              titleFont: { size: 14, weight: '600' },
-              bodyFont: { size: 13 },
-              padding: 14,
-              cornerRadius: 10,
-              displayColors: false
-            }
-          },
+          plugins: { legend: { display: true } },
           scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: '#757575', font: { size: 12 } }
-            },
-            y: {
-              beginAtZero: true,
-              grid: { color: 'rgba(0,0,0,0.06)' },
-              ticks: { color: '#757575', font: { size: 12 } }
-            }
-          },
-          interaction: {
-            mode: 'index',
-            intersect: false
-          },
-          animation: {
-            duration: 1800,
-            easing: 'easeOutQuart'
+            y: { beginAtZero: true }
           }
         }
       });

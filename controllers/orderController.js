@@ -484,6 +484,64 @@ exports.updateOrder = async (req, res) => {
   }
 };
 
+// DELETE ORDER (with support for short role 'S')
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      req.flash('error', 'Order not found');
+      return res.redirect('/admin/orders');
+    }
+
+    // Debug log (optional, remove later if you want)
+    console.log("=== DELETE ORDER DEBUG ===");
+    console.log("User Role:", req.user?.role);
+
+    // Role check with short form support ('S' for superadmin, 'A' for admin)
+    const userRole = (req.user?.role || '').toString().trim();
+    const isSuperAdmin = userRole === 'superadmin' || userRole === 'S';
+    const isAdmin = userRole === 'admin' || userRole === 'A';
+    const hasAdminAccess = isSuperAdmin || isAdmin;
+
+    // Check if order can be deleted (status based)
+    const deletableStatuses = ['pending', 'cancelled', 'failed', 'awaiting_payment'];
+    if (!deletableStatuses.includes(order.status)) {
+      req.flash('error', 'Order cannot be deleted in current status');
+      return res.redirect('/admin/orders');
+    }
+
+    // Authorization
+    const isOrderOwner = order.customerId?.toString() === req.user._id.toString();
+
+    if (!hasAdminAccess && !isOrderOwner) {
+      req.flash('error', 'You do not have permission to delete this order');
+      return res.redirect('/admin/orders');
+    }
+
+    // Optional: extra safety for non-admin users (customers)
+    if (!hasAdminAccess) {
+      const timeSinceCreation = Date.now() - new Date(order.createdAt).getTime();
+      if (timeSinceCreation > 30 * 60 * 1000) { // 30 minutes
+        req.flash('error', 'You can only delete orders within 30 minutes of creation');
+        return res.redirect('/admin/orders');
+      }
+    }
+
+    // Perform deletion
+    await Order.findByIdAndDelete(orderId);
+
+    req.flash('success', `Order ${order.orderNumber || orderId} deleted successfully`);
+    res.redirect('/admin/orders');
+
+  } catch (error) {
+    console.error('Delete Order Error:', error);
+    req.flash('error', 'Failed to delete order');
+    res.redirect('/admin/orders');
+  }
+};
+
 // ======================== ORDER STATUS MANAGEMENT ========================
 
 // Confirm order (Admin)

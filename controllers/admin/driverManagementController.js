@@ -3,22 +3,23 @@ const Driver = require('../../models/Driver');
 const Vehicle = require('../../models/Vehicle');
 const Delivery = require('../../models/Delivery');
 const Region = require('../../models/Region')
+const DriverActivityLog = require("../../models/DriverActivityLog")
 const { successResponse, errorResponse } = require('../../utils/responseHelper');
+const {logDriverActivity} = require("../../utils/activityLogger")
 
 //BLOCK DRIVER
 exports.blockDriver = async (req, res) => {
   try {
     const { driverId } = req.params;
+    console.log('[BLOCK DRIVER] Driver ID:', driverId);
+    console.log('[BLOCK DRIVER] Request body:', req.body);
 
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return errorResponse(res, 'Request body is missing or empty', 400);
-    }
-
-    const { reason, blockType, unblockDate } = req.body;
-
-    if (!reason || reason.trim() === '') {
-      return errorResponse(res, 'Block reason is required', 400);
-    }
+    // More lenient body check
+    const reason = req.body?.reason?.trim() || 'No reason provided';
+    const blockType = req.body?.blockType || 'temporary';
+    
+    // Use current date if no date provided
+    const unblockDate = req.body?.unblockDate || null;
 
     const driver = await Driver.findById(driverId);
 
@@ -30,35 +31,54 @@ exports.blockDriver = async (req, res) => {
       return errorResponse(res, 'Driver is already blocked', 400);
     }
 
-    // Block driver
-    driver.blockStatus = driver.blockStatus || {};
-    driver.blockStatus.isBlocked = true;
-    driver.blockStatus.blockedAt = new Date();
-    driver.blockStatus.blockedBy = req.user._id;
-    driver.blockStatus.blockReason = reason.trim();
-    driver.blockStatus.blockType = blockType || 'temporary';
+    // Block the driver
+    driver.blockStatus = {
+      isBlocked: true,
+      blockedAt: new Date(), // Automatic current date
+      blockedBy: req.user._id || req.admin._id, // Admin who blocked
+      blockReason: reason,
+      blockType: blockType,
+      unblockDate: unblockDate ? new Date(unblockDate) : null
+    };
 
-    if (blockType === 'temporary' && unblockDate) {
-      driver.blockStatus.unblockDate = new Date(unblockDate);
-    }
-
-    driver.isAvailable = false;
     driver.isActive = false;
+    driver.isAvailable = false;
 
     await driver.save();
+
+    // Log the activity
+    try {
+      await logDriverActivity(driver._id, 'BLOCKED', {
+        reason: reason,
+        blockType: blockType,
+        unblockDate: unblockDate,
+        blockedBy: req.user._id || req.admin._id,
+        blockedAt: new Date().toISOString(),
+        updatedBy: 'admin',
+        timestamp: new Date().toISOString()
+      }, req);
+
+      console.log(`[DRIVER LOG] BLOCKED logged for driver ${driver._id}`);
+    } catch (logError) {
+      console.error('=== BLOCK LOGGING FAILED ===', logError.message);
+      // Don't fail the main operation if logging fails
+    }
 
     return successResponse(res, 'Driver blocked successfully', {
       driver: {
         id: driver._id,
         name: driver.name,
         phone: driver.phone,
+        email: driver.email,
+        isActive: driver.isActive,
         blockStatus: driver.blockStatus
       }
     });
 
   } catch (error) {
-    console.error('Block Driver Error:', error);
-    return errorResponse(res, 'Failed to block driver', 500);
+    console.error('Block Driver Error:', error.message);
+    console.error('Full error:', error);
+    return errorResponse(res, 'Failed to block driver: ' + error.message, 500);
   }
 };
 
@@ -66,12 +86,9 @@ exports.blockDriver = async (req, res) => {
 exports.unblockDriver = async (req, res) => {
   try {
     const { driverId } = req.params;
+    console.log('[UNBLOCK DRIVER] Driver ID:', driverId);
 
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return errorResponse(res, 'Request body is missing', 400);
-    }
-
-    const { notes } = req.body;
+    const notes = req.body?.notes?.trim() || 'Unblocked by admin';
 
     const driver = await Driver.findById(driverId);
 
@@ -94,11 +111,26 @@ exports.unblockDriver = async (req, res) => {
     driver.isActive = true;
     driver.isAvailable = true;
 
-    if (notes && notes.trim()) {
-      driver.notes = notes.trim();
+    if (notes) {
+      driver.notes = notes;
     }
 
     await driver.save();
+
+    // Log the activity
+    try {
+      await logDriverActivity(driver._id, 'UNBLOCKED', {
+        notes: notes,
+        unblockedBy: req.user._id || req.admin._id,
+        unblockedAt: new Date().toISOString(),
+        updatedBy: 'admin',
+        timestamp: new Date().toISOString()
+      }, req);
+
+      console.log(`[DRIVER LOG] UNBLOCKED logged for driver ${driver._id}`);
+    } catch (logError) {
+      console.error('=== UNBLOCK LOGGING FAILED ===', logError.message);
+    }
 
     return successResponse(res, 'Driver unblocked successfully', {
       driver: {
@@ -113,7 +145,7 @@ exports.unblockDriver = async (req, res) => {
 
   } catch (error) {
     console.error('Unblock Driver Error:', error);
-    return errorResponse(res, 'Failed to unblock driver', 500);
+    return errorResponse(res, 'Failed to unblock driver: ' + error.message, 500);
   }
 };
 
@@ -878,6 +910,81 @@ exports.deleteDriver = async (req, res) => {
   } catch (error) {
     console.error('Delete Driver Error:', error);
     req.flash('error', 'Failed to delete driver. Please try again.');
+    res.redirect('/admin/drivers');
+  }
+};
+
+exports.toggleDriverStatus = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const { isActive } = req.body;
+
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const driver = await Driver.findById(driverId);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver not found' });
+    }
+
+    driver.isActive = isActive;
+    driver.isAvailable = isActive;
+    await driver.save();
+
+    return res.json({
+      success: true,
+      message: `Driver ${isActive ? 'activated' : 'deactivated'} successfully`
+    });
+  } catch (error) {
+    console.error('[TOGGLE-DRIVER-STATUS] Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET - Driver Activity Logs (Similar to vendor logs)
+exports.getDriverLogs = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+
+    // Validate driverId
+    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      req.flash('red', 'Invalid driver ID');
+      return res.redirect('/admin/drivers');
+    }
+
+    // Check if driver exists
+    const driverExists = await Driver.exists({ _id: driverId });
+    if (!driverExists) {
+      req.flash('red', 'Driver not found!');
+      return res.redirect('/admin/drivers');
+    }
+
+    const logs = await DriverActivityLog.find({ driverId })
+      .populate('driverId', 'name phone email')
+      .populate('performedBy', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.render('driver_logs', {
+      logs,
+      driverId,
+      title: 'Driver Activity Logs',
+      messages: req.flash(),
+      user: req.admin,
+      url: req.originalUrl
+    });
+
+  } catch (error) {
+    console.error('Driver Logs Error:', error);
+
+    if (error.name === 'CastError') {
+      req.flash('red', 'Invalid driver ID');
+    } else {
+      req.flash('red', error.message || 'Error fetching driver logs');
+    }
+
     res.redirect('/admin/drivers');
   }
 };

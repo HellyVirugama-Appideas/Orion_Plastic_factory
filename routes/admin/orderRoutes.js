@@ -6,7 +6,7 @@
 // const { createOrderByAdmin } = require('../../controllers/admin/orderController');
 // const { renderOrdersList, renderCreateOrder } = require('../../controllers/admin/adminDashboardController');
 
- 
+
 // // Admin creates order
 // // router.post(
 // //   '/create',
@@ -97,6 +97,14 @@ router.get(
   isAdmin,
   checkPermission('orders', 'update'),
   adminDashboardController.renderEditOrder
+);
+
+router.post(
+  '/delete/:orderId',
+  protectAdmin,
+  isAdmin,
+  checkPermission('orders', 'delete'),
+  orderController.deleteOrder
 );
 
 // Create delivery from order page

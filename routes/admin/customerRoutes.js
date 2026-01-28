@@ -121,6 +121,14 @@ router.delete(
   customerController.deleteLocation
 );
 
+router.post(
+  "/:customerId/toggle-status",
+  protectAdmin,
+  isAdmin,
+  checkPermission('customers', 'update'),
+  customerController.toggleCustomerStatus
+)
+
 // Override region for location
 // router.patch(
 //   '/:customerId/locations/:locationId/override-region',

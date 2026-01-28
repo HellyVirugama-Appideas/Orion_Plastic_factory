@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const vehicleController = require('../../controllers/admin/vehicleController');
-const { isAdmin, protectAdmin } = require('../../middleware/authMiddleware');
-const { checkPermission } = require('../../middleware/authMiddleware');
+const { checkPermission, protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 
 
 // Create vehicle
@@ -57,7 +56,7 @@ router.post(
   vehicleController.updateVehicle
 );
 
-// Delete vehicle
+// Delete vehicle 
 router.post(
   '/delete/:vehicleId',
   protectAdmin,

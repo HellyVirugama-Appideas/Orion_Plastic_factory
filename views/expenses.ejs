@@ -34,24 +34,29 @@
                 display: inline-block;
             }
 
-            .pending {
+            .Pending {
                 background: #fff3cd;
                 color: #856404;
             }
 
-            .approved_by_admin {
+            .Approved {
                 background: #d4edda;
                 color: #155724;
             }
 
-            .approved_by_finance {
-                background: #cce5ff;
-                color: #004085;
-            }
-
-            .rejected {
+            .Rejected {
                 background: #f8d7da;
                 color: #721c24;
+            }
+
+            /* Minimal addition for row click feature - only cursor */
+            tr.expense-row {
+                cursor: pointer;
+            }
+
+            td.checkbox-column,
+            td.actions-column {
+                cursor: default;
             }
         </style>
 </head>
@@ -71,10 +76,11 @@
                                 <div class="col s12 m6 l6">
                                     <h6 class="breadcrumbs-title"><span>Manage Expenses</span></h6>
                                 </div>
-                                <div class="col s12 m6 l6 right-align-md"
-                                    style="display: flex; justify-content: flex-end; gap: 10px;">
-                                    <!-- Optional: Add Create Expense button if you have the route -->
-                                    <!-- <a class="btn pull-right btn-add btn-breadcrumbs white-text" href="/admin/expenses/create">Add Expense</a> -->
+                                <div class="col s12 m6 l6 right-align-md" style="margin-top: -10px;">
+                                    <ol class="breadcrumbs mb-0">
+                                        <li class="breadcrumb-item"><a href="/admin/dashboard">Dashboard</a></li>
+                                        <li class="breadcrumb-item active">Expense</li>
+                                    </ol>
                                 </div>
                         </div>
                     </div>
@@ -94,13 +100,12 @@
                                                     <thead>
                                                         <tr>
                                                             <th>Sr</th>
-                                                            <th style="width: 60px; text-align: center;">
-                                                                <label
-                                                                    style="margin: 0; display: flex; align-items: center; justify-content: center;">
-                                                                    <input type="checkbox" id="selectAll" />
-                                                                    <span style="margin-left: 4px;">All</span>
-                                                                </label>
-                                                            </th>
+                                                            <!-- <th style="width: 60px; text-align: center;">
+                                                            <label style="margin: 0; display: flex; align-items: center; justify-content: center;">
+                                                                <input type="checkbox" id="selectAll" />
+                                                                <span style="margin-left: 4px;">All</span>
+                                                            </label>
+                                                        </th> -->
                                                             <th>Date</th>
                                                             <th>Driver</th>
                                                             <th>Vehicle</th>
@@ -113,19 +118,14 @@
                                                     <tbody>
                                                         <% if (expenses && expenses.length> 0) { %>
                                                             <% expenses.forEach((exp, index)=> { %>
-                                                                <tr>
-                                                                    <td>
+                                                                <!-- Added class & data-href for row click -->
+                                                                <tr class="expense-row"
+                                                                    data-href="/admin/expenses/<%= exp._id %>">
+                                                                    <td class="checkbox-column">
                                                                         <%= index + 1 + ((pagination?.page - 1) *
                                                                             (pagination?.limit || 20) || 0) %>
                                                                     </td>
-                                                                    <td>
-                                                                        <label>
-                                                                            <input type="checkbox"
-                                                                                name="selectedExpenses[]"
-                                                                                value="<%= exp._id %>" />
-                                                                            <span></span>
-                                                                        </label>
-                                                                    </td>
+
                                                                     <td>
                                                                         <%= new
                                                                             Date(exp.expenseDate).toLocaleDateString('en-IN')
@@ -139,18 +139,17 @@
                                                                     </td>
                                                                     <td>
                                                                         <span class="badge" style="
-            background-color: <%= exp.expenseType === 'fuel' ? 'rgb(212, 240, 216)' : 'rgb(212 215 240)' %>;
-            color: <%= exp.expenseType === 'fuel' ? 'green' : 'blue' %>;
-        ">
+                                                                        background-color: <%= exp.expenseType === 'fuel' ? 'rgb(212, 240, 216)' : 'rgb(212 215 240)' %>;
+                                                                        color: <%= exp.expenseType === 'fuel' ? 'green' : 'blue' %>;
+                                                                    ">
                                                                             <%= exp.expenseType.toUpperCase() %>
                                                                         </span>
                                                                     </td>
-
                                                                     <td>
                                                                         ₹ <%= (exp.expenseType==='fuel' ?
                                                                             (exp.fuelDetails?.totalFuelCost || 0) :
                                                                             (exp.vehicleExpenseDetails?.expenseAmount ||
-                                                                            0) ).toLocaleString('en-IN') %>
+                                                                            0)).toLocaleString('en-IN') %>
                                                                     </td>
                                                                     <td>
                                                                         <span
@@ -159,7 +158,7 @@
                                                                                 ).toUpperCase() %>
                                                                         </span>
                                                                     </td>
-                                                                    <td>
+                                                                    <td class="actions-column">
                                                                         <a href="/admin/expenses/<%= exp._id %>"
                                                                             class="waves-effect waves-light accent-2 btn-edit"
                                                                             title="View Details">
@@ -191,6 +190,7 @@
                                 Page <%= pagination.page %> of <%= pagination.pages %> (Total: <%= pagination.total %>)
 
                                             <% if (pagination.page> 1) { %>
+
                                                 <a href="?page=<%= pagination.page - 1 %><%= currentQuery ? '&' + currentQuery : '' %>"
                                                     class="btn-flat">Prev</a>
                                                 <% } %>
@@ -201,31 +201,50 @@
                                                         <% } %>
                             </div>
                             <% } %>
-
                     </div>
                 </div>
             </div>
-        </div>
 
-        <%- include('_layouts/commonJs') %>
+            <%- include('_layouts/commonJs') %>
 
-            <script src="/app-assets/vendors/data-tables/js/jquery.dataTables.min.js"></script>
-            <script src="/app-assets/js/scripts/data-tables.js"></script>
+                <script src="/app-assets/vendors/data-tables/js/jquery.dataTables.min.js"></script>
+                <script src="/app-assets/js/scripts/data-tables.js"></script>
 
-            <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                    const selectAll = document.getElementById('selectAll');
-                    const checkboxes = document.querySelectorAll('input[name="selectedExpenses[]"]');
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        // Select All Checkbox
+                        const selectAll = document.getElementById('selectAll');
+                        const checkboxes = document.querySelectorAll('input[name="selectedExpenses[]"]');
 
-                    if (selectAll) {
-                        selectAll.addEventListener('change', function () {
-                            checkboxes.forEach(cb => cb.checked = this.checked);
+                        if (selectAll) {
+                            selectAll.addEventListener('change', function () {
+                                checkboxes.forEach(cb => cb.checked = this.checked);
+                            });
+                        }
+
+                        M.FormSelect.init(document.querySelectorAll('select'));
+
+                        // Make entire row clickable (except actions & checkbox)
+                        document.querySelectorAll('tr.expense-row').forEach(row => {
+                            row.addEventListener('click', function (e) {
+                                // Prevent navigation if clicked on protected areas
+                                if (e.target.closest('.checkbox-column') ||
+                                    e.target.closest('.actions-column') ||
+                                    e.target.tagName === 'INPUT' ||
+                                    e.target.tagName === 'LABEL' ||
+                                    e.target.tagName === 'A' ||
+                                    e.target.closest('.btn-edit')) {
+                                    return;
+                                }
+
+                                const href = this.getAttribute('data-href');
+                                if (href) {
+                                    window.location.href = href;
+                                }
+                            });
                         });
-                    }
-
-                    M.FormSelect.init(document.querySelectorAll('select'));
-                });
-            </script>
+                    });
+                </script>
 </body>
 
 </html>

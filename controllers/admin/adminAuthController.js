@@ -600,12 +600,12 @@ exports.adminLogout = async (req, res) => {
 
     req.flash('success', 'Logged out successfully!');
 
-    return res.redirect('/admin/signin');     
+    return res.redirect('/admin/signin');
 
   } catch (error) {
     console.error('Admin Logout Error:', error);
     req.flash('error', 'Logout failed. Please try again.');
-    return res.redirect('/admin/login'); 
+    return res.redirect('/admin/login');
   }
 };
 
@@ -728,8 +728,12 @@ exports.getAddSubAdmin = async (req, res) => {
       { key: 'customers', name: 'Customer Management' },
       { key: 'drivers', name: 'Driver Management' },
       { key: 'orders', name: 'Order Management' },
-      { key: 'delivery', name: 'Delivery Management' },
+      { key: 'deliveries', name: 'Delivery Management' },
+      { key: 'vehicles', name: 'vehicle Management' },
       { key: 'chat', name: 'Chat' },
+      { key: 'regions', name: 'regions' },
+      { key: 'expenses', name: 'Expense' },
+      { key: 'Remark', name: 'Remark' },
       { key: 'cms', name: 'CMS' }
     ];
 
@@ -846,8 +850,12 @@ exports.getEditSubAdmin = async (req, res) => {
       { key: 'customers', name: 'Customer Management' },
       { key: 'drivers', name: 'Driver Management' },
       { key: 'orders', name: 'Order Management' },
-      { key: 'delivery', name: 'Delivery Management' },
+      { key: 'deliveries', name: 'Delivery Management' },
+      { key: 'vehicles', name: 'vehicle Management' },
       { key: 'chat', name: 'Chat' },
+      { key: 'regions', name: 'regions' },
+      { key: 'expenses', name: 'Expense' },
+      { key: 'Remark', name: 'Remark' },
       { key: 'cms', name: 'CMS' }
     ];
 

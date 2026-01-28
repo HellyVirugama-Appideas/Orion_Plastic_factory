@@ -102,11 +102,6 @@ const { checkPermission } = require('../../middleware/authMiddleware');
 // List all regions
 router.get('/', protectAdmin, isAdmin, checkPermission('regions', 'read'), regionController.getAllRegions);
 
-// Create form
-// router.get('/create', protectAdmin, isAdmin, checkPermission('regions', 'create'), (req, res) => {
-//   res.render('region_create', { title: 'Add Region', messages: req.flash(), admin: req.admin });
-// });
-
 router.get("/create", protectAdmin, isAdmin, checkPermission('regions', 'create'), regionController.getCreateRegion)
 
 // Create region

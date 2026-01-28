@@ -409,3 +409,76 @@ exports.deleteMessage = async (req, res) => {
   }
 };
 
+// Clear Chat (Delete for me only - driver side)
+exports.clearChat = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const driverId = req.user._id;
+    const conversationId = `${driverId}_admin`;
+
+    // Optional: Ask for confirmation in body (extra safety)
+    const { confirm } = req.body;
+    if (confirm !== true) {
+      return res.status(400).json({
+        success: false,
+        message: 'Confirmation required. Send { "confirm": true }'
+      });
+    }
+
+    // Soft delete - mark all messages in this conversation as deleted for this driver
+    // We use a new field or logic - here we just mark isDeleted = true (simple approach)
+    
+    const updateResult = await ChatMessage.updateMany(
+      {
+        conversationId,
+        // Only affect messages visible to this driver
+        $or: [
+          { receiverId: driverId, receiverType: 'Driver' },     // messages sent to driver
+          { senderId: driverId, senderType: 'Driver' }          // messages sent by driver
+        ]
+      },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedForEveryone: false   // important: not for everyone
+        }
+      }
+    );
+
+    if (updateResult.matchedCount === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'Chat is already empty or cleared'
+      });
+    }
+
+    // Optional: real-time notification to this driver (and admin if you want)
+    if (global.io) {
+      global.io.to(`driver-${driverId}`).emit('chat:cleared', {
+        conversationId,
+        clearedBy: 'driver',
+        clearedAt: new Date()
+      });
+
+      // Optional: notify admin room (if you want admin to know)
+      // global.io.to('admin-room').emit('chat:cleared-by-driver', { driverId, conversationId });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Chat cleared successfully',
+      clearedMessagesCount: updateResult.modifiedCount
+    });
+
+  } catch (error) {
+    console.error('Clear Chat Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to clear chat'
+    });
+  }
+};
+

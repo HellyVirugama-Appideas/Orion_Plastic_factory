@@ -341,22 +341,3 @@ orderSchema.methods.canBeModified = function() {
 const Order = mongoose.model('Order', orderSchema);
 
 module.exports = Order;
-
-// {
-//   "name": "Mumbai Route - November 28, 2024",
-//   "driverId": "673def789ghi012345678901",
-//   "deliveryIds": [
-//     "691eb8618e208429aaf768ca",
-//     "691eb8bb8e208429aaf768d7"
-//   ],
-//   "startLocation": {
-//     "address": "Orion Plastic Factory, Plot No. 45, GIDC Industrial Estate, Vatva, Ahmedabad, Gujarat 382445",
-//     "coordinates": {
-//       "latitude": 22.9871,
-//       "longitude": 72.6369
-//     }
-//   },
-//   "notes": "Priority route - Multiple deliveries in Mumbai area. Ensure all deliveries completed by 6 PM."
-// }
-
-

@@ -207,17 +207,6 @@ router.get(
   getDriverJourneyHistory
 )
 
-router.post(
-  "/hidden-screenshot/:journeyId",
-  authenticateDriver,
-  isDriver,
-  uploadHiddenScreenshotMiddleware,
-  handleUploadError,
-  uploadHiddenScreenshot
-)
-
-
-
 
 module.exports = router
 

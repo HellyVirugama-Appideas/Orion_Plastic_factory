@@ -2246,3 +2246,46 @@ exports.deleteLocation = async (req, res) => {
   }
 };
 
+// TOGGLE CUSTOMER STATUS (Active ↔ Inactive)
+exports.toggleCustomerStatus = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { status } = req.body;
+
+    console.log('[TOGGLE-STATUS] Received:', { customerId, status });
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      return res.status(400).json({ success: false, message: 'Invalid customer ID' });
+    }
+
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    // Update fields
+    customer.status = status;
+    customer.isActive = status === 'active';
+
+    await customer.save();
+
+    console.log(`[TOGGLE-STATUS] Success: ${customer.customerId} → ${status.toUpperCase()}`);
+
+    return res.json({
+      success: true,
+      message: `Status updated to ${status.toUpperCase()}`,
+      newStatus: status
+    });
+
+  } catch (error) {
+    console.error('[TOGGLE-STATUS] ERROR:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update status: ' + error.message
+    });
+  }
+};

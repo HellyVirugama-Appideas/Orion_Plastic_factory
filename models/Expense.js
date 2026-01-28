@@ -439,8 +439,8 @@ const expenseSchema = new mongoose.Schema({
   // Approval Workflow
   approvalStatus: {
     type: String,
-    enum: ['pending', 'approved_by_admin', 'approved_by_finance', 'rejected', 'resubmitted'],
-    default: 'pending',
+    enum: ['Pending', 'Approved', 'Rejected'],
+    default: 'Pending',
     index: true
   },
 
@@ -462,7 +462,7 @@ const expenseSchema = new mongoose.Schema({
       comments: String,
       status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected']
+        enum: ['Pending', 'Approved', 'Rejected']
       }
     },
     financeApproval: {
@@ -474,7 +474,7 @@ const expenseSchema = new mongoose.Schema({
       comments: String,
       status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected']
+        enum: ['Pending', 'Approved', 'Rejected']
       },
       paymentReference: String,
       paidAt: Date
@@ -587,7 +587,7 @@ expenseSchema.statics.getExpensesByType = async function (driverId, expenseType)
 };
 
 expenseSchema.virtual('totalAmount').get(function () {
-  if (this.expenseType === 'fuel' && this.fuelDetails) {
+  if (this.expenseType === 'fuel' && this.fuelDetails) { 
     // return this.fuelDetails.totalAmount || 0;  
     return this.fuelDetails.totalAmount || 0;
   } 
