@@ -57,7 +57,7 @@
 const express = require("express")
 const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature, uploadHiddenScreenshot } = require("../../controllers/Driver/journeyController")
 const { authenticateDriver, isDriver } = require("../../middleware/authMiddleware")
-const { uploadJourneyImage, handleUploadError, uploadSignature, uploadEndJourneyImage, uploadHiddenScreenshotMiddleware } = require("../../middleware/uploadMiddleware")
+const { uploadJourneyImage, handleUploadError, uploadSignature,uploadProofAndStamp } = require("../../middleware/uploadMiddleware")
 
 const router = express.Router()
 
@@ -96,7 +96,7 @@ router.post(
   "/proof-photos/:deliveryId",
   authenticateDriver,
   isDriver,
-  uploadEndJourneyImage,
+  uploadProofAndStamp,
   handleUploadError,
   uploadProofPhotos
 ),

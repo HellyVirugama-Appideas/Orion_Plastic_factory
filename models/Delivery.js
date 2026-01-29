@@ -230,7 +230,7 @@ const deliverySchema = new mongoose.Schema({
     contactPerson: String,
     contactPhone: String
   },
-  
+
   deliveryLocation: {
     address: { type: String, required: true },
     coordinates: {
@@ -246,10 +246,20 @@ const deliverySchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['pending', 'pending_acceptance', 'assigned', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'cancelled', 'failed'],
+    enum: [
+      'Pending',
+      'Pending_acceptance',
+      'Assigned',
+      'Picked_up',
+      'In_transit',
+      'Out_for_delivery',
+      'Delivered',
+      'Cancelled',
+      'Failed'
+    ],
     default: 'pending'
   },
-  
+
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
@@ -321,18 +331,18 @@ deliverySchema.index({ status: 1 });
 deliverySchema.index({ createdAt: -1 });
 
 // Method to calculate progress percentage
-deliverySchema.methods.getProgressPercentage = function() {
+deliverySchema.methods.getProgressPercentage = function () {
   if (!this.waypoints || this.waypoints.length === 0) {
     const statusProgress = {
-      'pending': 0,
-      'pending_acceptance': 10,
-      'assigned': 20,
-      'picked_up': 40,
-      'in_transit': 60,
-      'out_for_delivery': 80,
-      'delivered': 100,
-      'cancelled': 0,
-      'failed': 0
+      'Pending': 0,
+      'Pending_acceptance': 10,
+      'Assigned': 20,
+      'Picked_up': 40,
+      'In_transit': 60,
+      'Out_for_delivery': 80,
+      'Delivered': 100,
+      'Cancelled': 0,
+      'Failed': 0
     };
     return statusProgress[this.status] || 0;
   }

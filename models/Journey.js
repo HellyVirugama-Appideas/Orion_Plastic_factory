@@ -403,23 +403,46 @@ const journeySchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      'pending',
-      'assigned',
-      'started',
-      'picked_up',
-      'in_transit',
-      'in_progress',
-      'arrived',
-      'signature_obtained',
-      'proof_uploaded',
-      'delivered',
-      'failed',
-      'cancelled',
-      'completed',
-      'returned'
+      'Pending',
+      'Assigned',
+      'Started',
+      'Picked_up',
+      'In_transit',
+      'In_progress',
+      'Arrived',
+      'Signature_obtained',
+      'Proof_uploaded',
+      'Delivered',
+      'Failed',
+      'Cancelled',
+      'Completed',
+      'Returned'
     ],
-    default: 'pending',
+    default: 'Pending',
     index: true
+  },
+
+  deliveryProof: {
+    type: {
+      signature: String,
+      photos: [String],
+      photosTakenAt: Date,
+      recipientName: String,
+      mobileNumber: String,
+      remarks: String,
+      remarkId: { type: mongoose.Schema.Types.ObjectId, ref: 'Remark' },
+
+      // COMPANY STAMP YAHAN HAI – ROOT PE NAHI!
+      companyStamp: {
+        type: String,
+        default: 'Not Provided'
+      },
+      companyStampUploadedAt: {
+        type: Date,
+        default: null
+      }
+    },
+    default: () => ({})
   },
 
   communicationLog: [{
@@ -474,14 +497,6 @@ const journeySchema = new mongoose.Schema({
     isHidden: { type: Boolean, default: false }
   }],
 
-  hiddenRecordings: [{
-    recordingId: String,
-    type: { type: String, default: 'secret_screenshot' },
-    url: String,
-    timestamp: Date,
-    waypointIndex: Number,
-    fileSize: Number
-  }],
 
   // Journey Images 
   images: [{
@@ -561,6 +576,17 @@ const journeySchema = new mongoose.Schema({
     estimatedDuration: Number
   }],
 
+  estimatedDurationFromGoogle: {        // minutes — what Google predicted at start
+    type: Number,
+    default: null
+  },
+  estimatedArrivalTime: {               // absolute timestamp
+    type: Date,
+    default: null
+  },
+  googleDistanceMeters: Number,
+  googleDurationInTrafficSeconds: Number,
+
   createdAt: {
     type: Date,
     default: Date.now
@@ -589,7 +615,7 @@ journeySchema.virtual('distanceFormatted').get(function () {
 
 // Methods
 journeySchema.methods.isActive = function () {
-  return ['started', 'in_progress'].includes(this.status); 
+  return ['started', 'in_progress'].includes(this.status);
 };
 
 journeySchema.methods.getCurrentDuration = function () {

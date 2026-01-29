@@ -359,6 +359,7 @@ exports.editMessage = async (req, res) => {
   }
 };
 
+
 // Delete Message
 exports.deleteMessage = async (req, res) => {
   try {
@@ -415,21 +416,24 @@ exports.clearChat = async (req, res) => {
     if (!req.user || !req.user._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+    
     const driverId = req.user._id;
     const conversationId = `${driverId}_admin`;
 
-    // Optional: Ask for confirmation in body (extra safety)
-    const { confirm } = req.body;
-    if (confirm !== true) {
+    // ⭐ FIX: req.body undefined ho sakta hai DELETE request me
+    // Optional confirmation check - agar body hai to check karo, nahi to skip karo
+    const body = req.body || {};
+    const confirm = body.confirm;
+    
+    // Agar explicitly false bheja hai to error, otherwise proceed
+    if (confirm === false) {
       return res.status(400).json({
         success: false,
-        message: 'Confirmation required. Send { "confirm": true }'
+        message: 'Confirmation required. Send { "confirm": true } or just call the endpoint'
       });
     }
 
     // Soft delete - mark all messages in this conversation as deleted for this driver
-    // We use a new field or logic - here we just mark isDeleted = true (simple approach)
-    
     const updateResult = await ChatMessage.updateMany(
       {
         conversationId,
@@ -437,7 +441,8 @@ exports.clearChat = async (req, res) => {
         $or: [
           { receiverId: driverId, receiverType: 'Driver' },     // messages sent to driver
           { senderId: driverId, senderType: 'Driver' }          // messages sent by driver
-        ]
+        ],
+        isDeleted: false  // Only delete messages that aren't already deleted
       },
       {
         $set: {
@@ -455,16 +460,13 @@ exports.clearChat = async (req, res) => {
       });
     }
 
-    // Optional: real-time notification to this driver (and admin if you want)
+    // Optional: real-time notification to this driver
     if (global.io) {
       global.io.to(`driver-${driverId}`).emit('chat:cleared', {
         conversationId,
         clearedBy: 'driver',
         clearedAt: new Date()
       });
-
-      // Optional: notify admin room (if you want admin to know)
-      // global.io.to('admin-room').emit('chat:cleared-by-driver', { driverId, conversationId });
     }
 
     return res.status(200).json({
@@ -481,4 +483,5 @@ exports.clearChat = async (req, res) => {
     });
   }
 };
+ 
 

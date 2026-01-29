@@ -32,18 +32,16 @@ router.patch(
     chatController.editMessage
 )
 router.delete(
-    "/message/:messageId",
-    authenticateDriver,
-    isDriver,
-    chatController.deleteMessage
-)
-
-router.delete(
     "/message/clear",
     authenticateDriver,
     isDriver,
     chatController.clearChat
 )
-
+// router.delete(
+//     "/message/:messageId",
+//     authenticateDriver,
+//     isDriver,
+//     chatController.deleteMessage
+// )
 
 module.exports = router; 

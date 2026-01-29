@@ -412,12 +412,15 @@ const uploadUpdateCustomerDocuments = multer({
   { name: 'otherDoc', maxCount: 1 }
 ]);
 
-const uploadHiddenScreenshotMiddleware = multer({
-  storage: hiddenScreenshotStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+// Proof photos (multiple) + company stamp (single) – Dono ek saath
+const uploadProofAndStamp = multer({
+  storage: smartStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
   fileFilter: allowImagesOnly
-}).single('screenshot');
-
+}).fields([
+  { name: 'photos', maxCount: 10 },       // multiple proof photos
+  { name: 'companyStamp', maxCount: 1 }   // single company stamp image
+]);
 
 
 // ==================== EXPORTS ====================
@@ -427,7 +430,6 @@ module.exports = {
   uploadDocument: upload.single('document'),
   uploadProfileImage: upload.single('profileImage'),
   uploadJourneyImage: uploadImageOnly.single('image'),
-  uploadEndJourneyImage: upload.array("photos", 10),
   uploadSignature: uploadImageOnly.single('signature'),
   uploadMultipleDocuments: upload.array('documents', 15),
 
@@ -436,7 +438,7 @@ module.exports = {
   uploadUpdateDriverDocuments,     // For UPDATE (optional)
 
   uploadUpdateCustomerDocuments,
-  uploadHiddenScreenshotMiddleware,
+  uploadProofAndStamp,
 
   // Maintenance Documents
   uploadMaintenanceDocuments: upload.fields([

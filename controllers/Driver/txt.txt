@@ -7,3 +7,11 @@ signature in only add sign remove lat long etc
 
 get navigation ma merge 
 today's route ma splign black bg ma (deliver detail api ma status)
+
+
+
+
+license is show undefind 
+in tansite show complete delivery time
+signature time show complete delivery
+proof photo in add company stepm photo
