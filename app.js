@@ -548,7 +548,7 @@ io.on("connection", (socket) => {
         mediaUrl,
         isDelivered: true,
         deliveredAt: new Date()
-      });
+      }); 
 
       // Populate sender details
       await message.populate('senderId', 'name profileImage');

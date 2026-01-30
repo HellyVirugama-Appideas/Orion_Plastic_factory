@@ -249,7 +249,7 @@ const deliverySchema = new mongoose.Schema({
     enum: [
       'Pending',
       'Pending_acceptance',
-      'Assigned',
+      'assigned',
       'Picked_up',
       'In_transit',
       'Out_for_delivery',
@@ -336,7 +336,7 @@ deliverySchema.methods.getProgressPercentage = function () {
     const statusProgress = {
       'Pending': 0,
       'Pending_acceptance': 10,
-      'Assigned': 20,
+      'assigned': 20,
       'Picked_up': 40,
       'In_transit': 60,
       'Out_for_delivery': 80,

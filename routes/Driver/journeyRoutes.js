@@ -55,7 +55,7 @@
 
 
 const express = require("express")
-const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature, uploadHiddenScreenshot } = require("../../controllers/Driver/journeyController")
+const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature, uploadHiddenScreenshot, continueJourney, getActiveJourneyByDeliveryId } = require("../../controllers/Driver/journeyController")
 const { authenticateDriver, isDriver } = require("../../middleware/authMiddleware")
 const { uploadJourneyImage, handleUploadError, uploadSignature,uploadProofAndStamp } = require("../../middleware/uploadMiddleware")
 
@@ -67,6 +67,22 @@ router.post(
   isDriver,
   startJourney 
 )
+
+router.post(
+  "/continue",
+  authenticateDriver,
+  isDriver,
+  continueJourney
+);
+
+// ==================== GET ACTIVE JOURNEY BY DELIVERY ID ====================
+// To check if journey exists for a delivery
+router.get(
+  "/active/:deliveryId",
+  authenticateDriver,
+  isDriver,
+  getActiveJourneyByDeliveryId
+);
 
 router.post(
   "/checkpoint/:journeyId",

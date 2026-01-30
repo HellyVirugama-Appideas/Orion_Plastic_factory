@@ -15,3 +15,12 @@ license is show undefind
 in tansite show complete delivery time
 signature time show complete delivery
 proof photo in add company stepm photo
+
+
+upcomming delivery ma journy id
+home page ma eni potanu vehicle jo assign na kryu hoy to 
+start journey ma error 
+status change per continue delivery 
+
+notification ma pop pop aavu joye using fcm token etla mate login time fcm token get karvu pade
+cancel delivery in show errors
