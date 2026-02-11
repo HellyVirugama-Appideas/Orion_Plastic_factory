@@ -405,6 +405,7 @@ const journeySchema = new mongoose.Schema({
     enum: [
       'Pending',
       'assigned',
+      "Arrived",
       'Started',
       'Picked_up',
       'In_transit',

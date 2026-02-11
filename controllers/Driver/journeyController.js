@@ -123,6 +123,7 @@ const axios = require("axios")
 // };
 
 // ==================== START JOURNEY ====================
+
 exports.startJourney = async (req, res) => {
   try {
     const { deliveryId, latitude, longitude, address } = req.body;
@@ -295,8 +296,8 @@ exports.continueJourney = async (req, res) => {
     const journey = await Journey.findOne({
       deliveryId,
       driverId: driver._id,
-      status: { 
-        $in: ['Started', 'In_transit', 'In_progress', 'Picked_up'] 
+      status: {
+        $in: ['Started', 'In_transit', 'In_progress', 'Picked_up']
       }
     }).populate('deliveryId', 'trackingNumber recipientName recipientPhone recipientAddress');
 
@@ -372,12 +373,12 @@ exports.getActiveJourneyByDeliveryId = async (req, res) => {
     const journey = await Journey.findOne({
       deliveryId,
       driverId: driver._id,
-      status: { 
-        $in: ['Started', 'In_transit', 'In_progress', 'Picked_up'] 
+      status: {
+        $in: ['Started', 'In_transit', 'In_progress', 'Picked_up']
       }
     })
-    .populate('deliveryId', 'trackingNumber recipientName recipientPhone recipientAddress estimatedDeliveryTime')
-    .populate('driverId', 'name phone vehicle');
+      .populate('deliveryId', 'trackingNumber recipientName recipientPhone recipientAddress estimatedDeliveryTime')
+      .populate('driverId', 'name phone vehicle');
 
     if (!journey) {
       return errorResponse(res, 'No active journey found for this delivery', 404);
@@ -1066,8 +1067,8 @@ exports.getNavigation = async (req, res) => {
         path: 'deliveryId',
         select: 'deliveryLocation deliveryNumber companyName address customerId pickupLocation deliveryLocation recipientName recipientPhone',
         populate: {
-          path: 'customerId',   
-          select: 'name fullName firstName lastName phone mobile number'  
+          path: 'customerId',
+          select: 'name fullName firstName lastName phone mobile number'
         }
       });
 
@@ -1079,9 +1080,9 @@ exports.getNavigation = async (req, res) => {
       return errorResponse(res, 'Unauthorized access', 403);
     }
 
-    if (!journey.isActive()) {
-      return errorResponse(res, 'Journey is not active', 400);
-    }
+    // if (!journey.isActive()) {
+    //   return errorResponse(res, 'Journey is not active', 400);
+    // }
 
     const delivery = journey.deliveryId;
     const destination = delivery.deliveryLocation;
@@ -1160,19 +1161,19 @@ exports.getNavigation = async (req, res) => {
 
     const customerName = customerDoc
       ? (customerDoc.name ||
-         customerDoc.fullName ||
-         [customerDoc.firstName, customerDoc.lastName].filter(Boolean).join(' ').trim() ||
-         'Unknown Customer')
+        customerDoc.fullName ||
+        [customerDoc.firstName, customerDoc.lastName].filter(Boolean).join(' ').trim() ||
+        'Unknown Customer')
       : 'Unknown Customer';
 
     const customerPhone = customerDoc?.phone || customerDoc?.mobile || customerDoc?.number || null;
 
     // Salesman / Driver
     const salesmanName = driver.name ||
-                        driver.fullName ||
-                        [driver.firstName, driver.lastName].filter(Boolean).join(' ').trim() ||
-                        driver.username ||
-                        'Salesman';
+      driver.fullName ||
+      [driver.firstName, driver.lastName].filter(Boolean).join(' ').trim() ||
+      driver.username ||
+      'Salesman';
 
     const salesmanPhone = driver.phone || driver.mobile || null;
 
@@ -1221,7 +1222,7 @@ exports.getNavigation = async (req, res) => {
     console.error('Get Navigation Error:', error);
     return errorResponse(res, 'Failed to fetch navigation data', 500);
   }
-};;
+};
 
 exports.uploadRecording = async (req, res) => {
   try {
@@ -1360,7 +1361,7 @@ exports.uploadProofSignature = async (req, res) => {
     delivery.deliveryProof = delivery.deliveryProof || {};
     delivery.deliveryProof.signature = signatureUrl;
     delivery.deliveryProof.signedAt = new Date();
-    
+
     // ⭐ NOW set status to "delivered"
     delivery.status = 'Delivered';
     delivery.actualDeliveryTime = new Date();
@@ -1369,12 +1370,12 @@ exports.uploadProofSignature = async (req, res) => {
 
     // 6. Sync to Journey
     const journey = await Journey.findOne({ deliveryId: delivery._id });
-    
+
     if (journey) {
       journey.deliveryProof = journey.deliveryProof || {};
       journey.deliveryProof.signature = signatureUrl;
       journey.deliveryProof.signedAt = new Date();
-      journey.status = 'completed';
+      journey.status = 'Completed';
 
       await journey.save();
     }
@@ -1405,65 +1406,73 @@ exports.uploadProofSignature = async (req, res) => {
   }
 };
 
-
 exports.uploadProofPhotos = async (req, res) => {
   try {
     const { deliveryId } = req.params;
     const { recipientName, mobileNumber, remarks = '' } = req.body;
 
+    // ─── 1. Validate deliveryId early ───
+    if (!deliveryId || typeof deliveryId !== 'string' || deliveryId.length < 18) {
+      return errorResponse(res, 'Invalid delivery ID format', 400);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(deliveryId)) {
+      return errorResponse(res, 'Invalid delivery ID (not a valid ObjectId)', 400);
+    }
+
+    // Required fields
     if (!recipientName?.trim()) {
-      return errorResponse(res, 'Recipient name required', 400);
+      return errorResponse(res, 'Recipient name is required', 400);
     }
     if (!mobileNumber?.trim()) {
-      return errorResponse(res, 'Mobile number required', 400);
+      return errorResponse(res, 'Mobile number is required', 400);
     }
 
-    const delivery = await Delivery.findById(deliveryId);
-    if (!delivery) return errorResponse(res, 'Delivery not found', 404);
+    // Find delivery + populate customer
+    const delivery = await Delivery.findById(deliveryId)
+      .populate({
+        path: 'customerId',
+        select: 'companyName name locations phone email'
+      });
 
-    if (delivery.driverId.toString() !== req.user._id.toString()) {
-      return errorResponse(res, 'Unauthorized', 403);
+    if (!delivery) {
+      return errorResponse(res, 'Delivery not found', 404);
     }
 
+    if (delivery.driverId?.toString() !== req.user._id.toString()) {
+      return errorResponse(res, 'Unauthorized – You are not the assigned driver', 403);
+    }
 
-    // ── Proof photos (multiple) ──
+    // ─── 2. Handle uploaded files ───
     let proofPhotos = [];
-    if (req.files?.photos?.length > 0) {
+    if (req.files?.photos && Array.isArray(req.files.photos)) {
       proofPhotos = req.files.photos.map(file => `/uploads/proof/${file.filename}`);
     }
 
-    // Optional: if you want at least one photo required
-    // if (proofPhotos.length === 0) {
-    //   return errorResponse(res, 'At least one proof photo is required', 400);
-    // }
-
-    // ── Company Stamp (single, optional) ──
-    let companyStampUrl = 'Not Provided';
+    let companyStampUrl = null;
     let stampUploadedAt = null;
 
-    if (req.files?.companyStamp?.length > 0) {
+    if (req.files?.companyStamp && req.files.companyStamp.length > 0) {
       const stampFile = req.files.companyStamp[0];
       companyStampUrl = `/uploads/stamps/${stampFile.filename}`;
       stampUploadedAt = new Date();
     }
 
-    // ── Update Delivery ──
-    delivery.deliveryProof = delivery.deliveryProof || {};
-    delivery.deliveryProof.photos = proofPhotos;
-    delivery.deliveryProof.photosTakenAt = proofPhotos.length > 0 ? new Date() : null;
-    delivery.deliveryProof.recipientName = recipientName.trim();
-    delivery.deliveryProof.mobileNumber = mobileNumber.trim();
-    delivery.deliveryProof.companyStamp = companyStampUrl;
-    delivery.deliveryProof.companyStampUploadedAt = stampUploadedAt;
+    // Optional: enforce at least one photo
+    // if (proofPhotos.length === 0) {
+    //   return errorResponse(res, 'At least one proof photo is required', 400);
+    // }
 
-    // Remarks handling (your original code)
-    if (remarks.trim()) {
-      const remarkText = remarks.trim();
+    // ─── 3. Handle remarks (optional) ───
+    let remarkId = null;
+    let remarkText = remarks.trim() || null;
+
+    if (remarkText) {
       const newRemark = new Remark({
         remarkType: 'custom',
         remarkText,
         category: 'delivery_status',
-        severity: 'medium',
+        severity: 'low',
         isPredefined: false,
         isActive: true,
         createdBy: req.user._id,
@@ -1474,36 +1483,55 @@ exports.uploadProofPhotos = async (req, res) => {
         associatedDeliveries: [delivery._id]
       });
       const savedRemark = await newRemark.save();
-      delivery.deliveryProof.remarks = remarkText;
-      delivery.deliveryProof.remarkId = savedRemark._id;
+      remarkId = savedRemark._id;
     }
+
+    // ─── 4. Update Delivery document ───
+    delivery.status = 'Delivered'; // or 'ProofUploaded' / 'CompletedWithProof' – choose one
+
+    delivery.deliveryProof = {
+      photos: proofPhotos,
+      photosTakenAt: proofPhotos.length > 0 ? new Date() : null,
+      recipientName: recipientName.trim(),
+      mobileNumber: mobileNumber.trim(),
+      companyStamp: companyStampUrl,
+      companyStampUploadedAt: stampUploadedAt,
+      remarks: remarkText,
+      remarkId,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date()
+    };
 
     await delivery.save();
 
-    // ── Sync to Journey ──
-    const journey = await Journey.findOne({ deliveryId: delivery._id });
-    if (journey) {
-      journey.deliveryProof = journey.deliveryProof || {};
-      journey.deliveryProof.photos = proofPhotos;
-      journey.deliveryProof.photosTakenAt = delivery.deliveryProof.photosTakenAt;
-      journey.deliveryProof.recipientName = recipientName.trim();
-      journey.deliveryProof.mobileNumber = mobileNumber.trim();
-      journey.deliveryProof.companyStamp = companyStampUrl;
-      journey.deliveryProof.companyStampUploadedAt = stampUploadedAt;
-      if (remarks.trim()) {
-        journey.deliveryProof.remarks = remarks.trim();
-        journey.deliveryProof.remarkId = delivery.deliveryProof.remarkId;
-      }
+    // ─── 5. Sync to Journey (if exists) ───
+    const journey = await Journey.findOneAndUpdate(
+      { deliveryId: delivery._id },
+      {
+        $set: {
+          status: 'Delivered',
+          deliveryProof: {
+            photos: proofPhotos,
+            photosTakenAt: delivery.deliveryProof.photosTakenAt,
+            recipientName: recipientName.trim(),
+            mobileNumber: mobileNumber.trim(),
+            companyStamp: companyStampUrl,
+            companyStampUploadedAt: stampUploadedAt,
+            remarks: remarkText,
+            remarkId,
+            uploadedAt: new Date()
+          }
+        }
+      },
+      { new: true }
+    );
 
-      journey.status = 'Proof_uploaded';
-      await journey.save();
-    }
-
-    // Status History (optional but good)
+    // ─── 6. Create status history entry ───
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
-      status: 'delivered',
-      remarks: 'Proof photos and company stamp uploaded',
+      status: 'Delivered',
+      location: delivery.currentLocation || null, // if you track location
+      remarks: 'Proof photos, recipient details and company stamp uploaded',
       updatedBy: {
         userId: req.user._id,
         userRole: 'driver',
@@ -1511,19 +1539,50 @@ exports.uploadProofPhotos = async (req, res) => {
       }
     });
 
-    return successResponse(res, 'Proof photos & company stamp uploaded successfully!', {
-      proofPhotos,
-      companyStamp: companyStampUrl,
-      recipientName: recipientName.trim(),
-      mobileNumber: mobileNumber.trim(),
-      remarks: remarks.trim() || null,
+    // ─── 7. Prepare customer info for response ───
+    const customer = delivery.customerId || {};
+    const companyName = customer.companyName || customer.name || 'N/A';
+    let deliveryAddress = 'N/A';
+
+    if (customer.locations?.length > 0) {
+      const primary = customer.locations.find(l => l.isPrimary) || customer.locations[0];
+      deliveryAddress = [
+        primary.addressLine1,
+        primary.addressLine2,
+        primary.city,
+        primary.state,
+        primary.zipcode,
+        primary.country
+      ].filter(Boolean).join(', ') || 'N/A';
+    }
+
+    // ─── 8. Success response ───
+    return successResponse(res, 'Delivery proof uploaded successfully', {
+      deliveryId: delivery._id,
       deliveryStatus: delivery.status,
-      journeyStatus: journey?.status || null
+      journeyStatus: journey?.status || null,
+
+      proof: {
+        photos: proofPhotos,
+        photosCount: proofPhotos.length,
+        companyStamp: companyStampUrl || 'Not uploaded',
+        recipientName: recipientName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        remarks: remarkText || null,
+      },
+
+      customer: {
+        companyName,
+        deliveryAddress,
+        customerId: customer._id || null
+      },
+
+      uploadedAt: new Date().toISOString()
     });
 
   } catch (error) {
     console.error('Upload Proof Photos Error:', error);
-    return errorResponse(res, error.message || 'Failed to upload proof photos', 500);
+    return errorResponse(res, error.message || 'Failed to upload delivery proof', 500);
   }
 };
 
@@ -1536,7 +1595,16 @@ exports.completeDelivery = async (req, res) => {
       return errorResponse(res, 'Location coordinates required', 400);
     }
 
-    const journey = await Journey.findById(journeyId).populate('deliveryId');
+    // Populate delivery + customer
+    const journey = await Journey.findById(journeyId)
+      .populate({
+        path: 'deliveryId',
+        populate: {
+          path: 'customerId',
+          select: 'companyName name locations billingAddress'
+        }
+      });
+
     if (!journey) return errorResponse(res, 'Journey not found', 404);
 
     if (journey.driverId.toString() !== req.user._id.toString()) {
@@ -1547,47 +1615,40 @@ exports.completeDelivery = async (req, res) => {
     const actualDurationMs = now - new Date(journey.startTime);
     const actualMinutes = Math.round(actualDurationMs / 60000);
 
-    // ────────────────────────────── TIME METRICS ──────────────────────────────
+    // Time difference logic
     const estimatedMin = journey.estimatedDurationFromGoogle;
-
     let timeDifferenceText = '';
     if (estimatedMin !== null) {
       const diff = actualMinutes - estimatedMin;
-      if (diff > 5) {
-        timeDifferenceText = `Delayed by ${diff} mins`;
-      } else if (diff < -5) {
-        timeDifferenceText = `Ahead by ${Math.abs(diff)} mins`;
-      } else {
-        timeDifferenceText = 'On time';
-      }
+      if (diff > 5) timeDifferenceText = `Delayed by ${diff} mins`;
+      else if (diff < -5) timeDifferenceText = `Ahead by ${Math.abs(diff)} mins`;
+      else timeDifferenceText = 'On time';
     }
 
-    // ⭐ Journey Status
-    journey.status = 'Arrived';
+    // ─── Update Journey ───
+    journey.status = 'Completed';
     journey.endTime = now;
     journey.endLocation = {
       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
       address: 'Driver reached delivery location'
     };
     journey.totalDuration = actualMinutes;
-
     await journey.save();
 
-    // ⭐ Delivery Status
+    // ─── Update Delivery ───
     const delivery = journey.deliveryId;
-    delivery.status = 'In_transit';   // ⭐ Make sure this value exists in Delivery model enum
-    
+    delivery.status = 'Completed';   // Changed from 'Arrived'
     await delivery.save();
 
-    // ⭐ Status History
+    // ─── Status History ───
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
-      status: 'In_transit',
+      status: 'Completed',
       location: {
         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
-        address: 'Driver arrived at delivery location'
+        address: 'Driver reached delivery location'
       },
-      remarks: 'Driver reached destination. Awaiting signature.',
+      remarks: 'Driver reached destination and marked delivery as completed. Awaiting final signature/confirmation.',
       updatedBy: {
         userId: req.user._id,
         userRole: 'driver',
@@ -1595,13 +1656,54 @@ exports.completeDelivery = async (req, res) => {
       }
     });
 
-    return successResponse(res, 'Arrived at delivery location! Please collect customer signature.', {
+    // Extract customer info
+    const customer = delivery.customerId;
+
+    let companyName = 'N/A';
+    let deliveryAddress = 'N/A';
+
+    if (customer) {
+      companyName = customer.companyName || customer.name || 'N/A';
+
+      if (customer.locations?.length > 0) {
+        const primaryLoc = customer.locations.find(loc => loc.isPrimary) || customer.locations[0];
+
+        deliveryAddress = [
+          primaryLoc.addressLine1,
+          primaryLoc.addressLine2 || '',
+          primaryLoc.city,
+          primaryLoc.state,
+          primaryLoc.zipcode,
+          primaryLoc.country
+        ]
+          .filter(Boolean)
+          .join(', ') || 'N/A';
+      }
+    }
+
+    const arrivalTime = now.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
+    return successResponse(res, 'Delivery marked as completed! Please collect customer signature if pending.', {
       journeyId: journey._id,
       journeyStatus: journey.status,
       deliveryStatus: delivery.status,
       location: { latitude, longitude },
+
+      customer: {
+        companyName,
+        deliveryAddress,
+        customerId: delivery.customerId,
+      },
+
+      arrivalTime,
+      arrivalTimeISO: now.toISOString(),
+
       nextStep: 'upload-signature',
-      message: 'Signature required to complete delivery',
+      message: 'Signature still required to finalize delivery',
 
       timing: {
         actualTimeTaken: `${actualMinutes} mins`,
@@ -1614,7 +1716,7 @@ exports.completeDelivery = async (req, res) => {
 
   } catch (error) {
     console.error('Complete Delivery Error:', error);
-    return errorResponse(res, 'Failed to mark arrival', 500);
+    return errorResponse(res, 'Failed to mark delivery as completed', 500);
   }
 };
 

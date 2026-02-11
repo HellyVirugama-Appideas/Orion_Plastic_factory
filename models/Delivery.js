@@ -249,7 +249,8 @@ const deliverySchema = new mongoose.Schema({
     enum: [
       'Pending',
       'Pending_acceptance',
-      'assigned',
+      'Completed',
+      "Arrived",
       'Picked_up',
       'In_transit',
       'Out_for_delivery',
