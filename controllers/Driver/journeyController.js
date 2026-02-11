@@ -1487,7 +1487,7 @@ exports.uploadProofPhotos = async (req, res) => {
     }
 
     // ─── 4. Update Delivery document ───
-    delivery.status = 'Delivered'; // or 'ProofUploaded' / 'CompletedWithProof' – choose one
+    delivery.status = 'Proof_uploaded'; // or 'ProofUploaded' / 'CompletedWithProof' – choose one
 
     delivery.deliveryProof = {
       photos: proofPhotos,
@@ -1509,7 +1509,7 @@ exports.uploadProofPhotos = async (req, res) => {
       { deliveryId: delivery._id },
       {
         $set: {
-          status: 'Delivered',
+          status: 'Proof_uploaded',
           deliveryProof: {
             photos: proofPhotos,
             photosTakenAt: delivery.deliveryProof.photosTakenAt,
@@ -1529,7 +1529,7 @@ exports.uploadProofPhotos = async (req, res) => {
     // ─── 6. Create status history entry ───
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
-      status: 'Delivered',
+      status: 'Proof_uploaded',
       location: delivery.currentLocation || null, // if you track location
       remarks: 'Proof photos, recipient details and company stamp uploaded',
       updatedBy: {
@@ -1626,7 +1626,7 @@ exports.completeDelivery = async (req, res) => {
     }
 
     // ─── Update Journey ───
-    journey.status = 'Completed';
+    journey.status = 'Arrived';
     journey.endTime = now;
     journey.endLocation = {
       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
@@ -1637,7 +1637,7 @@ exports.completeDelivery = async (req, res) => {
 
     // ─── Update Delivery ───
     const delivery = journey.deliveryId;
-    delivery.status = 'Completed';   // Changed from 'Arrived'
+    delivery.status = 'Arrived';   // Changed from 'Arrived'
     await delivery.save();
 
     // ─── Status History ───

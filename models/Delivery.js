@@ -249,10 +249,12 @@ const deliverySchema = new mongoose.Schema({
     enum: [
       'Pending',
       'Pending_acceptance',
-      'Completed',
+      'assigned',
+      "Completed",
       "Arrived",
       'Picked_up',
       'In_transit',
+      "Proof_uploaded",
       'Out_for_delivery',
       'Delivered',
       'Cancelled',
