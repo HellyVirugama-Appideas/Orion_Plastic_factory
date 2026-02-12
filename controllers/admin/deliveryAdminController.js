@@ -464,7 +464,7 @@ exports.createDeliveryFromOrder = async (req, res) => {
       } catch (e) {
         console.error('Waypoints parse error:', e);
       }
-    }
+    } 
 
     // Safe coordinate extraction (defaulting to Ahmedabad coords)
     const pickupCoords = {

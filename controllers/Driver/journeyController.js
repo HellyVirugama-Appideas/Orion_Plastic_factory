@@ -194,7 +194,7 @@ exports.startJourney = async (req, res) => {
 
     // Update driver status
     await Driver.findByIdAndUpdate(driver._id, {
-      isAvailable: false,
+      // isAvailable: false,
       currentJourney: journey._id,
       activeDelivery: delivery._id
     });
