@@ -1017,9 +1017,9 @@ exports.finalSignup = async (req, res) => {
     let { tempId, phone, countryCode } = req.body;
 
     // Validation
-    if (!tempId || !phone || !/^\d{10}$/.test(phone)) {
-      return errorResponse(res, 'Valid 10-digit phone number required', 400);
-    }
+    // if (!tempId || !phone || !/^\d{10}$/.test(phone)) {
+    //   return errorResponse(res, 'Valid 10-digit phone number required', 400);
+    // }
 
     countryCode = countryCode || '+971';
 
@@ -1076,9 +1076,9 @@ exports.verifyOtpAndCreateDriver = async (req, res) => {
 
     // Validate phone (must be 10 digits)
     const cleanedPhone = phone?.replace(/\D/g, '') || '';
-    if (cleanedPhone.length !== 10) {
-      return errorResponse(res, 'Valid 10-digit phone number required', 400);
-    }
+    // if (cleanedPhone.length !== 10) {
+    //   return errorResponse(res, 'Valid 10-digit phone number required', 400);
+    // }
 
     // Use provided country code or default to +971
     const countryCode = inputCountryCode?.trim() || '+971';
@@ -1562,9 +1562,9 @@ exports.updatePersonalDetails = async (req, res) => {
 
     // Phone update with country code
     if (phone) {
-      if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
-        return errorResponse(res, 'Phone must be 10 digits', 400);
-      }
+      // if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+      //   return errorResponse(res, 'Phone must be 10 digits', 400);
+      // }
       const newCountryCode = countryCode || driver.countryCode || '+971';
       const fullPhone = `${newCountryCode}${phone.replace(/\D/g, '')}`;
 

@@ -185,11 +185,25 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const driverSchema = new mongoose.Schema({
-  phone: {
+  // phone: {
+  //   type: String,
+  //   required: [true, 'Phone is required'],
+  //   unique: true,
+  //   trim: true
+  // },
+
+    phone: {
     type: String,
     required: [true, 'Phone is required'],
     unique: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // UAE phone: exactly 9 digits
+        return /^\d{9}$/.test(v);
+      },
+      message: 'Phone must be exactly 9 digits (UAE format)'
+    }
   },
 
   countryCode: {
