@@ -1586,6 +1586,140 @@ exports.uploadProofPhotos = async (req, res) => {
   }
 };
 
+// exports.completeDelivery = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { latitude, longitude } = req.body;
+
+//     if (!latitude || !longitude) {
+//       return errorResponse(res, 'Location coordinates required', 400);
+//     }
+
+//     // Populate delivery + customer
+//     const journey = await Journey.findById(journeyId)
+//       .populate({
+//         path: 'deliveryId',
+//         populate: {
+//           path: 'customerId',
+//           select: 'companyName name locations billingAddress'
+//         }
+//       });
+
+//     if (!journey) return errorResponse(res, 'Journey not found', 404);
+
+//     if (journey.driverId.toString() !== req.user._id.toString()) {
+//       return errorResponse(res, 'Unauthorized', 403);
+//     }
+
+//     const now = new Date();
+//     const actualDurationMs = now - new Date(journey.startTime);
+//     const actualMinutes = Math.round(actualDurationMs / 60000);
+
+//     // Time difference logic
+//     const estimatedMin = journey.estimatedDurationFromGoogle;
+//     let timeDifferenceText = '';
+//     if (estimatedMin !== null) {
+//       const diff = actualMinutes - estimatedMin;
+//       if (diff > 5) timeDifferenceText = `Delayed by ${diff} mins`;
+//       else if (diff < -5) timeDifferenceText = `Ahead by ${Math.abs(diff)} mins`;
+//       else timeDifferenceText = 'On time';
+//     }
+
+//     // ─── Update Journey ───
+//     journey.status = 'Arrived';
+//     journey.endTime = now;
+//     journey.endLocation = {
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: 'Driver reached delivery location'
+//     };
+//     journey.totalDuration = actualMinutes;
+//     await journey.save();
+
+//     // ─── Update Delivery ───
+//     const delivery = journey.deliveryId;
+//     delivery.status = 'Arrived';   // Changed from 'Arrived'
+//     await delivery.save();
+
+//     // ─── Status History ───
+//     await DeliveryStatusHistory.create({
+//       deliveryId: delivery._id,
+//       status: 'Completed',
+//       location: {
+//         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//         address: 'Driver reached delivery location'
+//       },
+//       remarks: 'Driver reached destination and marked delivery as completed. Awaiting final signature/confirmation.',
+//       updatedBy: {
+//         userId: req.user._id,
+//         userRole: 'driver',
+//         userName: req.user.name
+//       }
+//     });
+
+//     // Extract customer info
+//     const customer = delivery.customerId;
+
+//     let companyName = 'N/A';
+//     let deliveryAddress = 'N/A';
+
+//     if (customer) {
+//       companyName = customer.companyName || customer.name || 'N/A';
+
+//       if (customer.locations?.length > 0) {
+//         const primaryLoc = customer.locations.find(loc => loc.isPrimary) || customer.locations[0];
+
+//         deliveryAddress = [
+//           primaryLoc.addressLine1,
+//           primaryLoc.addressLine2 || '',
+//           primaryLoc.city,
+//           primaryLoc.state,
+//           primaryLoc.zipcode,
+//           primaryLoc.country
+//         ]
+//           .filter(Boolean)
+//           .join(', ') || 'N/A';
+//       }
+//     }
+
+//     const arrivalTime = now.toLocaleString('en-IN', {
+//       timeZone: 'Asia/Kolkata',
+//       dateStyle: 'medium',
+//       timeStyle: 'short'
+//     });
+
+//     return successResponse(res, 'Delivery marked as completed! Please collect customer signature if pending.', {
+//       journeyId: journey._id,
+//       journeyStatus: journey.status,
+//       deliveryStatus: delivery.status,
+//       location: { latitude, longitude },
+
+//       customer: {
+//         companyName,
+//         deliveryAddress,
+//         customerId: delivery.customerId,
+//       },
+
+//       arrivalTime,
+//       arrivalTimeISO: now.toISOString(),
+
+//       nextStep: 'upload-signature',
+//       message: 'Signature still required to finalize delivery',
+
+//       timing: {
+//         actualTimeTaken: `${actualMinutes} mins`,
+//         estimatedTime: estimatedMin ? `${estimatedMin} mins` : 'N/A',
+//         difference: timeDifferenceText || 'N/A',
+//         startTime: journey.startTime.toISOString(),
+//         arrivedAt: now.toISOString()
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Complete Delivery Error:', error);
+//     return errorResponse(res, 'Failed to mark delivery as completed', 500);
+//   }
+// };
+
 exports.completeDelivery = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -1637,13 +1771,13 @@ exports.completeDelivery = async (req, res) => {
 
     // ─── Update Delivery ───
     const delivery = journey.deliveryId;
-    delivery.status = 'Arrived';   // Changed from 'Arrived'
+    delivery.status = 'Arrived';
     await delivery.save();
 
     // ─── Status History ───
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
-      status: 'Completed',
+      status: 'Arrived',
       location: {
         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
         address: 'Driver reached delivery location'
@@ -1689,6 +1823,7 @@ exports.completeDelivery = async (req, res) => {
 
     return successResponse(res, 'Delivery marked as completed! Please collect customer signature if pending.', {
       journeyId: journey._id,
+      deliveryId: delivery._id.toString(),          // ← Added this line
       journeyStatus: journey.status,
       deliveryStatus: delivery.status,
       location: { latitude, longitude },

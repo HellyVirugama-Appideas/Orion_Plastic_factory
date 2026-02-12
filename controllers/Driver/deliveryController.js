@@ -76,6 +76,7 @@ const Remark = require('../../models/Remark');
 // };
 
 // Get Driver Deliveries - Upcoming & Completed 
+
 exports.getDriverDeliveries = async (req, res) => {
   try {
     const driver = req.user;
@@ -95,8 +96,8 @@ exports.getDriverDeliveries = async (req, res) => {
       .lean();
 
     // Define which statuses are Upcoming vs Completed
-    const upcomingStatuses = ['pending_acceptance', 'assigned', 'picked_up', 'in_transit', 'out_for_delivery'];
-    const completedStatuses = ['delivered', 'failed', 'cancelled'];
+    const upcomingStatuses = ['Pending_acceptance', 'Assigned', 'Picked_up', 'In_transit', 'Out_for_delivery', 'Arrived', "Proof_uploaded"];
+    const completedStatuses = ['Delivered', 'Failed', 'Cancelled',"Completed"];
 
     const upcoming = [];
     const completed = [];
