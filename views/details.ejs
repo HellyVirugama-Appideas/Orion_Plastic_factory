@@ -123,6 +123,18 @@
 
                                                 <!-- Profile Status Toggle (Approve / Reject) -->
                                                 <div class="switch">
+                                                    <!-- <label>
+                                                        <span style="color: #f44336; font-weight: bold;">Rejected</span>
+                                                        <input type="checkbox" <%=driver.profileStatus==='approved'
+                                                            ? 'checked' : '' %>
+                                                        onchange="toggleProfileStatus('<%= driver._id %>',
+                                                            this.checked)">
+                                                            <span class="lever"
+                                                                style="background-color: #4CAF50;"></span>
+                                                            <span
+                                                                style="color: #4CAF50; font-weight: bold;">Approved</span>
+                                                    </label> -->
+
                                                     <label>
                                                         <span style="color: #f44336; font-weight: bold;">Rejected</span>
                                                         <input type="checkbox" <%=driver.profileStatus==='approved'
@@ -458,15 +470,11 @@
                     });
 
                     function toggleProfileStatus(driverId, isApproved) {
-                        const action = isApproved ? 'approve' : 'reject';
-                        const message = isApproved
-                            ? "Are you sure you want to APPROVE this driver's profile?"
-                            : "Are you sure you want to REJECT this driver's profile?";
-
-                        if (confirm(message)) {
-                            window.location.href = `/admin/drivers/profile-status/${driverId}/${isApproved ? '1' : '0'}`;
+                        if (!isApproved) {
+                            const reason = prompt("Enter rejection reason (optional):") || "";
+                            window.location.href = `/admin/drivers/profile-status/${driverId}/0?reason=${encodeURIComponent(reason)}`;
                         } else {
-                            location.reload();
+                            window.location.href = `/admin/drivers/profile-status/${driverId}/1`;
                         }
                     }
 

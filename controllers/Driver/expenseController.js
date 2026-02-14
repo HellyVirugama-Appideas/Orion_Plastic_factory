@@ -1171,7 +1171,7 @@ exports.getMyExpenses = async (req, res) => {
     // 2. Approval Status Filter (most important fix)
     const finalStatus = status || approvalStatus;
     if (finalStatus) {
-      if (finalStatus.toLowerCase() === 'approved') {
+      if (finalStatus.toLowerCase() === 'Approved') {
         // Show both types of approved status
         query.approvalStatus = { $in: ['approved_by_admin', 'approved_by_finance'] };
       } else {

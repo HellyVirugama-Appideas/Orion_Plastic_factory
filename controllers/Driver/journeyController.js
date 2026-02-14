@@ -9,6 +9,80 @@ const { calculateDistance } = require('../../utils/geoHelper');
 const { logDriverActivity } = require("../../utils/activityLogger")
 const axios = require("axios")
 
+exports.updateJourneyLocation = async (req, res) => {
+  try {
+    const { journeyId } = req.params;
+    const { latitude, longitude, address, speed, heading } = req.body;
+
+    if (!latitude || !longitude) {
+      return errorResponse(res, 'Latitude and longitude are required', 400);
+    }
+
+    const driver = req.user;
+    const journey = await Journey.findById(journeyId);
+
+    if (!journey) {
+      return errorResponse(res, 'Journey not found', 404);
+    }
+
+    if (journey.driverId.toString() !== driver._id.toString()) {
+      return errorResponse(res, 'Unauthorized', 403);
+    }
+
+    // Check if journey is active
+    if (!['Started', 'In_transit', 'In_progress'].includes(journey.status)) {
+      return errorResponse(res, 'Journey is not active', 400);
+    }
+
+    const locationData = {
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      address: address || 'GPS Location',
+      lastUpdated: new Date()
+    };
+
+    if (speed) locationData.speed = Number(speed);
+    if (heading) locationData.heading = Number(heading);
+
+    // Update driver's current location in Driver model
+    await Driver.findByIdAndUpdate(
+      driver._id,
+      { 
+        currentLocation: locationData,
+        lastLocationUpdate: new Date()
+      },
+      { new: true }
+    );
+
+    // ────────────────── SOCKET.IO EMIT ──────────────────
+    // Emit real-time location update to admin dashboard
+    const io = req.app.get('io'); // Make sure you set io in app.js
+    if (io) {
+      io.to('admin-room').emit('driver:location:update', {
+        driverId: driver._id.toString(),
+        driverName: driver.name,
+        vehicleNumber: driver.vehicleNumber || driver.vehicle?.vehicleNumber || 'N/A',
+        location: locationData,
+        isAvailable: driver.isAvailable,
+        status: journey.status,
+        journeyId: journey._id.toString(),
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`📍 Location broadcasted for driver: ${driver.name}`);
+    }
+    // ─────────────────────────────────────────────────────
+
+    return successResponse(res, 'Location updated successfully', {
+      location: locationData,
+      journeyStatus: journey.status
+    });
+
+  } catch (error) {
+    console.error('Update Journey Location Error:', error);
+    return errorResponse(res, 'Failed to update location', 500);
+  }
+};
 
 
 // exports.startJourney = async (req, res) => {
@@ -39,7 +113,7 @@ const axios = require("axios")
 //     // Check if journey already exists
 //     const existingJourney = await Journey.findOne({
 //       deliveryId,
-//       status: { $in: ['started', 'in_progress'] }
+//       status: { $in: ['Started', 'In_transit', 'In_progress'] }
 //     });
 
 //     if (existingJourney) {
@@ -55,17 +129,18 @@ const axios = require("axios")
 //         address: address || 'Location captured via GPS'
 //       },
 //       startTime: new Date(),
-//       status: 'started'
+//       status: 'assigned'  // Initial status
 //     });
 
-//     delivery.status = 'picked_up';
+//     // Update delivery status to picked_up
+//     delivery.status = 'In_transit';
 //     delivery.actualPickupTime = new Date();
 //     await delivery.save();
 
 //     // Delivery Status History
 //     await DeliveryStatusHistory.create({
 //       deliveryId: delivery._id,
-//       status: 'picked_up',
+//       status: 'In_transit',
 //       location: {
 //         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
 //         address: address || 'GPS Location'
@@ -80,7 +155,7 @@ const axios = require("axios")
 
 //     // Update driver status
 //     await Driver.findByIdAndUpdate(driver._id, {
-//       isAvailable: false,
+//       // isAvailable: false,
 //       currentJourney: journey._id,
 //       activeDelivery: delivery._id
 //     });
@@ -102,12 +177,43 @@ const axios = require("axios")
 //           },
 //           startTime: new Date().toISOString()
 //         },
-//         req  // for IP, user-agent etc
+//         req
 //       );
 //     } catch (logError) {
 //       console.error('Failed to log JOURNEY_STARTED activity:', logError.message);
 //     }
 //     // ─────────────────────────────────────────────────────────────
+
+//     // Automatically update to In_transit status
+//     setTimeout(async () => {
+//       try {
+//         const updatedJourney = await Journey.findByIdAndUpdate(
+//           journey._id,
+//           { status: 'In_transit' },
+//           { new: true }
+//         );
+
+//         await DeliveryStatusHistory.create({
+//           deliveryId: delivery._id,
+//           status: 'In_transit',
+//           location: {
+//             coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//             address: address || 'GPS Location'
+//           },
+//           remarks: 'Package is now in transit',
+//           updatedBy: {
+//             userId: driver._id,
+//             userRole: 'driver',
+//             userName: driver.name
+//           }
+//         });
+
+//         delivery.status = 'In_transit';
+//         await delivery.save();
+//       } catch (error) {
+//         console.error('Failed to update to In_transit:', error.message);
+//       }
+//     }, 2000); // Update after 2 seconds
 
 //     return successResponse(res, 'Journey started successfully! Package picked up.', {
 //       journeyId: journey._id,
@@ -122,7 +228,7 @@ const axios = require("axios")
 //   }
 // };
 
-// ==================== START JOURNEY ====================
+// ==================== CONTINUE JOURNEY ====================
 
 exports.startJourney = async (req, res) => {
   try {
@@ -168,15 +274,13 @@ exports.startJourney = async (req, res) => {
         address: address || 'Location captured via GPS'
       },
       startTime: new Date(),
-      status: 'assigned'  // Initial status
+      status: 'assigned'
     });
 
-    // Update delivery status to picked_up
     delivery.status = 'In_transit';
     delivery.actualPickupTime = new Date();
     await delivery.save();
 
-    // Delivery Status History
     await DeliveryStatusHistory.create({
       deliveryId: delivery._id,
       status: 'In_transit',
@@ -192,14 +296,44 @@ exports.startJourney = async (req, res) => {
       }
     });
 
-    // Update driver status
+    // Update driver with current location
     await Driver.findByIdAndUpdate(driver._id, {
-      // isAvailable: false,
       currentJourney: journey._id,
-      activeDelivery: delivery._id
+      activeDelivery: delivery._id,
+      currentLocation: {
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        address: address || 'GPS Location',
+        lastUpdated: new Date()
+      },
+      lastLocationUpdate: new Date()
     });
 
-    // ────────────────── DRIVER ACTIVITY LOGGING ──────────────────
+    // ────────────────── SOCKET.IO - JOURNEY STARTED ──────────────────
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('driver:journey:started', {
+        driverId: driver._id.toString(),
+        driverName: driver.name,
+        vehicleNumber: driver.vehicleNumber || 'N/A',
+        journeyId: journey._id.toString(),
+        deliveryId: delivery._id.toString(),
+        location: {
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          address: address || 'GPS Location',
+          lastUpdated: new Date()
+        },
+        isAvailable: false,
+        status: 'In_transit',
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`🚀 Journey started broadcast for: ${driver.name}`);
+    }
+    // ─────────────────────────────────────────────────────────────────
+
+    // Activity logging
     try {
       await logDriverActivity(
         driver._id,
@@ -221,9 +355,8 @@ exports.startJourney = async (req, res) => {
     } catch (logError) {
       console.error('Failed to log JOURNEY_STARTED activity:', logError.message);
     }
-    // ─────────────────────────────────────────────────────────────
 
-    // Automatically update to In_transit status
+    // Auto-update to In_transit after 2 seconds
     setTimeout(async () => {
       try {
         const updatedJourney = await Journey.findByIdAndUpdate(
@@ -249,10 +382,21 @@ exports.startJourney = async (req, res) => {
 
         delivery.status = 'In_transit';
         await delivery.save();
+
+        // Broadcast status change
+        if (io) {
+          io.to('admin-room').emit('driver:status:change', {
+            driverId: driver._id.toString(),
+            isAvailable: false,
+            status: 'In_transit',
+            journeyId: journey._id.toString()
+          });
+        }
+
       } catch (error) {
         console.error('Failed to update to In_transit:', error.message);
       }
-    }, 2000); // Update after 2 seconds
+    }, 2000);
 
     return successResponse(res, 'Journey started successfully! Package picked up.', {
       journeyId: journey._id,
@@ -267,7 +411,6 @@ exports.startJourney = async (req, res) => {
   }
 };
 
-// ==================== CONTINUE JOURNEY ====================
 exports.continueJourney = async (req, res) => {
   try {
     const { deliveryId } = req.body;
@@ -1855,6 +1998,146 @@ exports.completeDelivery = async (req, res) => {
   }
 };
 
+// exports.endJourney = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { latitude, longitude, address, finalRemarks } = req.body;
+
+//     if (!latitude || !longitude) {
+//       return errorResponse(res, 'End location (latitude & longitude) is required', 400);
+//     }
+
+//     const journey = await Journey.findById(journeyId);
+//     if (!journey) {
+//       return errorResponse(res, 'Journey not found', 404);
+//     }
+
+//     const driver = req.user;
+
+//     if (journey.driverId.toString() !== driver._id.toString()) {
+//       return errorResponse(res, 'Unauthorized: This journey does not belong to you', 403);
+//     }
+
+//     if (['completed', 'cancelled'].includes(journey.status)) {
+//       return errorResponse(res, 'Journey already ended', 400);
+//     }
+
+//     // Calculate total distance (your existing logic - unchanged)
+//     let totalDistance = 0;
+
+//     if (journey.waypoints && journey.waypoints.length > 0) {
+//       totalDistance += calculateDistance(
+//         journey.startLocation.coordinates.latitude,
+//         journey.startLocation.coordinates.longitude,
+//         journey.waypoints[0].location.coordinates.latitude,
+//         journey.waypoints[0].location.coordinates.longitude
+//       );
+
+//       for (let i = 1; i < journey.waypoints.length; i++) {
+//         const prev = journey.waypoints[i - 1].location.coordinates;
+//         const curr = journey.waypoints[i].location.coordinates;
+//         totalDistance += calculateDistance(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+//       }
+
+//       const lastWaypoint = journey.waypoints[journey.waypoints.length - 1];
+//       totalDistance += calculateDistance(
+//         lastWaypoint.location.coordinates.latitude,
+//         lastWaypoint.location.coordinates.longitude,
+//         latitude,
+//         longitude
+//       );
+//     } else {
+//       totalDistance = calculateDistance(
+//         journey.startLocation.coordinates.latitude,
+//         journey.startLocation.coordinates.longitude,
+//         latitude,
+//         longitude
+//       );
+//     }
+
+//     // Duration & Speed
+//     const endTime = new Date();
+//     const durationMs = endTime - new Date(journey.startTime);
+//     const durationMinutes = Math.round(durationMs / 60000);
+//     const durationHours = durationMinutes / 60;
+//     const averageSpeed = durationHours > 0 ? totalDistance / durationHours : 0;
+
+//     // Update Journey
+//     journey.endLocation = {
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: address || 'Delivery completed'
+//     };
+//     journey.endTime = endTime;
+//     journey.status = 'completed';
+//     journey.totalDistance = parseFloat(totalDistance.toFixed(2));
+//     journey.totalDuration = durationMinutes;
+//     journey.averageSpeed = parseFloat(averageSpeed.toFixed(2));
+//     journey.finalRemarks = finalRemarks || 'Delivery completed successfully';
+//     await journey.save();
+
+//     // Update Delivery
+//     const delivery = await Delivery.findById(journey.deliveryId);
+//     if (delivery) {
+//       delivery.status = 'delivered';
+//       delivery.actualDeliveryTime = endTime;
+//       await delivery.save();
+
+//       await DeliveryStatusHistory.create({
+//         deliveryId: delivery._id,
+//         status: 'delivered',
+//         location: {
+//           coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//           address: address || 'Final destination'
+//         },
+//         remarks: 'Journey completed by driver',
+//         updatedBy: {
+//           userId: driver._id,
+//           userRole: 'driver',
+//           userName: driver.name || 'Driver'
+//         }
+//       });
+//     }
+
+//     // Update driver availability
+//     await Driver.findByIdAndUpdate(
+//       driver._id,
+//       {
+//         isAvailable: true,
+//         currentJourney: null,
+//         $unset: { activeDelivery: "" }
+//       },
+//       { new: true }
+//     );
+
+//     // SAFE: Add null checks for communicationLog, images, waypoints
+//     const communicationLog = journey.communicationLog || [];
+//     const images = journey.images || [];
+//     const waypoints = journey.waypoints || [];
+
+//     return successResponse(res, 'Journey ended successfully! You are now free for new deliveries', {
+//       journey: {
+//         id: journey._id,
+//         status: journey.status,
+//         totalDistance: journey.totalDistance + ' km',
+//         totalDuration: journey.totalDuration + ' mins',
+//         averageSpeed: journey.averageSpeed + ' km/h',
+//         totalCheckpoints: waypoints.length,
+//         totalImages: images.length,
+//         totalCalls: communicationLog.filter(log => log.type === 'call').length,
+//         totalWhatsApp: communicationLog.filter(log => log.type === 'whatsapp').length
+//       },
+//       driverStatus: 'Available',
+//       deliveryStatus: delivery?.status || 'delivered'
+//     });
+
+//   } catch (error) {
+//     console.error('End Journey Error:', error.message);
+//     return errorResponse(res, error.message || 'Failed to end journey', 500);
+//   }
+// };
+
+//  GET ACTIVE JOURNEY 
+
 exports.endJourney = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -1879,7 +2162,7 @@ exports.endJourney = async (req, res) => {
       return errorResponse(res, 'Journey already ended', 400);
     }
 
-    // Calculate total distance (your existing logic - unchanged)
+    // Calculate total distance
     let totalDistance = 0;
 
     if (journey.waypoints && journey.waypoints.length > 0) {
@@ -1912,7 +2195,6 @@ exports.endJourney = async (req, res) => {
       );
     }
 
-    // Duration & Speed
     const endTime = new Date();
     const durationMs = endTime - new Date(journey.startTime);
     const durationMinutes = Math.round(durationMs / 60000);
@@ -1966,7 +2248,28 @@ exports.endJourney = async (req, res) => {
       { new: true }
     );
 
-    // SAFE: Add null checks for communicationLog, images, waypoints
+    // ────────────────── SOCKET.IO - JOURNEY ENDED ──────────────────
+    const io = req.app.get('io');
+    if (io) {
+      io.to('admin-room').emit('driver:journey:ended', {
+        driverId: driver._id.toString(),
+        driverName: driver.name,
+        journeyId: journey._id.toString(),
+        deliveryId: delivery._id.toString(),
+        isAvailable: true,
+        status: 'available',
+        endLocation: {
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          address: address || 'Delivery completed'
+        },
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ Journey ended broadcast for: ${driver.name}`);
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     const communicationLog = journey.communicationLog || [];
     const images = journey.images || [];
     const waypoints = journey.waypoints || [];
@@ -1993,7 +2296,6 @@ exports.endJourney = async (req, res) => {
   }
 };
 
-//  GET ACTIVE JOURNEY 
 exports.getActiveJourney = async (req, res) => {
   try {
     const driver = req.user;

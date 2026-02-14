@@ -1555,6 +1555,64 @@ exports.updateFcmToken = async (req, res) => {
 
 
 ///////setting update profile details
+// exports.updatePersonalDetails = async (req, res) => {
+//   try {
+//     const driver = req.user;
+//     const { fullName, phone, countryCode, emiratesId, region } = req.body;
+
+//     // Phone update with country code
+//     if (phone) {
+//       // if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+//       //   return errorResponse(res, 'Phone must be 10 digits', 400);
+//       // }
+//       const newCountryCode = countryCode || driver.countryCode || '+971';
+//       const fullPhone = `${newCountryCode}${phone.replace(/\D/g, '')}`;
+
+//       // Check duplicate
+//       const exists = await Driver.findOne({ phone: fullPhone, _id: { $ne: driver._id } });
+//       if (exists) {
+//         return errorResponse(res, 'Phone number already registered', 400);
+//       }
+
+//       driver.phone = fullPhone;
+//       driver.countryCode = newCountryCode;
+//     }
+
+//     if (emiratesId) {
+//       const exists = await Driver.findOne({
+//         'governmentIds.emiratesId': emiratesId,
+//         _id: { $ne: driver._id }
+//       });
+//       if (exists) return errorResponse(res, 'Emirates ID already used', 400);
+//     }
+
+//     driver.name = fullName || driver.name;
+//     driver.governmentIds.emiratesId = emiratesId || driver.governmentIds.emiratesId;
+//     driver['address.city'] = region || driver.address?.city;
+
+//     await driver.save();
+
+//     await logDriverActivity(driver._id, 'PROFILE_UPDATED', {
+//       changedFields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
+//       updatedBy: 'driver'
+//     }, req);
+
+//     return successResponse(res, 'Profile updated successfully!', {
+//       driver: {
+//         name: driver.name,
+//         phone: driver.phone,
+//         countryCode: driver.countryCode,
+//         emiratesId: driver.governmentIds.emiratesId,
+//         region: driver.address?.city
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Update Personal Details Error:', error);
+//     return errorResponse(res, 'Update failed', 500);
+//   }
+// };
+
 exports.updatePersonalDetails = async (req, res) => {
   try {
     const driver = req.user;
@@ -1562,11 +1620,12 @@ exports.updatePersonalDetails = async (req, res) => {
 
     // Phone update with country code
     if (phone) {
-      // if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
-      //   return errorResponse(res, 'Phone must be 10 digits', 400);
-      // }
+      const cleanedPhone = phone.replace(/\D/g, '');
+      if (cleanedPhone.length !== 10) {
+        return errorResponse(res, 'Phone must be 10 digits', 400);
+      }
       const newCountryCode = countryCode || driver.countryCode || '+971';
-      const fullPhone = `${newCountryCode}${phone.replace(/\D/g, '')}`;
+      const fullPhone = `${newCountryCode}${cleanedPhone}`;
 
       // Check duplicate
       const exists = await Driver.findOne({ phone: fullPhone, _id: { $ne: driver._id } });
@@ -1578,32 +1637,83 @@ exports.updatePersonalDetails = async (req, res) => {
       driver.countryCode = newCountryCode;
     }
 
+    // Emirates ID duplicate check
     if (emiratesId) {
       const exists = await Driver.findOne({
         'governmentIds.emiratesId': emiratesId,
         _id: { $ne: driver._id }
       });
       if (exists) return errorResponse(res, 'Emirates ID already used', 400);
+      driver.governmentIds.emiratesId = emiratesId;
     }
 
-    driver.name = fullName || driver.name;
-    driver.governmentIds.emiratesId = emiratesId || driver.governmentIds.emiratesId;
-    driver['address.city'] = region || driver.address?.city;
+    // Update other fields if provided
+    if (fullName) driver.name = fullName.trim();
+    if (region) driver['address.city'] = region.trim();
 
     await driver.save();
 
+    // Log activity
     await logDriverActivity(driver._id, 'PROFILE_UPDATED', {
       changedFields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
       updatedBy: 'driver'
     }, req);
 
+    // ================= DOCUMENT EXTRACTION (same as login) =================
+    const docs = driver.documents || [];
+
+    let licenseNumber = null;
+    let licenseFront = null;
+    let licenseBack = null;
+    let rcNumber = null;
+    let rcFront = null;
+    let rcBack = null;
+
+    docs.forEach(doc => {
+      switch (doc.documentType) {
+        case 'license_front':
+          licenseFront = doc.fileUrl;
+          if (doc.documentNumber) licenseNumber = doc.documentNumber;
+          break;
+        case 'license_back':
+          licenseBack = doc.fileUrl;
+          break;
+        case 'vehicle_rc_front':
+          rcFront = doc.fileUrl;
+          if (doc.documentNumber) rcNumber = doc.documentNumber;
+          break;
+        case 'vehicle_rc_back':
+          rcBack = doc.fileUrl;
+          break;
+      }
+    });
+
+    // ================= FULL DRIVER RESPONSE (same structure as login) =================
     return successResponse(res, 'Profile updated successfully!', {
       driver: {
+        _id: driver._id,
         name: driver.name,
         phone: driver.phone,
         countryCode: driver.countryCode,
-        emiratesId: driver.governmentIds.emiratesId,
-        region: driver.address?.city
+        region: driver.address?.city || driver.address?.country || null,
+        vehicleNumber: driver.vehicleNumber,
+        vehicleType: driver.vehicleType,
+        emiratesId: driver.governmentIds?.emiratesId || null,
+        profileImage: driver.profileImage || null,
+        isAvailable: driver.isAvailable,
+        rating: driver.rating || 0,
+        fcmTokenRegistered: !!driver.fcmToken,
+
+        license: {
+          number: licenseNumber,
+          frontImage: licenseFront,
+          backImage: licenseBack
+        },
+        vehicleRegistration: {
+          number: rcNumber,
+          frontImage: rcFront,
+          backImage: rcBack
+        }
       }
     });
 

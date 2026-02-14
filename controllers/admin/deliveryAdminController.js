@@ -464,7 +464,7 @@ exports.createDeliveryFromOrder = async (req, res) => {
       } catch (e) {
         console.error('Waypoints parse error:', e);
       }
-    } 
+    }
 
     // Safe coordinate extraction (defaulting to Ahmedabad coords)
     const pickupCoords = {
@@ -513,12 +513,6 @@ exports.createDeliveryFromOrder = async (req, res) => {
     order.status = 'assigned';
     await order.save();
 
-    // ───────────────────────────────────────────────
-    // IMPORTANT: Ab isAvailable = false NAHI kar rahe
-    // Kyunki multiple deliveries allowed hai
-    // driver.isAvailable = false;     ← yeh line COMMENT out ya DELETE
-    // await driver.save();            ← iske saath wali bhi
-    // ───────────────────────────────────────────────
 
     // Create status history
     await DeliveryStatusHistory.create({
@@ -534,36 +528,18 @@ exports.createDeliveryFromOrder = async (req, res) => {
 
     // Notifications (push + in-app) – yeh same rahega
     // 1. Push Notification (FCM)
-    if (driver.fcmToken && driver.fcmToken.trim().length > 20) {
-      console.log(`[FCM-DEBUG] Attempting send to token (preview): ${driver.fcmToken.substring(0, 20)}...`);
-      try {
-        const pushResult = await sendNotification(
-          driver.name || "Driver",
-          "english",
-          driver.fcmToken,
-          "delivery_assigned",
-          {
-            deliveryId: delivery._id.toString(),
-            trackingNumber: delivery.trackingNumber,
-            customerName: order?.customerId?.name || "Customer",
-            pickup: order?.pickupLocation?.address || "",
-            type: "delivery_assigned"
-          }
-        );
+    if (driver.fcmToken) {
+      const data = {
+        deliveryId: delivery._id.toString(),
+        trackingNumber: delivery.trackingNumber,
+        type: "delivery_assigned",
+        title: "Delivery Assigned 🚚",
+        body: `You have a new delivery. Pickup from ${order?.pickupLocation?.address || 'location'}` //${delivery.trackingNumber}
+      };
 
-        if (pushResult) {
-          console.log(`[NOTIF-SUCCESS] FCM push sent → messageId: ${pushResult.messageId || pushResult.name}`);
-        } else {
-          console.warn("[NOTIF-WARN] FCM send returned null/undefined");
-        }
-      } catch (pushErr) {
-        console.error("[FCM-ERROR] Push failed:", pushErr.code || pushErr.message || pushErr);
-      }
+      sendNotification(driver.fcmToken, data);   // ← assuming your helper accepts token + object
     } else {
-      console.warn("[NOTIF-WARN] No valid fcmToken found for driver", {
-        hasToken: !!driver.fcmToken,
-        tokenLength: driver.fcmToken?.length || 0
-      });
+      console.warn(`No FCM token for driver ${driver._id} → assignment notification skipped`);
     }
 
     // 2. In-app Notification
@@ -573,10 +549,10 @@ exports.createDeliveryFromOrder = async (req, res) => {
         recipientType: 'Driver',          // required for refPath
         type: 'delivery_assigned',
         title: 'New Delivery Assigned',
-        message: `You have been assigned delivery ${delivery.trackingNumber}. Check details in your app.`,
+        message: `You have been assigned delivery. Check details in your app.`, //${delivery.trackingNumber}
         referenceId: delivery._id,
         referenceModel: 'Delivery',
-        priority: 'high',
+        priority: `${delivery.priority}`,
         createdAt: new Date()
       });
 

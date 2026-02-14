@@ -96,7 +96,7 @@ exports.getDriverDeliveries = async (req, res) => {
       .lean();
 
     // Define which statuses are Upcoming vs Completed
-    const upcomingStatuses = ['Pending_acceptance', 'Assigned', 'Picked_up', 'In_transit', 'Out_for_delivery', 'Arrived', "Proof_uploaded"];
+    const upcomingStatuses = ['Pending_acceptance', 'Assigned', 'Picked_up', 'In_transit', 'Out_for_delivery', 'Arrived', 'assigned', "Proof_uploaded"];
     const completedStatuses = ['Delivered', 'Failed', 'Cancelled',"Completed"];
 
     const upcoming = [];

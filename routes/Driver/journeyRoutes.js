@@ -55,11 +55,18 @@
 
 
 const express = require("express")
-const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature, uploadHiddenScreenshot, continueJourney, getActiveJourneyByDeliveryId } = require("../../controllers/Driver/journeyController")
+const { startJourney, addJourneyImage, endJourney, getActiveJourney, getJourneyDetails, getDriverJourneyHistory, addCheckpoint, cancelJourney, initiateCall, endCall, initiateWhatsApp, getCommunicationHistory, getNavigation, uploadRecording, completeDelivery, uploadProofPhotos, uploadProofSignature, updateJourneyLocation, continueJourney, getActiveJourneyByDeliveryId } = require("../../controllers/Driver/journeyController")
 const { authenticateDriver, isDriver } = require("../../middleware/authMiddleware")
 const { uploadJourneyImage, handleUploadError, uploadSignature,uploadProofAndStamp } = require("../../middleware/uploadMiddleware")
 
 const router = express.Router()
+
+router.put(
+  "/update-location/:journeyId",
+  authenticateDriver,
+  isDriver,
+  updateJourneyLocation
+);
 
 router.post(
   "/start",
@@ -200,7 +207,7 @@ router.get(
   isDriver,
   getDriverJourneyHistory
 )
-
+ 
 
 router.get(
   "/active",

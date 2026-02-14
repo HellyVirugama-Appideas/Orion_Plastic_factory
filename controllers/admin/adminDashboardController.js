@@ -330,13 +330,124 @@
 //   }
 // };
 
-
+require("dotenv").config()
 const mongoose = require("mongoose");
 const Order = require('../../models/Order');
 const Delivery = require('../../models/Delivery');
 const Driver = require('../../models/Driver');
 const Customer = require('../../models/Customer');
 const Vehicle = require("../../models/Vehicle")
+const { sendNotification } = require('../../utils/sendNotification');
+
+//render dashboard
+// exports.renderDashboard = async (req, res) => {
+//   try {
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+
+//     const last7DaysStart = new Date(today);
+//     last7DaysStart.setDate(today.getDate() - 6); // Last 7 days including today
+
+//     const [
+//       totalOrders,
+//       totalDeliveries,
+//       totalDrivers,
+//       totalCustomers,
+//       todayDeliveries,
+//       availableDrivers,
+//       availableVehicles,
+//       recentOrders,
+//       chartData
+//     ] = await Promise.all([
+//       Order.countDocuments(),
+//       Delivery.countDocuments(),
+//       Driver.countDocuments(),
+//       Customer.countDocuments(),
+
+//       // Today's delivered
+//       Delivery.countDocuments({ 
+//         status: 'delivered', 
+//         actualDeliveryTime: { $gte: today } 
+//       }),
+
+//       // Available Drivers: assuming you have isAvailable field in Driver
+//       // If Driver also uses "status": "available" → change accordingly
+//       Driver.countDocuments({ isAvailable: true }),           // ← Keep if exists
+
+//       // IMPORTANT FIX: Available Vehicles – use your actual field "status": "available"
+//       Vehicle.countDocuments({ status: "available" }),       // ← This will give you 1 (or more)
+
+//       // Recent 10 orders
+//       Order.find()
+//         .populate('customerId', 'name companyName phone')
+//         .sort({ createdAt: -1 })
+//         .limit(10),
+
+//       // Chart: Orders & Deliveries last 7 days
+//       Order.aggregate([
+//         {
+//           $match: {
+//             createdAt: { $gte: last7DaysStart, $lte: today }
+//           }
+//         },
+//         {
+//           $group: {
+//             _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+//             orders: { $sum: 1 },
+//             deliveries: { 
+//               $sum: { 
+//                 $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] 
+//               } 
+//             }
+//           }
+//         },
+//         { $sort: { _id: 1 } }
+//       ])
+//     ]);
+
+//     const currentUrl = req.originalUrl || req.url;
+
+//     res.render('index', {
+//       title: 'Dashboard',
+//       user: req.admin,
+//       url: currentUrl,
+//       stats: {
+//         totalOrders: totalOrders || 0,
+//         totalDeliveries: totalDeliveries || 0,
+//         totalDrivers: totalDrivers || 0,
+//         totalCustomers: totalCustomers || 0,
+//         todayDeliveries: todayDeliveries || 0,
+//         availableDrivers: availableDrivers || 0,
+//         availableVehicles: availableVehicles || 0
+//       },
+//       recentOrders: recentOrders || [],
+//       chartData: chartData || []
+//     });
+
+//   } catch (error) {
+//     console.error('Dashboard render error:', error);
+
+//     const currentUrl = req.originalUrl || req.url;
+
+//     res.render('index', {
+//       title: 'Dashboard',
+//       user: req.admin,
+//       url: currentUrl,
+//       stats: {
+//         totalOrders: 0,
+//         totalDeliveries: 0,
+//         totalDrivers: 0,
+//         totalCustomers: 0,
+//         todayDeliveries: 0,
+//         availableDrivers: 0,
+//         availableVehicles: 0
+//       },
+//       recentOrders: [],
+//       chartData: [],
+//       error: 'Failed to load dashboard data. Please try again.'
+//     });
+//   }
+// };
 
 //render dashboard
 exports.renderDashboard = async (req, res) => {
@@ -345,7 +456,7 @@ exports.renderDashboard = async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     const last7DaysStart = new Date(today);
-    last7DaysStart.setDate(today.getDate() - 6); // Last 7 days including today
+    last7DaysStart.setDate(today.getDate() - 6);
 
     const [
       totalOrders,
@@ -363,26 +474,20 @@ exports.renderDashboard = async (req, res) => {
       Driver.countDocuments(),
       Customer.countDocuments(),
 
-      // Today's delivered
       Delivery.countDocuments({ 
         status: 'delivered', 
         actualDeliveryTime: { $gte: today } 
       }),
 
-      // Available Drivers: assuming you have isAvailable field in Driver
-      // If Driver also uses "status": "available" → change accordingly
-      Driver.countDocuments({ isAvailable: true }),           // ← Keep if exists
+      Driver.countDocuments({ isAvailable: true }),
 
-      // IMPORTANT FIX: Available Vehicles – use your actual field "status": "available"
-      Vehicle.countDocuments({ status: "available" }),       // ← This will give you 1 (or more)
+      Vehicle.countDocuments({ status: "available" }),
 
-      // Recent 10 orders
       Order.find()
         .populate('customerId', 'name companyName phone')
         .sort({ createdAt: -1 })
         .limit(10),
 
-      // Chart: Orders & Deliveries last 7 days
       Order.aggregate([
         {
           $match: {
@@ -444,6 +549,90 @@ exports.renderDashboard = async (req, res) => {
       recentOrders: [],
       chartData: [],
       error: 'Failed to load dashboard data. Please try again.'
+    });
+  }
+};
+
+// ==================== NEW: GET ALL DRIVER LOCATIONS ====================
+/**
+ * @route   GET /admin/api/drivers/locations
+ * @desc    Get all drivers with their current locations for live map
+ * @access  Private (Admin only)
+ */
+exports.getAllDriverLocations = async (req, res) => {
+  try {
+    const drivers = await Driver.find({
+      'currentLocation.latitude': { $exists: true },
+      'currentLocation.longitude': { $exists: true }
+    })
+    .select('name phone vehicleNumber vehicleType currentLocation isAvailable currentJourney activeDelivery lastLocationUpdate')
+    .populate('currentJourney', 'status deliveryId')
+    .lean();
+
+    // Filter out drivers without valid coordinates
+    const validDrivers = drivers.filter(driver => 
+      driver.currentLocation?.latitude && 
+      driver.currentLocation?.longitude
+    );
+
+    return res.json({
+      success: true,
+      count: validDrivers.length,
+      data: validDrivers,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get Driver Locations Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch driver locations',
+      error: error.message
+    });
+  }
+};
+
+// ==================== NEW: GET SINGLE DRIVER LOCATION ====================
+/**
+ * @route   GET /admin/api/drivers/:driverId/location
+ * @desc    Get specific driver's current location
+ * @access  Private (Admin only)
+ */
+exports.getDriverLocation = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+
+    const driver = await Driver.findById(driverId)
+      .select('name phone vehicleNumber currentLocation isAvailable currentJourney lastLocationUpdate')
+      .populate('currentJourney', 'status deliveryId startTime')
+      .lean();
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver not found'
+      });
+    }
+
+    if (!driver.currentLocation?.latitude || !driver.currentLocation?.longitude) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location not available for this driver'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: driver,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Get Driver Location Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch driver location',
+      error: error.message
     });
   }
 };
@@ -817,13 +1006,145 @@ exports.renderDriverDetails = async (req, res) => {
   }
 };
 
+// exports.toggleDriverProfileStatus = async (req, res) => {
+//   try {
+//     const { driverId, status } = req.params;
+
+//     if (!mongoose.Types.ObjectId.isValid(driverId)) {
+//       req.flash('error', 'Invalid driver ID');
+//       return res.redirect(`/admin/drivers/view/${driverId}`);
+//     }
+
+//     const driver = await Driver.findById(driverId);
+//     if (!driver) {
+//       req.flash('error', 'Driver not found');
+//       return res.redirect('/admin/drivers');
+//     }
+
+//     const newStatus = status === '1' ? 'approved' : 'rejected';
+
+//     // Optional: You can add extra check before approving
+//     if (newStatus === 'approved') {
+//       const allVerified = driver.documents.every(doc => doc.status === 'verified');
+//       if (!allVerified) {
+//         req.flash('error', 'Cannot approve: Not all documents are verified yet!');
+//         return res.redirect(`/admin/drivers/view/${driverId}`);
+//       }
+//     }
+
+//     driver.profileStatus = newStatus;
+//     await driver.save();
+
+//     // Optional: Send notification to driver via FCM
+//     if (driver.fcmToken) {
+//       const message = newStatus === 'approved'
+//         ? "Congratulations! Your profile has been approved ✓ You can now start accepting deliveries."
+//         : "Your profile has been rejected. Please check documents and re-submit.";
+
+//       await sendFCMNotification({
+//         token: driver.fcmToken,
+//         title: newStatus === 'approved' ? "Profile Approved!" : "Profile Rejected",
+//         body: message,
+//         data: { type: "profile_status_update", status: newStatus }
+//       });
+//     }
+
+//     req.flash('success', `Driver profile status updated to ${newStatus.toUpperCase()}`);
+//     res.redirect(`/admin/drivers/view/${driverId}`);
+
+//   } catch (error) {
+//     console.error('Profile status toggle error:', error);
+//     req.flash('error', 'Failed to update profile status');
+//     res.redirect(`/admin/drivers/view/${driverId}`);
+//   }
+// };
+
+// exports.toggleDriverProfileStatus = async (req, res) => {
+//   let driverId; // declare outside try so catch can use it
+
+//   try {
+//     ({ driverId, status } = req.params); // destructuring
+
+//     if (!mongoose.Types.ObjectId.isValid(driverId)) {
+//       req.flash('error', 'Invalid driver ID');
+//       return res.redirect(`/admin/drivers`);
+//     }
+
+//     const driver = await Driver.findById(driverId);
+//     if (!driver) {
+//       req.flash('error', 'Driver not found');
+//       return res.redirect('/admin/drivers');
+//     }
+
+//     const newStatus = status === '1' ? 'approved' : 'rejected';
+
+//     // Extra safety check for approval
+//     if (newStatus === 'approved') {
+//       const allVerified = driver.documents.every(doc => doc.status === 'verified');
+//       if (!allVerified) {
+//         req.flash('error', 'Cannot approve: Not all documents are verified yet!');
+//         return res.redirect(`/admin/drivers/view/${driverId}`);
+//       }
+//     }
+
+//     // Update status
+//     driver.profileStatus = newStatus;
+//     if (newStatus === 'rejected') {
+//       driver.rejectionReason = req.body.rejectionReason?.trim() || 'Documents did not meet requirements';
+//     } else {
+//       driver.rejectionReason = null; // clear on approve
+//     }
+
+//     await driver.save();
+
+//     // Send notification using your EXISTING sendNotification function
+//     if (driver.fcmToken) {
+//       const isApproved = newStatus === 'approved';
+
+//       const notificationData = {
+//         title: isApproved ? "Profile Approved!" : "Profile Rejected",
+//         body: isApproved
+//           ? `Congratulations ${driver.name || 'Driver'}! Your profile has been approved. You can now go online and accept deliveries.`
+//           : `Your profile has been rejected. Reason: ${driver.rejectionReason}. Please update documents and re-submit.`,
+//         type: "profile_status_update",
+//         status: newStatus,
+//         driverId: driver._id.toString()
+//       };
+
+//       // Use your actual notification function (same as acceptRequest style)
+//       await sendNotification(driver.fcmToken, notificationData);
+      
+//       console.log(`Profile ${newStatus} notification sent to driver ${driver._id}`);
+//     } else {
+//       console.warn(`No FCM token for driver ${driver._id} — notification skipped`);
+//     }
+
+//     req.flash('success', `Driver profile status updated to ${newStatus.toUpperCase()}`);
+//     res.redirect(`/admin/drivers/view/${driverId}`);
+
+//   } catch (error) {
+//     console.error('Profile status toggle error:', error);
+
+//     req.flash('error', 'Failed to update profile status');
+
+//     // Safe redirect — use driverId if available, else go to list
+//     const redirectUrl = driverId 
+//       ? `/admin/drivers/view/${driverId}` 
+//       : '/admin/drivers';
+
+//     res.redirect(redirectUrl);
+//   }
+// };
+
 exports.toggleDriverProfileStatus = async (req, res) => {
+  let driverId; // catch block ke liye
+
   try {
-    const { driverId, status } = req.params;
+    ({ driverId, status } = req.params);
 
     if (!mongoose.Types.ObjectId.isValid(driverId)) {
       req.flash('error', 'Invalid driver ID');
-      return res.redirect(`/admin/drivers/view/${driverId}`);
+      return res.redirect(`/admin/drivers`);
     }
 
     const driver = await Driver.findById(driverId);
@@ -834,7 +1155,7 @@ exports.toggleDriverProfileStatus = async (req, res) => {
 
     const newStatus = status === '1' ? 'approved' : 'rejected';
 
-    // Optional: You can add extra check before approving
+    // Approval ke liye check
     if (newStatus === 'approved') {
       const allVerified = driver.documents.every(doc => doc.status === 'verified');
       if (!allVerified) {
@@ -843,21 +1164,42 @@ exports.toggleDriverProfileStatus = async (req, res) => {
       }
     }
 
+    // Rejection reason handle karo (prompt se aa raha hai query param mein)
+    let rejectionReasonText = null;
+    if (newStatus === 'rejected') {
+      rejectionReasonText = req.query.reason?.trim() || 'Documents did not meet requirements';
+      driver.rejectionReason = rejectionReasonText;
+    } else {
+      driver.rejectionReason = null;
+    }
+
     driver.profileStatus = newStatus;
     await driver.save();
 
-    // Optional: Send notification to driver via FCM
+    // Notification bhejo with logs
     if (driver.fcmToken) {
-      const message = newStatus === 'approved'
-        ? "Congratulations! Your profile has been approved ✓ You can now start accepting deliveries."
-        : "Your profile has been rejected. Please check documents and re-submit.";
+      const isApproved = newStatus === 'approved';
 
-      await sendFCMNotification({
-        token: driver.fcmToken,
-        title: newStatus === 'approved' ? "Profile Approved!" : "Profile Rejected",
-        body: message,
-        data: { type: "profile_status_update", status: newStatus }
-      });
+      const notificationData = {
+        title: isApproved ? "Profile Approved!" : "Profile Rejected",
+        body: isApproved
+          ? `Congratulations ${driver.name || 'Driver'}! Your profile has been approved. You can now go online and accept deliveries.`
+          : `Your profile has been rejected. Reason: ${rejectionReasonText || 'Not specified'}. Please update documents and re-submit.`,
+        type: "profile_status_update",
+        status: newStatus,
+        driverId: driver._id.toString()
+      };
+
+      console.log(`[NOTIF ATTEMPT] Sending ${newStatus.toUpperCase()} notification to driver ${driver._id}`);
+
+      try {
+        await sendNotification(driver.fcmToken, notificationData);
+        console.log(`[NOTIF SUCCESS] ${newStatus.toUpperCase()} notification sent to ${driver._id}`);
+      } catch (notifErr) {
+        console.error(`[NOTIF FAILED] ${newStatus.toUpperCase()} notification failed for ${driver._id}:`, notifErr.message);
+      }
+    } else {
+      console.warn(`[NOTIF SKIPPED] No FCM token for driver ${driver._id}`);
     }
 
     req.flash('success', `Driver profile status updated to ${newStatus.toUpperCase()}`);
@@ -865,8 +1207,14 @@ exports.toggleDriverProfileStatus = async (req, res) => {
 
   } catch (error) {
     console.error('Profile status toggle error:', error);
+
     req.flash('error', 'Failed to update profile status');
-    res.redirect(`/admin/drivers/view/${driverId}`);
+
+    const redirectUrl = driverId 
+      ? `/admin/drivers/view/${driverId}` 
+      : '/admin/drivers';
+
+    res.redirect(redirectUrl);
   }
 };
 

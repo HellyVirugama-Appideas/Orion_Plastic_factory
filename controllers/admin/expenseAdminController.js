@@ -204,7 +204,7 @@ exports.getAllExpenses = async (req, res) => {
             totalExpenses: { $sum: '$totalAmount' },
             pendingCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Pending'] }, 1, 0] } },
             approvedByAdminCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Approved'] }, 1, 0] } },
-            approvedByFinanceCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Approved'] }, 1, 0] } },
+            // approvedByFinanceCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Approved'] }, 1, 0] } },
             rejectedCount: { $sum: { $cond: [{ $eq: ['$approvalStatus', 'Rejected'] }, 1, 0] } }
           }
         }

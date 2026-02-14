@@ -488,6 +488,25 @@ exports.rejectDocument = async (req, res) => {
 };
 
 // Approve/Reject Driver Profile
+// exports.approveDriverProfile = async (req, res) => {
+//   try {
+//     const { driverId } = req.params;
+//     const driver = await Driver.findById(driverId);
+//     if (!driver) return errorResponse(res, 'Driver not found', 404);
+
+//     const allVerified = driver.documents.every(d => d.status === 'verified');
+//     if (!allVerified) return errorResponse(res, 'All documents must be verified', 400);
+
+//     driver.profileStatus = 'approved';
+//     await driver.save();
+
+//     successResponse(res, 'Driver approved!');
+//   } catch (error) {
+//     errorResponse(res, 'Approval failed', 500);
+//   }
+// };
+
+// Approve Driver Profile
 exports.approveDriverProfile = async (req, res) => {
   try {
     const { driverId } = req.params;
@@ -495,31 +514,99 @@ exports.approveDriverProfile = async (req, res) => {
     if (!driver) return errorResponse(res, 'Driver not found', 404);
 
     const allVerified = driver.documents.every(d => d.status === 'verified');
-    if (!allVerified) return errorResponse(res, 'All documents must be verified', 400);
+    if (!allVerified) return errorResponse(res, 'All documents must be verified before approval', 400);
+
+    // Avoid duplicate approval
+    if (driver.profileStatus === 'approved') {
+      return successResponse(res, 'Driver is already approved', { driverId });
+    }
 
     driver.profileStatus = 'approved';
+    driver.rejectionReason = null; // clear old reason
     await driver.save();
 
-    successResponse(res, 'Driver approved!');
+    // Send approval notification (same style as acceptRequest)
+    if (driver.fcmToken) {
+      const data = {
+        driverId: driver._id.toString(),
+        profileStatus: 'approved',
+        title: 'Profile Approved 🎉',
+        body: `Congratulations ${driver.name || 'Driver'}! Your profile has been approved by admin. You can now go online and start accepting rides/deliveries.`
+      };
+
+      // Call notification (same pattern as acceptRequest)
+      sendNotification(driver.fcmToken, data);
+    } else {
+      console.warn(`No FCM token for driver ${driver._id} → Approval notification skipped`);
+    }
+
+    return successResponse(res, 'Driver approved successfully!', { driverId });
+
   } catch (error) {
-    errorResponse(res, 'Approval failed', 500);
+    console.error('Approval failed:', error);
+    return errorResponse(res, 'Approval failed', 500);
   }
 };
 
+// Reject Driver Profile
 exports.rejectDriverProfile = async (req, res) => {
   try {
     const { driverId } = req.params;
+    const { rejectionReason } = req.body;
+
     const driver = await Driver.findById(driverId);
     if (!driver) return errorResponse(res, 'Driver not found', 404);
 
+    // Avoid duplicate rejection
+    if (driver.profileStatus === 'rejected') {
+      return successResponse(res, 'Driver is already rejected', { driverId });
+    }
+
     driver.profileStatus = 'rejected';
+    driver.rejectionReason = rejectionReason?.trim() || 'Documents did not meet our requirements';
     await driver.save();
 
-    successResponse(res, 'Driver rejected');
+    // Send rejection notification (same style as acceptRequest)
+    if (driver.fcmToken) {
+      const data = {
+        driverId: driver._id.toString(),
+        profileStatus: 'rejected',
+        reason: driver.rejectionReason,
+        title: 'Profile Rejected',
+        body: `Hello ${driver.name || 'Driver'}, your profile has been reviewed and rejected. Reason: ${driver.rejectionReason}. Please update your documents and resubmit.`
+      };
+
+      // Call notification (same pattern)
+      sendNotification(driver.fcmToken, data);
+    } else {
+      console.warn(`No FCM token for driver ${driver._id} → Rejection notification skipped`);
+    }
+
+    return successResponse(res, 'Driver rejected successfully', {
+      driverId,
+      rejectionReason: driver.rejectionReason
+    });
+
   } catch (error) {
-    errorResponse(res, 'Rejection failed', 500);
+    console.error('Rejection failed:', error);
+    return errorResponse(res, 'Rejection failed', 500);
   }
-};
+}; 
+
+// exports.rejectDriverProfile = async (req, res) => {
+//   try {
+//     const { driverId } = req.params;
+//     const driver = await Driver.findById(driverId);
+//     if (!driver) return errorResponse(res, 'Driver not found', 404);
+
+//     driver.profileStatus = 'rejected';
+//     await driver.save();
+
+//     successResponse(res, 'Driver rejected');
+//   } catch (error) {
+//     errorResponse(res, 'Rejection failed', 500);
+//   }
+// };
 
 // Render page with SINGLE driver's documents
 exports.getSingleDriverDocumentsPage = async (req, res) => {

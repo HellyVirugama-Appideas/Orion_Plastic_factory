@@ -56,20 +56,25 @@ const getNotificationContent = (type, language, name) => {
   }
 };
 
-const sendNotification = async (name, language, registrationToken, type, data = {}) => {
+// Simple version - title/body ko data se le lega
+const sendNotification = async (registrationToken, data = {}) => {
   if (!registrationToken || typeof registrationToken !== 'string' || registrationToken.trim() === '') {
-    console.warn(`No valid token provided for ${type}`);
+    console.warn(`No valid token provided`);
     return null;
   }
 
-  const { title, body } = getNotificationContent(type, language, name);
+  const { title, body, ...otherData } = data;
+
+  if (!title || !body) {
+    console.warn(`Title or body missing in data`);
+    return null;
+  }
 
   const message = {
     token: registrationToken,
     notification: { title, body },
     data: {
-      ...data,
-      type,
+      ...otherData,
       click_action: "FLUTTER_NOTIFICATION_CLICK"
     },
     apns: {
@@ -88,14 +93,10 @@ const sendNotification = async (name, language, registrationToken, type, data = 
 
   try {
     const response = await messaging.send(message);
-    console.log(`[${type}] Sent to ${registrationToken}:`, response);
+    console.log(`Notification sent:`, response);
     return response;
   } catch (error) {
-    console.error(`[${type}] Error sending to ${registrationToken}:`, error.code || error.message);
-    if (error.code === 'messaging/registration-token-not-registered' ||
-        error.code === 'messaging/invalid-registration-token') {
-      // TODO: Remove this token from DB
-    }
+    console.error(`Notification error:`, error.code || error.message);
     return null;
   }
 };

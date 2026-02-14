@@ -62,9 +62,40 @@ exports.getDriverConversations = async (req, res) => {
 };
 
 // Get Messages
+// exports.getDriverMessages = async (req, res) => {
+//   try {
+//     // CHANGE HERE: req.driver → req.user
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({ success: false, message: 'Unauthorized' });
+//     }
+
+//     const { conversationId } = req.params;
+//     const driverId = req.user._id;
+
+//     const messages = await ChatMessage.find({ conversationId })
+//       .sort({ createdAt: 1 })
+//       .populate('senderId', 'name profileImage vehicleNumber')
+//       .lean();
+
+//     // Mark as read
+//     await ChatMessage.updateMany(
+//       { conversationId, receiverId: driverId, isRead: false },
+//       { isRead: true, readAt: new Date() }
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       data: { messages }
+//     });
+
+//   } catch (error) {
+//     console.error('Driver Get Messages Error:', error);
+//     return res.status(500).json({ success: false, message: 'Failed to load messages' });
+//   }
+// };
+
 exports.getDriverMessages = async (req, res) => {
   try {
-    // CHANGE HERE: req.driver → req.user
     if (!req.user || !req.user._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
@@ -72,14 +103,26 @@ exports.getDriverMessages = async (req, res) => {
     const { conversationId } = req.params;
     const driverId = req.user._id;
 
-    const messages = await ChatMessage.find({ conversationId })
+    const messages = await ChatMessage.find({
+      conversationId,
+      // ── IMPORTANT FILTERS ──
+      deletedForDriver: { $ne: true },     // don't show messages deleted by this driver
+      // Optional: also exclude fully deleted if you ever use it
+      // isDeleted: false,                 // only if you want global delete to hide from everyone
+    })
       .sort({ createdAt: 1 })
       .populate('senderId', 'name profileImage vehicleNumber')
       .lean();
 
-    // Mark as read
+    // Mark unread messages as read (only for this driver)
     await ChatMessage.updateMany(
-      { conversationId, receiverId: driverId, isRead: false },
+      {
+        conversationId,
+        receiverId: driverId,
+        receiverType: 'Driver',
+        isRead: false,
+        deletedForDriver: { $ne: true }   // only mark visible ones
+      },
       { isRead: true, readAt: new Date() }
     );
 
@@ -93,6 +136,7 @@ exports.getDriverMessages = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to load messages' });
   }
 };
+
 
 // Send Message from Driver
 // exports.sendMessageFromDriver = async (req, res) => {
@@ -293,7 +337,7 @@ exports.sendMessageFromDriver = async (req, res) => {
       message: 'Failed to send message'
     });
   }
-};
+}; 
 
 // Edit Message
 exports.editMessage = async (req, res) => {
@@ -420,52 +464,35 @@ exports.clearChat = async (req, res) => {
     const driverId = req.user._id;
     const conversationId = `${driverId}_admin`;
 
-    // ⭐ FIX: req.body undefined ho sakta hai DELETE request me
-    // Optional confirmation check - agar body hai to check karo, nahi to skip karo
-    const body = req.body || {};
-    const confirm = body.confirm;
-    
-    // Agar explicitly false bheja hai to error, otherwise proceed
-    if (confirm === false) {
-      return res.status(400).json({
-        success: false,
-        message: 'Confirmation required. Send { "confirm": true } or just call the endpoint'
-      });
-    }
-
-    // Soft delete - mark all messages in this conversation as deleted for this driver
     const updateResult = await ChatMessage.updateMany(
       {
         conversationId,
-        // Only affect messages visible to this driver
-        $or: [
-          { receiverId: driverId, receiverType: 'Driver' },     // messages sent to driver
-          { senderId: driverId, senderType: 'Driver' }          // messages sent by driver
-        ],
-        isDeleted: false  // Only delete messages that aren't already deleted
+        deletedForDriver: false   // only touch messages not already cleared
       },
       {
         $set: {
-          isDeleted: true,
-          deletedAt: new Date(),
-          deletedForEveryone: false   // important: not for everyone
+          deletedForDriver: true,
+          deletedAt: new Date()
         }
       }
     );
 
+    // If nothing was updated → chat was already cleared or empty
     if (updateResult.matchedCount === 0) {
       return res.status(200).json({
         success: true,
-        message: 'Chat is already empty or cleared'
+        message: 'Chat is already cleared or empty',
+        clearedMessagesCount: 0
       });
     }
 
-    // Optional: real-time notification to this driver
+    // Emit only to this driver
     if (global.io) {
       global.io.to(`driver-${driverId}`).emit('chat:cleared', {
         conversationId,
         clearedBy: 'driver',
-        clearedAt: new Date()
+        clearedAt: new Date(),
+        clearedMessagesCount: updateResult.modifiedCount
       });
     }
 
@@ -483,5 +510,5 @@ exports.clearChat = async (req, res) => {
     });
   }
 };
- 
+
 
