@@ -2926,7 +2926,103 @@ const { calculateDistance } = require('../../utils/geoHelper');
 const { logDriverActivity } = require("../../utils/activityLogger")
 const axios = require("axios")
 
+function toRadians(deg) {
+  return deg * Math.PI / 180;
+}
+
+function toDegrees(rad) {
+  return rad * 180 / Math.PI;
+}
+
+function calculateBearing(startLat, startLng, destLat, destLng) {
+  startLat = toRadians(startLat);
+  startLng = toRadians(startLng);
+  destLat = toRadians(destLat);
+  destLng = toRadians(destLng);
+
+  const y = Math.sin(destLng - startLng) * Math.cos(destLat);
+  const x = Math.cos(startLat) * Math.sin(destLat) - Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
+  let brng = Math.atan2(y, x);
+  brng = toDegrees(brng);
+  return (brng + 360) % 360;
+}
+
 // ==================== UPDATE JOURNEY LOCATION (Real-time tracking) ====================
+// exports.updateJourneyLocation = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { latitude, longitude, address, speed, heading } = req.body;
+
+//     if (!latitude || !longitude) {
+//       return errorResponse(res, 'Latitude and longitude are required', 400);
+//     }
+
+//     const driver = req.user;
+//     const journey = await Journey.findById(journeyId);
+
+//     if (!journey) {
+//       return errorResponse(res, 'Journey not found', 404);
+//     }
+
+//     if (journey.driverId.toString() !== driver._id.toString()) {
+//       return errorResponse(res, 'Unauthorized', 403);
+//     }
+
+//     // Check if journey is active
+//     if (!['Started', 'In_transit', 'In_progress', 'assigned'].includes(journey.status)) {
+//       return errorResponse(res, 'Journey is not active', 400);
+//     }
+
+//     const locationData = {
+//       latitude: Number(latitude),
+//       longitude: Number(longitude),
+//       address: address || 'GPS Location',
+//       lastUpdated: new Date()
+//     };
+
+//     if (speed) locationData.speed = Number(speed);
+//     if (heading) locationData.heading = Number(heading);
+
+//     // Update driver's current location in Driver model
+//     await Driver.findByIdAndUpdate(
+//       driver._id,
+//       { 
+//         currentLocation: locationData,
+//         lastLocationUpdate: new Date()
+//       },
+//       { new: true }
+//     );
+
+//     // ────────────────── ✅ SOCKET.IO EMIT TO ADMIN DASHBOARD ──────────────────
+//     const io = req.app.get('io');
+//     if (io) {
+//       io.to('admin-room').emit('driver:location:update', {
+//         driverId: driver._id.toString(),
+//         driverName: driver.name,
+//         vehicleNumber: driver.vehicleNumber || driver.vehicle?.vehicleNumber || 'N/A',
+//         location: locationData,
+//         isAvailable: driver.isAvailable || false,
+//         status: journey.status,
+//         journeyId: journey._id.toString(),
+//         timestamp: new Date().toISOString()
+//       });
+      
+//       console.log(`📍 [SOCKET] Location broadcasted for driver: ${driver.name} at ${latitude}, ${longitude}`);
+//     } else {
+//       console.warn('⚠️ Socket.IO not available - location not broadcasted');
+//     }
+//     // ─────────────────────────────────────────────────────────────────────────
+
+//     return successResponse(res, 'Location updated successfully', {
+//       location: locationData,
+//       journeyStatus: journey.status
+//     });
+
+//   } catch (error) {
+//     console.error('❌ Update Journey Location Error:', error);
+//     return errorResponse(res, 'Failed to update location', 500);
+//   }
+// };
 exports.updateJourneyLocation = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -2952,15 +3048,43 @@ exports.updateJourneyLocation = async (req, res) => {
       return errorResponse(res, 'Journey is not active', 400);
     }
 
+    const newLat = Number(latitude);
+    const newLng = Number(longitude);
+    const newTime = new Date();
+
+    // Fetch previous location
+    const previousDriver = await Driver.findById(driver._id).select('currentLocation');
+
+    let calcSpeed = speed;
+    let calcHeading = heading;
+
+    if (previousDriver.currentLocation && previousDriver.currentLocation.latitude && previousDriver.currentLocation.longitude && previousDriver.currentLocation.lastUpdated) {
+      const oldLat = previousDriver.currentLocation.latitude;
+      const oldLng = previousDriver.currentLocation.longitude;
+      const oldTime = previousDriver.currentLocation.lastUpdated;
+
+      const dist = calculateDistance(oldLat, oldLng, newLat, newLng);
+      const timeDiffMs = newTime - oldTime;
+      const timeDiffHours = timeDiffMs / 3600000;
+
+      if (timeDiffHours > 0) {
+        const computedSpeed = dist / timeDiffHours;
+        if (!speed) calcSpeed = computedSpeed;
+      }
+
+      const computedHeading = calculateBearing(oldLat, oldLng, newLat, newLng);
+      if (!heading) calcHeading = computedHeading;
+    }
+
     const locationData = {
-      latitude: Number(latitude),
-      longitude: Number(longitude),
+      latitude: newLat,
+      longitude: newLng,
       address: address || 'GPS Location',
-      lastUpdated: new Date()
+      lastUpdated: newTime
     };
 
-    if (speed) locationData.speed = Number(speed);
-    if (heading) locationData.heading = Number(heading);
+    if (calcSpeed !== undefined) locationData.speed = Number(calcSpeed);
+    if (calcHeading !== undefined) locationData.heading = Number(calcHeading);
 
     // Update driver's current location in Driver model
     await Driver.findByIdAndUpdate(
@@ -3099,7 +3223,7 @@ exports.startJourney = async (req, res) => {
           address: address || 'GPS Location',
           lastUpdated: new Date()
         },
-        isAvailable: false,
+        // isAvailable: false,
         status: 'In_transit',
         timestamp: new Date().toISOString()
       });
@@ -3966,7 +4090,7 @@ exports.getNavigation = async (req, res) => {
         companyName: delivery.companyName || customerName || 'Customer',
         address: destination.address || 'Address not available',
         eta: duration ? `${duration} Mins` : 'N/A',
-        status: 'In Transit'
+        status: 'In_transit'
       },
 
       customer: {
