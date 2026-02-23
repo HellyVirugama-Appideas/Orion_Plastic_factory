@@ -1283,6 +1283,149 @@ exports.uploadReceipts = async (req, res) => {
 
 // GET EXPENSE BY ID - Detailed view matching detail screens
 
+// exports.getMyExpenses = async (req, res) => {
+//   try {
+//     const {
+//       page = 1,
+//       limit = 20,
+//       expenseType = 'all',          // 'all', 'fuel', 'maintenance', 'vehicle'
+//       status,                       // common name used in frontend/postman
+//       approvalStatus,               // optional - for backward compatibility
+//       startDate,
+//       endDate
+//     } = req.query;
+
+//     const driver = await Driver.findById(req.user._id);
+//     if (!driver) {
+//       return res.status(404).json({ success: false, message: 'Driver not found' });
+//     }
+
+//     const query = { driver: driver._id };
+
+//     // 1. Expense Type Filter (Tabs)
+//     if (expenseType && expenseType !== 'all') {
+//       if (expenseType === 'vehicle') {
+//         query.expenseType = { $in: ['vehicle', 'repair', 'toll', 'parking', 'washing', 'other', 'general', 'insurance'] };
+//       } else if (expenseType === 'maintenance') {
+//         query.expenseType = 'maintenance';
+//       } else {
+//         query.expenseType = expenseType;
+//       }
+//     }
+
+//     // 2. Approval Status Filter (most important fix)
+//     const finalStatus = status || approvalStatus;
+//     if (finalStatus) {
+//       if (finalStatus.toLowerCase() === 'Approved') {
+//         // Show both types of approved status
+//         query.approvalStatus = { $in: ['approved_by_admin', 'approved_by_finance'] };
+//       } else {
+//         // direct match: pending, rejected, resubmitted, etc.
+//         query.approvalStatus = finalStatus;
+//       }
+//     }
+
+//     // 3. Date Range Filter
+//     if (startDate || endDate) {
+//       query.expenseDate = {};
+//       if (startDate) query.expenseDate.$gte = new Date(startDate);
+//       if (endDate) query.expenseDate.$lte = new Date(endDate);
+//     }
+
+//     const skip = (parseInt(page) - 1) * parseInt(limit);
+
+//     // Fetch expenses
+//     const expenses = await Expense.find(query)
+//       .populate('journey', 'startTime endTime distance')
+//       .populate('delivery', 'trackingNumber orderId')
+//       .sort({ expenseDate: -1 })
+//       .skip(skip)
+//       .limit(parseInt(limit));
+
+//     // Separate formatting
+//     const Fuel = [];
+//     const Vehicle = [];
+
+//     expenses.forEach(exp => {
+//       const base = {
+//         _id: exp._id,
+//         expenseType: exp.expenseType,
+//         date: exp.expenseDate,
+//         vehicle: exp.vehicle,
+//         status: exp.approvalStatus,
+//         meterReading: exp.meterReading?.current || null,
+//         totalAmount: exp.totalAmount || 0, // using virtual
+//       };
+
+//       if (exp.expenseType === 'fuel') {
+//         Fuel.push({
+//           ...base,
+//           amount: exp.fuelDetails?.totalFuelCost || 0,
+//           quantity: exp.fuelDetails?.quantity || 0,
+//           stationName: exp.fuelDetails?.stationName || '',
+//           fuelType: exp.fuelDetails?.fuelType || '',
+//           mileage: exp.mileageData?.averageMileage || null,
+//         });
+//       } else {
+//         // All other types go to vehicle/maintenance tab
+//         Vehicle.push({
+//           ...base,
+//           amount: exp.vehicleExpenseDetails?.expenseAmount || 0,
+//           notes: exp.vehicleExpenseDetails?.additionalNotes || exp.description || '',
+//           category: exp.expenseType,
+//         });
+//       }
+//     });
+
+//     // Total count for pagination (with all current filters applied)
+//     const total = await Expense.countDocuments(query);
+
+//     // Optional: Current tab counts (pending/approved/rejected)
+//     const currentTabCounts = {
+//       pending: await Expense.countDocuments({ ...query, approvalStatus: 'pending' }),
+//       approved: await Expense.countDocuments({
+//         ...query,
+//         approvalStatus: { $in: ['approved_by_admin', 'approved_by_finance'] }
+//       }),
+//       rejected: await Expense.countDocuments({ ...query, approvalStatus: 'rejected' }),
+//       resubmitted: await Expense.countDocuments({ ...query, approvalStatus: 'resubmitted' })
+//     };
+
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         Fuel,
+//         Vehicle,
+
+//         // Combined for 'all' tab (sorted by date)
+//         expenses: expenseType === 'all'
+//           ? [...Fuel, ...Vehicle].sort((a, b) => new Date(b.date) - new Date(a.date))
+//           : expenseType === 'fuel' ? Fuel : Vehicle,
+
+//         pagination: {
+//           total,
+//           page: parseInt(page),
+//           pages: Math.ceil(total / parseInt(limit)),
+//           limit: parseInt(limit)
+//         },
+
+//         currentTabCounts,          // NEW: shows counts for current filter
+
+//         activeFilter: expenseType,
+//         activeStatus: finalStatus || 'all'
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Get my expenses error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error',
+//       error: error.message
+//     });
+//   }
+// };
+
 exports.getMyExpenses = async (req, res) => {
   try {
     const {
@@ -1347,9 +1490,10 @@ exports.getMyExpenses = async (req, res) => {
     const Vehicle = [];
 
     expenses.forEach(exp => {
+      const capitalizedType = exp.expenseType.charAt(0).toUpperCase() + exp.expenseType.slice(1);
       const base = {
         _id: exp._id,
-        expenseType: exp.expenseType,
+        expenseType: capitalizedType,
         date: exp.expenseDate,
         vehicle: exp.vehicle,
         status: exp.approvalStatus,

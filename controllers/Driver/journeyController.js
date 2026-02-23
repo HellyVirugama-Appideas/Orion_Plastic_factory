@@ -3633,6 +3633,163 @@ exports.initiateWhatsApp = async (req, res) => {
 };
 
 // ==================== GET NAVIGATION ====================
+// exports.getNavigation = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { currentLatitude, currentLongitude } = req.query;
+
+//     const driver = req.user;
+
+//     const journey = await Journey.findById(journeyId)
+//       .populate({
+//         path: 'deliveryId',
+//         select: 'deliveryLocation deliveryNumber companyName address customerId pickupLocation deliveryLocation recipientName recipientPhone',
+//         populate: {
+//           path: 'customerId',
+//           select: 'name fullName firstName lastName phone mobile number'
+//         }
+//       });
+
+//     if (!journey) {
+//       return errorResponse(res, 'Journey not found', 404);
+//     }
+
+//     if (journey.driverId.toString() !== driver._id.toString()) {
+//       return errorResponse(res, 'Unauthorized access', 403);
+//     }
+
+//     const delivery = journey.deliveryId;
+//     const destination = delivery.deliveryLocation;
+
+//     if (!destination || !destination.coordinates) {
+//       return errorResponse(res, 'Delivery location coordinates not available', 400);
+//     }
+
+//     const destLat = destination.coordinates.latitude;
+//     const destLng = destination.coordinates.longitude;
+
+//     let distance = null;
+//     let duration = null;
+//     let routePolyline = null;
+
+//     if (currentLatitude && currentLongitude && !isNaN(currentLatitude) && !isNaN(currentLongitude)) {
+//       const origin = `${currentLatitude.trim()},${currentLongitude.trim()}`;
+//       const destinationCoord = `${destLat},${destLng}`;
+
+//       console.log(`[Navigation] Requesting Google: ${origin} → ${destinationCoord}`);
+
+//       try {
+//         const directionsResponse = await axios.get(
+//           'https://maps.googleapis.com/maps/api/directions/json',
+//           {
+//             params: {
+//               origin,
+//               destination: destinationCoord,
+//               key: process.env.GOOGLE_MAPS_API_KEY,
+//               mode: 'driving',
+//               traffic_model: 'best_guess',
+//               departure_time: 'now'
+//             }
+//           }
+//         );
+
+//         const apiData = directionsResponse.data;
+//         console.log('[Navigation] Status:', apiData.status);
+
+//         if (apiData.status === 'OK' && apiData.routes?.length > 0) {
+//           const leg = apiData.routes[0].legs[0];
+//           distance = leg.distance?.value ? leg.distance.value / 1000 : null;
+//           duration = leg.duration_in_traffic?.value
+//             ? Math.round(leg.duration_in_traffic.value / 60)
+//             : (leg.duration?.value ? Math.round(leg.duration.value / 60) : null);
+//           routePolyline = apiData.routes[0].overview_polyline?.points || null;
+
+//           console.log(`[Navigation] Success → ${distance?.toFixed(1)} km | ${duration} min`);
+//         }
+//       } catch (apiError) {
+//         console.error('[Navigation] Google API failed:', apiError.message);
+//       }
+//     } else {
+//       console.warn('[Navigation] No current location provided');
+//     }
+
+//     const navLog = {
+//       destination: { address: destination.address || 'Unknown', coordinates: { latitude: destLat, longitude: destLng } },
+//       startedAt: new Date(),
+//       estimatedDistance: distance,
+//       estimatedDuration: duration,
+//       usedGoogle: !!routePolyline
+//     };
+
+//     journey.navigationHistory.push(navLog);
+//     await journey.save();
+
+//     const customerDoc = delivery.customerId;
+
+//     const customerName = customerDoc
+//       ? (customerDoc.name ||
+//         customerDoc.fullName ||
+//         [customerDoc.firstName, customerDoc.lastName].filter(Boolean).join(' ').trim() ||
+//         'Unknown Customer')
+//       : 'Unknown Customer';
+
+//     const customerPhone = customerDoc?.phone || customerDoc?.mobile || customerDoc?.number || null;
+
+//     const salesmanName = driver.name ||
+//       driver.fullName ||
+//       [driver.firstName, driver.lastName].filter(Boolean).join(' ').trim() ||
+//       driver.username ||
+//       'Salesman';
+
+//     const salesmanPhone = driver.phone || driver.mobile || null;
+
+//     return successResponse(res, 'Navigation data ready', {
+//       currentLocation: currentLatitude && currentLongitude ? {
+//         latitude: parseFloat(currentLatitude),
+//         longitude: parseFloat(currentLongitude)
+//       } : null,
+
+//       destination: {
+//         address: destination.address || 'Unknown Address',
+//         coordinates: { latitude: destLat, longitude: destLng }
+//       },
+
+//       routePolyline: routePolyline || null,
+
+//       distance: distance ? `${distance.toFixed(1)} km` : 'Calculating...',
+//       durationMinutes: duration,
+//       estimatedTime: duration ? `${duration} mins` : 'N/A',
+
+//       currentStop: {
+//         number: 1,
+//         deliveryNumber: delivery.deliveryNumber || delivery.trackingNumber || 'N/A',
+//         companyName: delivery.companyName || customerName || 'Customer',
+//         address: destination.address || 'Address not available',
+//         eta: duration ? `${duration} Mins` : 'N/A',
+//         status: 'In Transit'
+//       },
+
+//       customer: {
+//         name: customerName,
+//         phone: customerPhone
+//       },
+
+//       salesman: {
+//         name: salesmanName,
+//         phone: salesmanPhone
+//       },
+
+//       navigationHistoryId: journey.navigationHistory[journey.navigationHistory.length - 1]._id,
+//       isGoogleData: !!routePolyline
+//     });
+
+//   } catch (error) {
+//     console.error('Get Navigation Error:', error);
+//     return errorResponse(res, 'Failed to fetch navigation data', 500);
+//   }
+// };
+
+// ==================== GET NAVIGATION ====================
 exports.getNavigation = async (req, res) => {
   try {
     const { journeyId } = req.params;
@@ -3672,7 +3829,13 @@ exports.getNavigation = async (req, res) => {
     let duration = null;
     let routePolyline = null;
 
+    // Calculate actual traveled distance based on start, waypoints, and current location
+    let actualDistance = 0;
+    const points = [journey.startLocation.coordinates, ...journey.waypoints.map(wp => wp.location.coordinates)];
+
     if (currentLatitude && currentLongitude && !isNaN(currentLatitude) && !isNaN(currentLongitude)) {
+      points.push({ latitude: parseFloat(currentLatitude), longitude: parseFloat(currentLongitude) });
+
       const origin = `${currentLatitude.trim()},${currentLongitude.trim()}`;
       const destinationCoord = `${destLat},${destLng}`;
 
@@ -3704,6 +3867,14 @@ exports.getNavigation = async (req, res) => {
             : (leg.duration?.value ? Math.round(leg.duration.value / 60) : null);
           routePolyline = apiData.routes[0].overview_polyline?.points || null;
 
+          // Update journey with Google estimates if not already set
+          if (journey.estimatedDurationFromGoogle === null) {
+            journey.estimatedDurationFromGoogle = duration;
+            journey.googleDistanceMeters = leg.distance?.value;
+            journey.googleDurationInTrafficSeconds = leg.duration_in_traffic?.value;
+            await journey.save();
+          }
+
           console.log(`[Navigation] Success → ${distance?.toFixed(1)} km | ${duration} min`);
         }
       } catch (apiError) {
@@ -3711,6 +3882,35 @@ exports.getNavigation = async (req, res) => {
       }
     } else {
       console.warn('[Navigation] No current location provided');
+    }
+
+    // Calculate actual distance traveled so far
+    for (let i = 0; i < points.length - 1; i++) {
+      actualDistance += calculateDistance(
+        points[i].latitude,
+        points[i].longitude,
+        points[i + 1].latitude,
+        points[i + 1].longitude
+      );
+    }
+
+    // Calculate actual time taken so far
+    const now = new Date();
+    const actualDurationMs = now - new Date(journey.startTime);
+    const actualMinutes = Math.round(actualDurationMs / 60000);
+
+    // Calculate average speed so far
+    const actualHours = actualMinutes / 60;
+    const averageSpeed = actualHours > 0 ? (actualDistance / actualHours).toFixed(1) : 'N/A';
+
+    // Time difference calculation
+    const estimatedMin = journey.estimatedDurationFromGoogle || duration;
+    let timeDifferenceText = '';
+    if (estimatedMin !== null) {
+      const diff = actualMinutes - estimatedMin;
+      if (diff > 5) timeDifferenceText = `Delayed by ${diff} mins`;
+      else if (diff < -5) timeDifferenceText = `Ahead by ${Math.abs(diff)} mins`;
+      else timeDifferenceText = 'On time';
     }
 
     const navLog = {
@@ -3780,7 +3980,14 @@ exports.getNavigation = async (req, res) => {
       },
 
       navigationHistoryId: journey.navigationHistory[journey.navigationHistory.length - 1]._id,
-      isGoogleData: !!routePolyline
+      isGoogleData: !!routePolyline,
+
+      actualMetrics: {
+        traveledDistance: `${actualDistance.toFixed(2)} km`,
+        timeTaken: `${actualMinutes} mins`,
+        averageSpeed: `${averageSpeed} km/h`,
+        timeDifference: timeDifferenceText || 'N/A'
+      }
     });
 
   } catch (error) {
@@ -3788,6 +3995,7 @@ exports.getNavigation = async (req, res) => {
     return errorResponse(res, 'Failed to fetch navigation data', 500);
   }
 };
+
 
 // ==================== UPLOAD RECORDING ====================
 exports.uploadRecording = async (req, res) => {
@@ -4129,6 +4337,135 @@ exports.uploadProofPhotos = async (req, res) => {
 };
 
 // ==================== COMPLETE DELIVERY ====================
+// exports.completeDelivery = async (req, res) => {
+//   try {
+//     const { journeyId } = req.params;
+//     const { latitude, longitude } = req.body;
+
+//     if (!latitude || !longitude) {
+//       return errorResponse(res, 'Location coordinates required', 400);
+//     }
+
+//     const journey = await Journey.findById(journeyId)
+//       .populate({
+//         path: 'deliveryId',
+//         populate: {
+//           path: 'customerId',
+//           select: 'companyName name locations billingAddress'
+//         }
+//       });
+
+//     if (!journey) return errorResponse(res, 'Journey not found', 404);
+
+//     if (journey.driverId.toString() !== req.user._id.toString()) {
+//       return errorResponse(res, 'Unauthorized', 403);
+//     }
+
+//     const now = new Date();
+//     const actualDurationMs = now - new Date(journey.startTime);
+//     const actualMinutes = Math.round(actualDurationMs / 60000);
+
+//     const estimatedMin = journey.estimatedDurationFromGoogle;
+//     let timeDifferenceText = '';
+//     if (estimatedMin !== null) {
+//       const diff = actualMinutes - estimatedMin;
+//       if (diff > 5) timeDifferenceText = `Delayed by ${diff} mins`;
+//       else if (diff < -5) timeDifferenceText = `Ahead by ${Math.abs(diff)} mins`;
+//       else timeDifferenceText = 'On time';
+//     }
+
+//     journey.status = 'Arrived';
+//     journey.endTime = now;
+//     journey.endLocation = {
+//       coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//       address: 'Driver reached delivery location'
+//     };
+//     journey.totalDuration = actualMinutes;
+//     await journey.save();
+
+//     const delivery = journey.deliveryId;
+//     delivery.status = 'Arrived';
+//     await delivery.save();
+
+//     await DeliveryStatusHistory.create({
+//       deliveryId: delivery._id,
+//       status: 'Arrived',
+//       location: {
+//         coordinates: { latitude: Number(latitude), longitude: Number(longitude) },
+//         address: 'Driver reached delivery location'
+//       },
+//       remarks: 'Driver reached destination and marked delivery as completed. Awaiting final signature/confirmation.',
+//       updatedBy: {
+//         userId: req.user._id,
+//         userRole: 'driver',
+//         userName: req.user.name
+//       }
+//     });
+
+//     const customer = delivery.customerId;
+
+//     let companyName = 'N/A';
+//     let deliveryAddress = 'N/A';
+
+//     if (customer) {
+//       companyName = customer.companyName || customer.name || 'N/A';
+
+//       if (customer.locations?.length > 0) {
+//         const primaryLoc = customer.locations.find(loc => loc.isPrimary) || customer.locations[0];
+
+//         deliveryAddress = [
+//           primaryLoc.addressLine1,
+//           primaryLoc.addressLine2 || '',
+//           primaryLoc.city,
+//           primaryLoc.state,
+//           primaryLoc.zipcode,
+//           primaryLoc.country
+//         ]
+//           .filter(Boolean)
+//           .join(', ') || 'N/A';
+//       }
+//     }
+
+//     const arrivalTime = now.toLocaleString('en-IN', {
+//       timeZone: 'Asia/Kolkata',
+//       dateStyle: 'medium',
+//       timeStyle: 'short'
+//     });
+
+//     return successResponse(res, 'Delivery marked as completed! Please collect customer signature if pending.', {
+//       journeyId: journey._id,
+//       deliveryId: delivery._id.toString(),
+//       journeyStatus: journey.status,
+//       deliveryStatus: delivery.status,
+//       location: { latitude, longitude },
+
+//       customer: {
+//         companyName,
+//         deliveryAddress,
+//         customerId: delivery.customerId,
+//       },
+
+//       arrivalTime,
+//       arrivalTimeISO: now.toISOString(),
+
+//       nextStep: 'upload-signature',
+//       message: 'Signature still required to finalize delivery',
+
+//       timing: {
+//         actualTimeTaken: `${actualMinutes} mins`,
+//         estimatedTime: estimatedMin ? `${estimatedMin} mins` : 'N/A',
+//         difference: timeDifferenceText || 'N/A',
+//         startTime: journey.startTime.toISOString(),
+//         arrivedAt: now.toISOString()
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Complete Delivery Error:', error);
+//     return errorResponse(res, 'Failed to mark delivery as completed', 500);
+//   }
+// };
+
 exports.completeDelivery = async (req, res) => {
   try {
     const { journeyId } = req.params;
