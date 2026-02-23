@@ -63,7 +63,7 @@ const router = express.Router()
 
 router.put(
   "/update-location/:journeyId",
-  authenticateDriver,
+  authenticateDriver, 
   isDriver,
   updateJourneyLocation
 );

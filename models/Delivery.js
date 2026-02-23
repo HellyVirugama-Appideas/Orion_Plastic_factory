@@ -214,6 +214,7 @@ const deliverySchema = new mongoose.Schema({
   journeyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Journey',
+    default: null,
     index: true
   },
   vehicleNumber: {

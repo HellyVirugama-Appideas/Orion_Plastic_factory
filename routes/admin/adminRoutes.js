@@ -47,8 +47,8 @@ router.post("/changepass", protectAdmin,isAdmin,adminAuthController.postChangePa
 // router.get('/dashboard/stats', protectAdmin,  adminDashboardController.getDashboardStats);
 router.get('/dashboard', protectAdmin, adminDashboardController.renderDashboard);
 
-router.get("/drivers/locations",adminDashboardController.getAllDriverLocations)
-
+router.get('/api/drivers/locations', protectAdmin, adminDashboardController.getAllDriverLocations);
+router.get('/api/drivers/:driverId/location', protectAdmin, adminDashboardController.getDriverLocation);
 
 
 // ========== Driver Management Routes ==========

@@ -198,7 +198,7 @@ exports.renderCreateDeliveryFromOrder = async (req, res) => {
     res.render('delivery_create', {
       title: `Create Delivery - ${order.orderNumber}`,
       user: req.user,
-      order,
+      order,  
       drivers,
       url: req.originalUrl,
       messages: req.flash()
@@ -712,45 +712,45 @@ exports.getDriverCurrentLocation = async (req, res) => {
     const delivery = await Delivery.findById(deliveryId)
       .populate({
         path: 'driverId',
-        select: 'currentLocation name vehicleNumber'
+        select: 'name vehicleNumber currentLocation'
       })
+      .populate('journeyId')   // ← add this if you have journeyId in Delivery
       .lean();
 
     if (!delivery) {
-      return res.status(404).json({
-        success: false,
-        message: 'Delivery not found'
-      });
+      return res.status(404).json({ success: false, message: 'Delivery not found' });
     }
 
     if (!delivery.driverId) {
-      return res.status(404).json({
-        success: false,
-        message: 'No driver assigned to this delivery'
-      });
+      return res.status(404).json({ success: false, message: 'No driver assigned' });
     }
 
-    // Return driver's current location from Driver model
-    const location = delivery.driverId.currentLocation || null;
+    let locationData = {
+      driverId: delivery.driverId._id,
+      driverName: delivery.driverId.name,
+      vehicleNumber: delivery.driverId.vehicleNumber,
+      currentLocation: delivery.driverId.currentLocation || null,
+      deliveryStatus: delivery.status,
+      lastUpdate: delivery.driverId.currentLocation?.timestamp || null
+    };
+
+    // If journey exists and has history → send full path for completed/in-progress
+    if (delivery.journeyId?.locationHistory?.length > 0) {
+      locationData.pathHistory = delivery.journeyId.locationHistory.map(point => ({
+        lat: point.latitude,
+        lng: point.longitude,
+        timestamp: point.timestamp
+      }));
+    }
 
     return res.json({
       success: true,
-      data: {
-        driverId: delivery.driverId._id,
-        driverName: delivery.driverId.name,
-        vehicleNumber: delivery.driverId.vehicleNumber,
-        currentLocation: location,
-        deliveryStatus: delivery.status,
-        lastUpdate: location?.timestamp || null
-      }
+      data: locationData
     });
 
   } catch (error) {
     console.error('[GET-DRIVER-LOCATION] Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get driver location'
-    });
+    return res.status(500).json({ success: false, message: 'Failed to get location' });
   }
 };
 
@@ -1421,6 +1421,85 @@ exports.updateDelivery = async (req, res) => {
     res.redirect(`/admin/deliveries/${req.params.deliveryId}/edit`);
   }
 };
+
+
+// ============= GET COMPLETED JOURNEY ROUTE (for delivered deliveries) =============
+// In deliveryAdminController.js
+
+
+// ============= GET COMPLETED JOURNEY ROUTE (for delivered deliveries) =============
+exports.getCompletedJourneyRoute = async (req, res) => {
+  try {
+    const { deliveryId } = req.params;
+
+    // Find journey for this delivery
+    const Journey = require('../../models/Journey');
+    const journey = await Journey.findOne({ deliveryId })
+      .select('waypoints totalDistance totalDuration averageSpeed startLocation endLocation')
+      .lean();
+
+    if (!journey) {
+      return res.status(404).json({
+        success: false,
+        message: 'No journey found for this delivery'
+      });
+    }
+
+    // Build path from journey waypoints
+    const path = [];
+
+    // Add start location
+    if (journey.startLocation?.coordinates) {
+      path.push({
+        lat: journey.startLocation.coordinates.latitude,
+        lng: journey.startLocation.coordinates.longitude
+      });
+    }
+
+    // Add all waypoints
+    if (journey.waypoints && journey.waypoints.length > 0) {
+      journey.waypoints.forEach(wp => {
+        if (wp.location?.coordinates) {
+          path.push({
+            lat: wp.location.coordinates.latitude,
+            lng: wp.location.coordinates.longitude
+          });
+        }
+      });
+    }
+
+    // Add end location
+    if (journey.endLocation?.coordinates) {
+      path.push({
+        lat: journey.endLocation.coordinates.latitude,
+        lng: journey.endLocation.coordinates.longitude
+      });
+    }
+
+    console.log(`[GET-JOURNEY-ROUTE] Delivery: ${deliveryId}, Path points: ${path.length}`);
+
+    return res.json({
+      success: true,
+      data: {
+        path,
+        stats: {
+          totalDistance: journey.totalDistance ? `${journey.totalDistance.toFixed(2)} km` : 'N/A',
+          totalDuration: journey.totalDuration ? `${journey.totalDuration} mins` : 'N/A',
+          averageSpeed: journey.averageSpeed ? `${journey.averageSpeed.toFixed(1)} km/h` : 'N/A'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[GET-JOURNEY-ROUTE] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch journey route',
+      error: error.message
+    });
+  }
+};
+
 
 
 exports.addDeliveryRemark = async (req, res) => {

@@ -4,7 +4,7 @@
 // const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 // const { checkPermission } = require('../../middleware/roleMiddleware');
 // const { createOrderByAdmin } = require('../../controllers/admin/orderController');
-// const { renderOrdersList, renderCreateOrder } = require('../../controllers/admin/adminDashboardController');
+// const { renderOrdersList, renderCreateOrder } = require('../../controllers/admin/orderController');
 
 
 // // Admin creates order
@@ -54,8 +54,7 @@
 
 const express = require('express');
 const router = express.Router();
-const orderController = require('../../controllers/orderController');
-const adminDashboardController = require('../../controllers/admin/orderController');
+const orderController = require('../../controllers/admin/orderController');
 const { protectAdmin, isAdmin } = require('../../middleware/authMiddleware');
 const { checkPermission } = require('../../middleware/authMiddleware');
 
@@ -67,7 +66,7 @@ router.get(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'read'),
-  adminDashboardController.renderOrdersList
+  orderController.renderOrdersList
 );
 
 // Create order page
@@ -76,7 +75,7 @@ router.get(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'create'),
-  adminDashboardController.renderCreateOrder
+  orderController.renderCreateOrder
 );
 
 // Order details page (MUST be after /create to avoid route conflicts)
@@ -85,7 +84,7 @@ router.get(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'read'),
-  adminDashboardController.renderOrderDetails
+  orderController.renderOrderDetails
 );
 
 
@@ -96,7 +95,7 @@ router.get(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'update'),
-  adminDashboardController.renderEditOrder
+  orderController.renderEditOrder
 );
 
 router.post(
@@ -113,7 +112,7 @@ router.get(
   protectAdmin,
   isAdmin,
   checkPermission('deliveries', 'create'),
-  adminDashboardController.renderCreateDeliveryFromOrder
+  orderController.renderCreateDeliveryFromOrder
 );
 
 // ============= POST/PATCH ACTIONS =============
@@ -124,7 +123,7 @@ router.post(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'create'),
-  adminDashboardController.createOrder
+  orderController.createOrder
 );
 
 // Update order
@@ -133,7 +132,7 @@ router.put(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'update'),
-  adminDashboardController.updateOrder
+  orderController.updateOrder
 );
 
 
@@ -142,7 +141,7 @@ router.delete(
   "/:orderId",
   protectAdmin,
   isAdmin,
-  adminDashboardController.deleteOrder
+  orderController.deleteOrder
 )
 
 // Confirm order
@@ -151,7 +150,7 @@ router.patch(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'update'),
-  adminDashboardController.confirmOrder
+  orderController.confirmOrder
 );
 
 // Update order status
@@ -180,7 +179,7 @@ router.get(
   protectAdmin,
   isAdmin,
   checkPermission('orders', 'read'),
-  adminDashboardController.getOrderStatistics
+  orderController.getOrderStatistics
 );
 
 // Get all orders (API)
@@ -199,6 +198,35 @@ router.get(
   isAdmin,
   checkPermission('orders', 'read'),
   orderController.getOrderDetails
+);
+
+// ======================== PICKUP LOCATION ROUTES ========================
+
+// Create new pickup location
+router.post(
+  '/pickup-locations/create',
+  protectAdmin,
+  isAdmin,
+  checkPermission('orders', 'create'),
+  orderController.createPickupLocation
+);
+
+// Update pickup location
+router.post(
+  '/pickup-locations/:locationId/update',
+  protectAdmin,
+  isAdmin,
+  checkPermission('orders', 'update'),
+  orderController.updatePickupLocation
+);
+
+// Delete pickup location
+router.delete(
+  '/pickup-locations/:locationId/delete',
+  protectAdmin,
+  isAdmin,
+  checkPermission('orders', 'delete'),
+  orderController.deletePickupLocation
 );
 
 module.exports = router;

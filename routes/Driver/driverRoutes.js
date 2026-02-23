@@ -27,7 +27,7 @@ router.post("/login/verify-pin", verifyPin)
 ///forgot pin
 router.post("/forgot-pin", sendPinResetOtp)
 router.post("/forgot-pin/verify-otp", verifyPinResetOtp),
-    router.post("/forgot-pin/resend-otp", resendPinResetOtp)
+router.post("/forgot-pin/resend-otp", resendPinResetOtp)
 router.post("/forgot-pin/new-pin", setNewPin)
 router.post("/forgot-pin/confirm", confirmNewPin)
 

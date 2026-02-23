@@ -1070,23 +1070,136 @@ exports.finalSignup = async (req, res) => {
 };
 
 
+// exports.verifyOtpAndCreateDriver = async (req, res) => {
+//   try {
+//     const { tempId, phone, otp, countryCode: inputCountryCode, fcmToken } = req.body;  // ← FCM token added
+
+//     // Validate phone (must be 10 digits)
+//     const cleanedPhone = phone?.replace(/\D/g, '') || '';
+//     // if (cleanedPhone.length !== 10) {
+//     //   return errorResponse(res, 'Valid 10-digit phone number required', 400);
+//     // }
+
+//     // Use provided country code or default to +971
+//     const countryCode = inputCountryCode?.trim() || '+971';
+
+//     // Full international format (only for validation)
+//     const fullPhoneForValidation = `${countryCode}${cleanedPhone}`;
+
+//     // Find temp driver with full phone
+//     const temp = await TempDriver.findOne({
+//       tempId,
+//       phone,
+//       otp,
+//       otpExpiresAt: { $gt: new Date() }
+//     });
+
+//     if (!temp) {
+//       return errorResponse(res, 'Invalid or expired OTP', 400);
+//     }
+
+//     // Prepare driver data
+//     const driverData = {
+//       phone: cleanedPhone,                        // ← Store only 10 digits
+//       countryCode: countryCode,                   // ← Store country code separately
+//       name: temp.personalDetails.fullName?.trim() || 'Driver',
+//       licenseNumber: temp.license?.licenseNumber?.toUpperCase(),
+//       vehicleNumber: temp.personalDetails.vehicleNumber?.toUpperCase(),
+//       'address.city': temp.personalDetails.region,
+//       'governmentIds.emiratesId': temp.personalDetails.emiratesId,
+//       fcmToken: fcmToken || null,  // ← FCM token save kiya signup time
+
+//       documents: [
+//         {
+//           documentType: 'license_front',
+//           fileUrl: temp.license?.frontUrl || '',
+//           documentNumber: temp.license?.licenseNumber
+//         },
+//         {
+//           documentType: 'license_back',
+//           fileUrl: temp.license?.backUrl || '',
+//           documentNumber: temp.license?.licenseNumber
+//         },
+//         {
+//           documentType: 'vehicle_rc_front',
+//           fileUrl: temp.rc?.frontUrl || '',
+//           documentNumber: temp.rc?.registrationNumber
+//         },
+//         {
+//           documentType: 'vehicle_rc_back',
+//           fileUrl: temp.rc?.backUrl || '',
+//           documentNumber: temp.rc?.registrationNumber
+//         }
+//       ],
+
+//       profileStatus: 'pending_pin_setup'
+//     };
+
+//     // Create driver instance
+//     const driver = new Driver(driverData);
+
+//     // Temporary override for validation (only for this step)
+//     driver.phone = fullPhoneForValidation;  // ← Make validator happy
+
+//     // Validate
+//     const validationError = driver.validateSync();
+//     if (validationError) {
+//       console.error("Validation Error:", validationError.message);
+//       return errorResponse(res, 'Data validation failed: ' + validationError.message, 400);
+//     }
+
+//     // Restore original phone before saving
+//     driver.phone = cleanedPhone;               // ← Save only 10 digits
+
+//     // Save driver
+//     await driver.save();
+
+//     // Clean up temp data
+//     await TempDriver.deleteOne({ tempId });
+
+//     // Generate access token
+//     const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
+
+//     // ★★★ Log signup activity with FCM token info ★★★
+//     await logDriverActivity(driver._id, 'SIGNUP_COMPLETED', {
+//       fcmTokenProvided: !!fcmToken,
+//       registrationMethod: 'OTP'
+//     });
+
+//     return successResponse(res, 'Account created successfully!', {
+//       accessToken,
+//       message: 'Now create your 4-digit PIN',
+//       nextStep: 'create-pin'
+//     });
+
+//   } catch (error) {
+//     console.error('Create Driver Failed:', error);
+
+//     if (error.code === 11000) {
+//       const field = Object.keys(error.keyValue)[0];
+//       const value = error.keyValue[field];
+//       const messages = {
+//         phone: 'Phone number already registered',
+//         licenseNumber: 'License number already registered',
+//         vehicleNumber: 'Vehicle number already registered',
+//         email: 'Email already registered'
+//       };
+//       return errorResponse(res, messages[field] || 'Duplicate entry found', 400);
+//     }
+
+//     return errorResponse(res, 'Failed to create account', 500);
+//   }
+// };
+
+// Resend OTP for phone verification
+
 exports.verifyOtpAndCreateDriver = async (req, res) => {
   try {
-    const { tempId, phone, otp, countryCode: inputCountryCode, fcmToken } = req.body;  // ← FCM token added
+    const { tempId, phone, otp, countryCode: inputCountryCode, fcmToken } = req.body;
 
-    // Validate phone (must be 10 digits)
     const cleanedPhone = phone?.replace(/\D/g, '') || '';
-    // if (cleanedPhone.length !== 10) {
-    //   return errorResponse(res, 'Valid 10-digit phone number required', 400);
-    // }
-
-    // Use provided country code or default to +971
     const countryCode = inputCountryCode?.trim() || '+971';
 
-    // Full international format (only for validation)
-    const fullPhoneForValidation = `${countryCode}${cleanedPhone}`;
-
-    // Find temp driver with full phone
     const temp = await TempDriver.findOne({
       tempId,
       phone,
@@ -1098,18 +1211,40 @@ exports.verifyOtpAndCreateDriver = async (req, res) => {
       return errorResponse(res, 'Invalid or expired OTP', 400);
     }
 
+    // === STRICT DUPLICATE CHECKS ===
+    const existingEmirates = await Driver.findOne({ 
+      'governmentIds.emiratesId': temp.personalDetails.emiratesId 
+    });
+    if (existingEmirates) {
+      return errorResponse(res, 'This Emirates ID is already registered', 400);
+    }
+
+    const existingLicense = await Driver.findOne({ 
+      licenseNumber: temp.license?.licenseNumber?.toUpperCase() 
+    });
+    if (existingLicense) {
+      return errorResponse(res, 'This License Number is already registered', 400);
+    }
+
+    const existingVehicle = await Driver.findOne({ 
+      vehicleNumber: temp.personalDetails.vehicleNumber?.toUpperCase() 
+    });
+    if (existingVehicle) {
+      return errorResponse(res, 'This Vehicle Number is already registered', 400);
+    }
+
     // Prepare driver data
     const driverData = {
-      phone: cleanedPhone,                        // ← Store only 10 digits
-      countryCode: countryCode,                   // ← Store country code separately
+      phone: cleanedPhone,
+      countryCode,
       name: temp.personalDetails.fullName?.trim() || 'Driver',
       licenseNumber: temp.license?.licenseNumber?.toUpperCase(),
       vehicleNumber: temp.personalDetails.vehicleNumber?.toUpperCase(),
       'address.city': temp.personalDetails.region,
       'governmentIds.emiratesId': temp.personalDetails.emiratesId,
-      fcmToken: fcmToken || null,  // ← FCM token save kiya signup time
+      fcmToken: fcmToken || null,
 
-      documents: [
+            documents: [
         {
           documentType: 'license_front',
           fileUrl: temp.license?.frontUrl || '',
@@ -1132,39 +1267,15 @@ exports.verifyOtpAndCreateDriver = async (req, res) => {
         }
       ],
 
-      profileStatus: 'pending_pin_setup'
+      profileStatus: 'pending_pin_setup'   // ← Admin approval ke baad hi 'approved' hoga
     };
 
-    // Create driver instance
     const driver = new Driver(driverData);
-
-    // Temporary override for validation (only for this step)
-    driver.phone = fullPhoneForValidation;  // ← Make validator happy
-
-    // Validate
-    const validationError = driver.validateSync();
-    if (validationError) {
-      console.error("Validation Error:", validationError.message);
-      return errorResponse(res, 'Data validation failed: ' + validationError.message, 400);
-    }
-
-    // Restore original phone before saving
-    driver.phone = cleanedPhone;               // ← Save only 10 digits
-
-    // Save driver
     await driver.save();
 
-    // Clean up temp data
     await TempDriver.deleteOne({ tempId });
 
-    // Generate access token
     const accessToken = jwtHelper.generateAccessToken(driver._id, 'driver');
-
-    // ★★★ Log signup activity with FCM token info ★★★
-    await logDriverActivity(driver._id, 'SIGNUP_COMPLETED', {
-      fcmTokenProvided: !!fcmToken,
-      registrationMethod: 'OTP'
-    });
 
     return successResponse(res, 'Account created successfully!', {
       accessToken,
@@ -1176,22 +1287,13 @@ exports.verifyOtpAndCreateDriver = async (req, res) => {
     console.error('Create Driver Failed:', error);
 
     if (error.code === 11000) {
-      const field = Object.keys(error.keyValue)[0];
-      const value = error.keyValue[field];
-      const messages = {
-        phone: 'Phone number already registered',
-        licenseNumber: 'License number already registered',
-        vehicleNumber: 'Vehicle number already registered',
-        email: 'Email already registered'
-      };
-      return errorResponse(res, messages[field] || 'Duplicate entry found', 400);
+      return errorResponse(res, 'Duplicate Emirates ID, License or Vehicle Number', 400);
     }
 
     return errorResponse(res, 'Failed to create account', 500);
   }
 };
 
-// Resend OTP for phone verification
 exports.resendOtp = async (req, res) => {
   try {
     const { tempId } = req.body;
@@ -1274,6 +1376,51 @@ exports.createPin = async (req, res) => {
 
 /////login 
 // Step 1: Emirates ID + Vehicle Number 
+// exports.login = async (req, res) => {
+//   try {
+//     const { emiratesId, vehicleNumber } = req.body;
+
+//     if (!emiratesId || !vehicleNumber) {
+//       return errorResponse(res, 'Emirates ID and Vehicle Number are required', 400);
+//     }
+
+//     const emiratesIdClean = emiratesId.trim();
+//     const vehicleNumberClean = vehicleNumber.trim().toUpperCase();
+
+//     console.log("Searching:", { emiratesIdClean, vehicleNumberClean });
+
+//     // YE LINE SAHI KARO — single quotes hata do!
+//     const driver = await Driver.findOne({
+//       "governmentIds.emiratesId": emiratesIdClean,
+//       vehicleNumber: vehicleNumberClean,
+//       profileStatus: 'approved'
+//     });
+
+//     if (!driver) {
+//       // Debug ke liye — yeh hata dena baad mein
+//       const all = await Driver.find({ profileStatus: 'approved' }).select('governmentIds.emiratesId vehicleNumber name');
+//       console.log("All approved drivers:", all);
+
+//       return errorResponse(res, 'Invalid Emirates ID or Vehicle Number', 400);
+//     }
+
+//     if (!driver.pin) {
+//       return errorResponse(res, 'PIN not set. Contact admin.', 400);
+//     }
+
+//     return successResponse(res, 'Credentials valid. Now enter PIN', {
+//       driverId: driver._id,
+//       name: driver.name,
+//       phone: driver.phone,
+//       vehicleNumber: driver.vehicleNumber
+//     });
+
+//   } catch (error) {
+//     console.error('Login Error:', error);
+//     return errorResponse(res, 'Server error', 500);
+//   }
+// };
+
 exports.login = async (req, res) => {
   try {
     const { emiratesId, vehicleNumber } = req.body;
@@ -1285,39 +1432,54 @@ exports.login = async (req, res) => {
     const emiratesIdClean = emiratesId.trim();
     const vehicleNumberClean = vehicleNumber.trim().toUpperCase();
 
-    console.log("Searching:", { emiratesIdClean, vehicleNumberClean });
-
-    // YE LINE SAHI KARO — single quotes hata do!
+    // Find driver
     const driver = await Driver.findOne({
       "governmentIds.emiratesId": emiratesIdClean,
-      vehicleNumber: vehicleNumberClean,
-      profileStatus: 'approved'
+      vehicleNumber: vehicleNumberClean
     });
 
+    // 1️⃣ Account not found
     if (!driver) {
-      // Debug ke liye — yeh hata dena baad mein
-      const all = await Driver.find({ profileStatus: 'approved' }).select('governmentIds.emiratesId vehicleNumber name');
-      console.log("All approved drivers:", all);
-
-      return errorResponse(res, 'Invalid Emirates ID or Vehicle Number', 400);
+      return res.status(404).json({
+        status: false,
+        message: "No account found. Please sign up first."
+      });
     }
 
+    // 2️⃣ Account exists but not approved
+    if (driver.profileStatus !== 'approved') {
+      return res.status(403).json({
+        status: false,
+        message: "Your account is pending admin approval. Please wait until approval to login."
+      });
+    }
+
+    // 3️⃣ Wrong Emirates ID or Vehicle Number (already covered above, but extra safety)
+    if (!driver) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid vehicle number or Emirates ID. Please check and try again."
+      });
+    }
+
+    // 4️⃣ Success → PIN screen pe bhej do
     if (!driver.pin) {
       return errorResponse(res, 'PIN not set. Contact admin.', 400);
     }
 
-    return successResponse(res, 'Credentials valid. Now enter PIN', {
+    return successResponse(res, 'Login successful.', {
       driverId: driver._id,
       name: driver.name,
       phone: driver.phone,
-      vehicleNumber: driver.vehicleNumber
+      vehicleNumber: driver.vehicleNumber,
+      message: "Login successful. Now enter your 4-digit PIN."
     });
 
   } catch (error) {
     console.error('Login Error:', error);
     return errorResponse(res, 'Server error', 500);
   }
-};
+};  
 
 
 exports.verifyPin = async (req, res) => {

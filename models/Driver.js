@@ -192,7 +192,7 @@ const driverSchema = new mongoose.Schema({
   //   trim: true
   // },
 
-    phone: {
+  phone: {
     type: String,
     required: [true, 'Phone is required'],
     unique: true,
@@ -496,6 +496,11 @@ const driverSchema = new mongoose.Schema({
       default: null // Which delivery is currently active
     }
   },
+  currentJourney: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Journey',
+    default: null
+  },
 
   // Location history (optional - for tracking driver's path)
   locationHistory: [{
@@ -516,10 +521,14 @@ const driverSchema = new mongoose.Schema({
 
 // Indexes
 driverSchema.index({ phone: 1 }, { unique: true });
-driverSchema.index({ licenseNumber: 1 }, { unique: true });
+
 driverSchema.index({ profileStatus: 1 });
 driverSchema.index({ isAvailable: 1 });
 driverSchema.index({ 'blockStatus.isBlocked': 1 });
+
+driverSchema.index({ 'governmentIds.emiratesId': 1 }, { unique: true });
+driverSchema.index({ licenseNumber: 1 }, { unique: true });
+driverSchema.index({ vehicleNumber: 1 }, { unique: true });
 
 // Pre-save middleware
 driverSchema.pre('save', async function (next) {

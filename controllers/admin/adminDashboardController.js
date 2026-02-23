@@ -474,9 +474,9 @@ exports.renderDashboard = async (req, res) => {
       Driver.countDocuments(),
       Customer.countDocuments(),
 
-      Delivery.countDocuments({ 
-        status: 'delivered', 
-        actualDeliveryTime: { $gte: today } 
+      Delivery.countDocuments({
+        status: 'delivered',
+        actualDeliveryTime: { $gte: today }
       }),
 
       Driver.countDocuments({ isAvailable: true }),
@@ -498,10 +498,10 @@ exports.renderDashboard = async (req, res) => {
           $group: {
             _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
             orders: { $sum: 1 },
-            deliveries: { 
-              $sum: { 
-                $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] 
-              } 
+            deliveries: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "delivered"] }, 1, 0]
+              }
             }
           }
         },
@@ -565,13 +565,17 @@ exports.getAllDriverLocations = async (req, res) => {
       'currentLocation.latitude': { $exists: true },
       'currentLocation.longitude': { $exists: true }
     })
-    .select('name phone vehicleNumber vehicleType currentLocation isAvailable currentJourney activeDelivery lastLocationUpdate')
-    .populate('currentJourney', 'status deliveryId')
-    .lean();
+      .select('name phone vehicleNumber currentLocation isAvailable currentJourney activeDelivery lastLocationUpdate')
+      .populate({
+        path: 'currentJourney',
+        select: 'status deliveryId',
+        strictPopulate: false
+      })  
+      .lean();
 
     // Filter out drivers without valid coordinates
-    const validDrivers = drivers.filter(driver => 
-      driver.currentLocation?.latitude && 
+    const validDrivers = drivers.filter(driver =>
+      driver.currentLocation?.latitude &&
       driver.currentLocation?.longitude
     );
 
@@ -596,7 +600,7 @@ exports.getAllDriverLocations = async (req, res) => {
 /**
  * @route   GET /admin/api/drivers/:driverId/location
  * @desc    Get specific driver's current location
- * @access  Private (Admin only)
+ * @access  Private (Admin only)  
  */
 exports.getDriverLocation = async (req, res) => {
   try {
@@ -643,7 +647,7 @@ exports.renderOrdersList = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
-    
+
     // Build filter query
     const filter = {};
     if (req.query.search) {
@@ -657,7 +661,7 @@ exports.renderOrdersList = async (req, res) => {
     if (req.query.priority) {
       filter.priority = req.query.priority;
     }
-    
+
     const [orders, totalOrders] = await Promise.all([
       Order.find(filter)
         .populate('customerId')
@@ -666,9 +670,9 @@ exports.renderOrdersList = async (req, res) => {
         .limit(limit),
       Order.countDocuments(filter)
     ]);
-    
+
     const totalPages = Math.ceil(totalOrders / limit);
-    
+
     res.render('admin/orders/list', {
       title: 'Orders',
       user: req.admin,
@@ -697,11 +701,11 @@ exports.renderOrderDetails = async (req, res) => {
     const order = await Order.findById(req.params.id)
       .populate('customerId')
       .populate('deliveryId');
-    
+
     if (!order) {
       return res.redirect('/admin/orders?error=Order not found');
     }
-    
+
     res.render('admin/orders/details', {
       title: `Order ${order.orderNumber}`,
       user: req.admin,
@@ -717,7 +721,7 @@ exports.renderOrderDetails = async (req, res) => {
 exports.renderCreateOrder = async (req, res) => {
   try {
     const customers = await Customer.find({ status: 'active' }).sort({ name: 1 });
-    
+
     res.render('admin/orders/create', {
       title: 'Create Order',
       user: req.admin,
@@ -735,7 +739,7 @@ exports.renderDeliveriesList = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
-    
+
     // Build filter query
     const filter = {};
     if (req.query.search) {
@@ -750,7 +754,7 @@ exports.renderDeliveriesList = async (req, res) => {
     if (req.query.startDate) {
       filter.scheduledDate = { $gte: new Date(req.query.startDate) };
     }
-    
+
     const [deliveries, totalDeliveries, drivers] = await Promise.all([
       Delivery.find(filter)
         .populate('driverId orderId')
@@ -764,7 +768,7 @@ exports.renderDeliveriesList = async (req, res) => {
       Delivery.countDocuments(filter),
       Driver.find({ status: 'active' }).sort({ name: 1 })
     ]);
-    
+
     // Calculate stats
     const stats = {
       pending: await Delivery.countDocuments({ status: 'pending' }),
@@ -775,9 +779,9 @@ exports.renderDeliveriesList = async (req, res) => {
         updatedAt: { $gte: new Date().setHours(0, 0, 0, 0) }
       })
     };
-    
+
     const totalPages = Math.ceil(totalDeliveries / limit);
-    
+
     res.render('admin/deliveries/list', {
       title: 'Deliveries',
       user: req.admin,
@@ -813,11 +817,11 @@ exports.renderDeliveryDetails = async (req, res) => {
         path: 'orderId',
         populate: { path: 'customerId' }
       });
-    
+
     if (!delivery) {
       return res.redirect('/admin/deliveries?error=Delivery not found');
     }
-    
+
     res.render('admin/deliveries/details', {
       title: `Delivery ${delivery.trackingNumber}`,
       user: req.admin,
@@ -841,7 +845,7 @@ exports.renderLiveTracking = async (req, res) => {
         populate: { path: 'customerId' }
       })
       .sort({ updatedAt: -1 });
-    
+
     res.render('admin/tracking/live', {
       title: 'Live Tracking',
       user: req.admin,
@@ -893,7 +897,7 @@ exports.renderDriversList = async (req, res) => {
 
     const totalPages = Math.ceil(total / limit);
 
-    res.render('list', {  
+    res.render('list', {
       title: 'Drivers Management',
       user: req.admin,
       drivers,
@@ -907,7 +911,7 @@ exports.renderDriversList = async (req, res) => {
     });
   } catch (error) {
     console.error('Render Drivers List Error:', error);
-    res.status(500).render('list', {  
+    res.status(500).render('list', {
       title: 'Drivers Management',
       user: req.admin,
       drivers: [],
@@ -945,21 +949,21 @@ exports.renderDriverDetails = async (req, res) => {
       const docs = driver.documents;
 
       // Fix double slash and use correct documentType from your DB
-      driver.licenseFront = docs.find(d => d.documentType === 'license_front')?.fileUrl 
-        ? `${baseUrl}/${docs.find(d => d.documentType === 'license_front').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+      driver.licenseFront = docs.find(d => d.documentType === 'license_front')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'license_front').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
         : null;
 
-      driver.licenseBack = docs.find(d => d.documentType === 'license_back')?.fileUrl 
-        ? `${baseUrl}/${docs.find(d => d.documentType === 'license_back').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+      driver.licenseBack = docs.find(d => d.documentType === 'license_back')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'license_back').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
         : null;
 
       // Updated documentType names from your DB
-      driver.rcFront = docs.find(d => d.documentType === 'vehicle_rc_front')?.fileUrl 
-        ? `${baseUrl}/${docs.find(d => d.documentType === 'vehicle_rc_front').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+      driver.rcFront = docs.find(d => d.documentType === 'vehicle_rc_front')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'vehicle_rc_front').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
         : null;
 
-      driver.rcBack = docs.find(d => d.documentType === 'vehicle_rc_back')?.fileUrl 
-        ? `${baseUrl}/${docs.find(d => d.documentType === 'vehicle_rc_back').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}` 
+      driver.rcBack = docs.find(d => d.documentType === 'vehicle_rc_back')?.fileUrl
+        ? `${baseUrl}/${docs.find(d => d.documentType === 'vehicle_rc_back').fileUrl.replace(/\\/g, '/').replace(/^\/+/, '')}`
         : null;
 
       console.log('[DETAILS] Fixed Document URLs:', {
@@ -1113,7 +1117,7 @@ exports.renderDriverDetails = async (req, res) => {
 
 //       // Use your actual notification function (same as acceptRequest style)
 //       await sendNotification(driver.fcmToken, notificationData);
-      
+
 //       console.log(`Profile ${newStatus} notification sent to driver ${driver._id}`);
 //     } else {
 //       console.warn(`No FCM token for driver ${driver._id} — notification skipped`);
@@ -1210,8 +1214,8 @@ exports.toggleDriverProfileStatus = async (req, res) => {
 
     req.flash('error', 'Failed to update profile status');
 
-    const redirectUrl = driverId 
-      ? `/admin/drivers/view/${driverId}` 
+    const redirectUrl = driverId
+      ? `/admin/drivers/view/${driverId}`
       : '/admin/drivers';
 
     res.redirect(redirectUrl);

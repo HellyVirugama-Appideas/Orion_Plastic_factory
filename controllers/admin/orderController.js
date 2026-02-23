@@ -459,6 +459,7 @@
 // module.exports = exports;
 
 const Order = require('../../models/Order');
+const { PickupLocation } = require('../../models/Order');
 const OrderStatusHistory = require('../../models/OrderStatusHistory');
 const Delivery = require('../../models/Delivery');
 const mongoose = require('mongoose');
@@ -552,6 +553,112 @@ exports.renderOrdersList = async (req, res) => {
   }
 };
 
+// Get all orders (Admin)
+exports.getAllOrders = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      customerId,
+      search,
+      orderType,
+      priority,
+      paymentStatus,
+      startDate,
+      endDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const query = {};
+
+    // Filters
+    if (status) query.status = status;
+    if (customerId) query.customerId = customerId;
+    if (orderType) query.orderType = orderType;
+    if (priority) query.priority = priority;
+    if (paymentStatus) query['paymentDetails.status'] = paymentStatus;
+
+    // Search by order number or customer name
+    if (search) {
+      query.$or = [
+        { orderNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const sortOptions = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .populate('customerId', 'name email phone')
+        .populate('deliveryId', 'trackingNumber status')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Order.countDocuments(query)
+    ]);
+
+    return successResponse(res, 'Orders retrieved successfully', {
+      orders,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+
+  } catch (error) {
+    console.error('Get All Orders Error:', error);
+    return errorResponse(res, error.message || 'Failed to retrieve orders', 500);
+  }
+};
+
+// Get single order details
+exports.getOrderDetails = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId)
+      .populate('customerId', 'name email phone')
+      .populate('deliveryId')
+      .populate('createdBy', 'name email')
+      .populate('confirmedBy', 'name email');
+
+    if (!order) {
+      return errorResponse(res, 'Order not found', 404);
+    }
+
+    // Check authorization (customer can only see their own orders)
+    if (req.user.role === 'customer' && order.customerId._id.toString() !== req.user._id.toString()) {
+      return errorResponse(res, 'Access denied', 403);
+    }
+
+    // Get status history
+    const statusHistory = await OrderStatusHistory.find({ orderId: order._id })
+      .sort({ timestamp: 1 })
+      .populate('updatedBy.userId', 'name email');
+
+    return successResponse(res, 'Order details retrieved successfully', {
+      order,
+      statusHistory
+    });
+
+  } catch (error) {
+    console.error('Get Order Details Error:', error);
+    return errorResponse(res, error.message || 'Failed to retrieve order details', 500);
+  }
+};
+
 // ============= RENDER CREATE ORDER PAGE =============
 // exports.renderCreateOrder = async (req, res) => {
 //   try {
@@ -577,17 +684,43 @@ exports.renderOrdersList = async (req, res) => {
 //   }
 // };
 
+// exports.renderCreateOrder = async (req, res) => {
+//   try {
+//     const customers = await Customer.find({}).select('name companyName phone').lean();
+//     const categories = await Category.find({ isActive: true })
+//       .sort({ displayOrder: 1, name: 1 })
+//       .lean();
+
+//     res.render('order_create', {
+//       title: 'Create New Order',
+//       customers,
+//       categories,
+//       messages: req.flash(),
+//       admin: req.user,
+//       url: req.originalUrl,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     req.flash('error', 'Failed to load create order page');
+//     res.redirect('/admin/orders');
+//   }
+// };
+
 exports.renderCreateOrder = async (req, res) => {
   try {
     const customers = await Customer.find({}).select('name companyName phone').lean();
-    const categories = await Category.find({ isActive: true })
-      .sort({ displayOrder: 1, name: 1 })
+    const categories = await Category.find({ isActive: true }).sort({ displayOrder: 1, name: 1 }).lean();
+
+    // DB se active pickup locations fetch karo
+    const pickupLocations = await PickupLocation.find({ isActive: true })
+      .sort({ isDefault: -1, name: 1 })
       .lean();
 
     res.render('order_create', {
       title: 'Create New Order',
       customers,
       categories,
+      pickupLocations,
       messages: req.flash(),
       admin: req.user,
       url: req.originalUrl,
@@ -599,13 +732,138 @@ exports.renderCreateOrder = async (req, res) => {
   }
 };
 
+// exports.createOrder = async (req, res) => {
+//   try {
+//     const {
+//       customerId,
+//       items,
+//       deliveryLocation,
+//       pickupLocation,
+//       scheduledPickupDate,
+//       scheduledDeliveryDate,
+//       specialInstructions,
+//       packagingInstructions = '',
+//       priority = 'medium',
+//       status = 'pending'
+//     } = req.body;
+
+//     // 1. Customer check
+//     if (!customerId) return errorResponse(res, 'customerId is required', 400);
+
+//     const customer = await Customer.findById(customerId);
+//     if (!customer) return errorResponse(res, 'Customer not found', 404);
+
+//     // 2. Parse items (string → array)
+//     let parsedItems = items;
+
+//     if (typeof items === 'string') {
+//       try {
+//         parsedItems = JSON.parse(items);
+//       } catch (parseError) {
+//         console.error('Items JSON parse error:', parseError);
+//         return errorResponse(res, 'Invalid items data format', 400);
+//       }
+//     }
+
+//     if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+//       return errorResponse(res, 'At least one valid item is required', 400);
+//     }
+
+//     // 3. Process valid items
+//     const processedItems = parsedItems.map(item => ({
+//       productName: item.productName?.trim() || '',
+//       productCode: item.productCode || null,
+//       category: item.category || 'other',
+//       quantity: Number(item.quantity) || 1,
+//       description: item.description || '',
+//       specifications: item.specifications || {}
+//     }));
+
+//     // 4. Generate order number
+//     const orderNumber = await Order.generateOrderNumber();
+
+//     // 5. Default pickup location
+//     let finalPickupLocation;
+
+//     if (pickupLocation) {
+//       const pickup = await pickupLocation.findById(pickupLocation);
+//       if (!pickup) {
+//         return errorResponse(res, 'Selected pickup location not found', 400);
+//       }
+
+//       finalPickupLocation = {
+//         address: pickup.address,
+//         coordinates: {
+//           latitude: pickup.coordinates.latitude,
+//           longitude: pickup.coordinates.longitude
+//         },
+//         contactPerson: pickup.contactPerson,
+//         contactPhone: pickup.contactPhone
+//       };
+//     } else {
+//       return errorResponse(res, 'Pickup location is required', 400);
+//     }
+
+//     // 6. Admin info
+//     const adminId = req.user?._id || null;
+//     const adminName = req.user?.name || 'System Admin';
+
+//     // 7. Create order
+//     const order = await Order.create({
+//       orderNumber,
+//       customerId,
+//       orderType: 'retail',
+//       items: processedItems,
+//       pickupLocation: finalPickupLocation,
+//       deliveryLocation,
+//       scheduledPickupDate: scheduledPickupDate ? new Date(scheduledPickupDate) : null,
+//       scheduledDeliveryDate: scheduledDeliveryDate ? new Date(scheduledDeliveryDate) : null,
+//       specialInstructions: specialInstructions || '',
+//       packagingInstructions,
+//       priority,
+//       status,
+//       createdBy: adminId,
+//       confirmedBy: status === 'confirmed' ? adminId : null,
+//       confirmedAt: status === 'confirmed' ? new Date() : null
+//     });
+
+//     // 8. Status History
+//     await OrderStatusHistory.create({
+//       orderId: order._id,
+//       status: order.status,
+//       remarks: `Order created by ${adminName}`,
+//       updatedBy: {
+//         userId: adminId,
+//         userRole: 'admin',
+//         userName: adminName
+//       }
+//     });
+
+//     // 9. Populate customer
+//     const populatedOrder = await Order.findById(order._id)
+//       .populate('customerId', 'name companyName phone email customerId status');
+
+//     // return successResponse(res, 'Order created successfully!', { order: populatedOrder }, 201);
+
+//     res.redirect("/admin/orders")
+
+//   } catch (error) {
+//     console.error('Create Order Error:', error);
+//     return errorResponse(res, error.message || 'Failed to create order', 500);
+//   }
+// };
+
+
+
+// ============= RENDER ORDER DETAILS PAGE =============
+
 exports.createOrder = async (req, res) => {
   try {
     const {
       customerId,
+      pickupLocationId,
       items,
       deliveryLocation,
-      pickupLocation,
       scheduledPickupDate,
       scheduledDeliveryDate,
       specialInstructions,
@@ -614,29 +872,37 @@ exports.createOrder = async (req, res) => {
       status = 'pending'
     } = req.body;
 
-    // 1. Customer check
     if (!customerId) return errorResponse(res, 'customerId is required', 400);
-
     const customer = await Customer.findById(customerId);
     if (!customer) return errorResponse(res, 'Customer not found', 404);
 
-    // 2. Parse items (string → array)
-    let parsedItems = items;
+    // Pickup location — DB se fetch
+    if (!pickupLocationId) return errorResponse(res, 'Pickup location is required', 400);
+    const pickupDoc = await PickupLocation.findById(pickupLocationId);
+    if (!pickupDoc) return errorResponse(res, 'Selected pickup location not found', 404);
 
+    const finalPickupLocation = {
+      name: pickupDoc.name,
+      address: pickupDoc.address,
+      coordinates: {
+        latitude: pickupDoc.coordinates.latitude,
+        longitude: pickupDoc.coordinates.longitude
+      },
+      contactPerson: pickupDoc.contactPerson || '',
+      contactPhone: pickupDoc.contactPhone || ''
+    };
+
+    // Parse items
+    let parsedItems = items;
     if (typeof items === 'string') {
-      try {
-        parsedItems = JSON.parse(items);
-      } catch (parseError) {
-        console.error('Items JSON parse error:', parseError);
-        return errorResponse(res, 'Invalid items data format', 400);
-      }
+      try { parsedItems = JSON.parse(items); }
+      catch (e) { return errorResponse(res, 'Invalid items data format', 400); }
     }
 
     if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
       return errorResponse(res, 'At least one valid item is required', 400);
     }
 
-    // 3. Process valid items
     const processedItems = parsedItems.map(item => ({
       productName: item.productName?.trim() || '',
       productCode: item.productCode || null,
@@ -646,28 +912,14 @@ exports.createOrder = async (req, res) => {
       specifications: item.specifications || {}
     }));
 
-    // 4. Generate order number
     const orderNumber = await Order.generateOrderNumber();
-
-    // 5. Default pickup location
-    const finalPickupLocation = pickupLocation && pickupLocation.address
-      ? pickupLocation
-      : {
-        address: 'Orion Plastic Factory, Plot 45, GIDC Vatva, Ahmedabad',
-        coordinates: { latitude: 22.9871, longitude: 72.6369 },
-        contactPerson: 'Factory Manager',
-        contactPhone: '9876543200'
-      };
-
-    // 6. Admin info
     const adminId = req.user?._id || null;
     const adminName = req.user?.name || 'System Admin';
 
-    // 7. Create order
     const order = await Order.create({
       orderNumber,
       customerId,
-      orderType: 'retail',
+      orderType: req.body.orderType || 'retail',
       items: processedItems,
       pickupLocation: finalPickupLocation,
       deliveryLocation,
@@ -682,25 +934,14 @@ exports.createOrder = async (req, res) => {
       confirmedAt: status === 'confirmed' ? new Date() : null
     });
 
-    // 8. Status History
     await OrderStatusHistory.create({
       orderId: order._id,
       status: order.status,
       remarks: `Order created by ${adminName}`,
-      updatedBy: {
-        userId: adminId,
-        userRole: 'admin',
-        userName: adminName
-      }
+      updatedBy: { userId: adminId, userRole: 'admin', userName: adminName }
     });
 
-    // 9. Populate customer
-    const populatedOrder = await Order.findById(order._id)
-      .populate('customerId', 'name companyName phone email customerId status');
-
-    // return successResponse(res, 'Order created successfully!', { order: populatedOrder }, 201);
-
-    res.redirect("/admin/orders")
+    res.redirect("/admin/orders");
 
   } catch (error) {
     console.error('Create Order Error:', error);
@@ -708,7 +949,57 @@ exports.createOrder = async (req, res) => {
   }
 };
 
-// ============= RENDER ORDER DETAILS PAGE =============
+// exports.renderOrderDetails = async (req, res) => {
+//   try {
+//     const { orderId } = req.params;
+
+//     if (!mongoose.Types.ObjectId.isValid(orderId)) {
+//       req.flash('error', 'Invalid order ID');
+//       return res.redirect('/admin/orders');
+//     }
+
+//     const order = await Order.findById(orderId)
+//       .populate('customerId', 'name email phone companyName')
+//       .populate({
+//         path: 'deliveryId',
+//         populate: {
+//           path: 'driverId',
+//           select: 'name phone email'
+//         }
+//       })
+//       .populate('createdBy', 'name email')
+//       .populate('confirmedBy', 'name email')
+//       .lean();
+
+//     if (!order) {
+//       req.flash('error', 'Order not found');
+//       return res.redirect('/admin/orders');
+//     }
+
+//     // Get status history
+//     const statusHistory = await OrderStatusHistory.find({ orderId: order._id })
+//       .sort({ timestamp: -1 })
+//       .populate('updatedBy.userId', 'name email')
+//       .lean();
+
+//     res.render('order_details', {
+//       title: `Order ${order.orderNumber}`,
+//       user: req.user,
+//       order,
+//       statusHistory,
+//       url: req.originalUrl,
+//       messages: req.flash()
+//     });
+
+//   } catch (error) {
+//     console.error('[ORDER-DETAILS] Error:', error);
+//     req.flash('error', 'Failed to load order details');
+//     res.redirect('/admin/orders');
+//   }
+// };
+
+// ============= RENDER EDIT ORDER PAGE =============
+
 exports.renderOrderDetails = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -720,13 +1011,7 @@ exports.renderOrderDetails = async (req, res) => {
 
     const order = await Order.findById(orderId)
       .populate('customerId', 'name email phone companyName')
-      .populate({
-        path: 'deliveryId',
-        populate: {
-          path: 'driverId',
-          select: 'name phone email'
-        }
-      })
+      .populate({ path: 'deliveryId', populate: { path: 'driverId', select: 'name phone email' } })
       .populate('createdBy', 'name email')
       .populate('confirmedBy', 'name email')
       .lean();
@@ -736,7 +1021,6 @@ exports.renderOrderDetails = async (req, res) => {
       return res.redirect('/admin/orders');
     }
 
-    // Get status history
     const statusHistory = await OrderStatusHistory.find({ orderId: order._id })
       .sort({ timestamp: -1 })
       .populate('updatedBy.userId', 'name email')
@@ -758,7 +1042,6 @@ exports.renderOrderDetails = async (req, res) => {
   }
 };
 
-// ============= RENDER EDIT ORDER PAGE =============
 exports.renderEditOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -1016,6 +1299,90 @@ exports.renderCreateDeliveryFromOrder = async (req, res) => {
   }
 };
 
+exports.createDeliveryFromOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { driverId, scheduledPickupTime, scheduledDeliveryTime, priority } = req.body;
+
+    const order = await Order.findById(orderId).populate('customerId');
+    if (!order) {
+      return errorResponse(res, 'Order not found', 404);
+    }
+
+    if (order.deliveryId) {
+      return errorResponse(res, 'Delivery already created for this order', 400);
+    }
+
+    if (order.status !== 'confirmed' && order.status !== 'processing' && order.status !== 'ready_for_pickup') {
+      return errorResponse(res, 'Order must be confirmed before creating delivery', 400);
+    }
+
+    // Prepare package details from order items
+    const packageDescription = order.items.map(item =>
+      `${item.productName} (${item.quantity} units)`
+    ).join(', ');
+
+    const totalWeight = order.items.reduce((sum, item) =>
+      sum + ((item.specifications?.weight || 0) * item.quantity), 0
+    );
+
+    const totalQuantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+    // Create delivery
+    const delivery = await Delivery.create({
+      orderId: order.orderNumber,
+      customerId: order.customerId._id,
+      driverId: driverId || null,
+      pickupLocation: order.pickupLocation,
+      deliveryLocation: order.deliveryLocation,
+      packageDetails: {
+        description: packageDescription,
+        weight: totalWeight,
+        quantity: totalQuantity,
+        value: order.totalAmount,
+        fragile: false
+      },
+      scheduledPickupTime: scheduledPickupTime || order.scheduledPickupDate,
+      scheduledDeliveryTime: scheduledDeliveryTime || order.scheduledDeliveryDate,
+      priority: priority || order.priority,
+      instructions: order.specialInstructions,
+      status: driverId ? 'assigned' : 'pending',
+      createdBy: req.user._id
+    });
+
+    // Link delivery to order
+    order.deliveryId = delivery._id;
+    order.status = 'assigned';
+    await order.save();
+
+    // Create order status history
+    await OrderStatusHistory.create({
+      orderId: order._id,
+      status: 'assigned',
+      previousStatus: order.status,
+      remarks: `Delivery created: ${delivery.trackingNumber}`,
+      updatedBy: {
+        userId: req.user._id,
+        userRole: req.user.role,
+        userName: req.user.name
+      }
+    });
+
+    await delivery.populate('driverId customerId');
+
+    return successResponse(res, 'Delivery created from order successfully', {
+      order,
+      delivery,
+      trackingUrl: `${process.env.FRONTEND_URL}/track/${delivery.trackingNumber}`
+    }, 201);
+
+  } catch (error) {
+    console.error('Create Delivery From Order Error:', error);
+    return errorResponse(res, error.message || 'Failed to create delivery from order', 500);
+  }
+};
+
+
 // ============= GET ORDER STATISTICS (API) =============
 exports.getOrderStatistics = async (req, res) => {
   try {
@@ -1070,5 +1437,128 @@ exports.getOrderStatistics = async (req, res) => {
     });
   }
 };
+
+
+// ================================================================
+// PICKUP LOCATION CRUD — AJAX (JSON response, no redirect)
+// Used directly from order_create.ejs modal
+// ================================================================
+
+// POST /admin/pickup-locations/create  → JSON
+exports.createPickupLocation = async (req, res) => {
+  try {
+    const { name, address, city, state, pincode, latitude, longitude, contactPerson, contactPhone, isDefault } = req.body;
+
+    if (!name || !address || !latitude || !longitude) {
+      return res.status(400).json({ success: false, message: 'Name, address, latitude & longitude are required' });
+    }
+
+    // Agar isDefault true hai to baaki sab false karo
+    if (isDefault) await PickupLocation.updateMany({}, { isDefault: false });
+
+    const location = await PickupLocation.create({
+      name, address, city, state, pincode,
+      coordinates: { latitude: parseFloat(latitude), longitude: parseFloat(longitude) },
+      contactPerson, contactPhone, isDefault: !!isDefault
+    });
+
+    return res.status(201).json({ success: true, location });
+  } catch (error) {
+    console.error('[CREATE-PICKUP] Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to create pickup location' });
+  }
+};
+
+// POST /admin/pickup-locations/:locationId/update  → JSON
+exports.updatePickupLocation = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const { name, address, city, state, pincode, latitude, longitude, contactPerson, contactPhone, isDefault, isActive } = req.body;
+
+    if (!name || !address || !latitude || !longitude) {
+      return res.status(400).json({ success: false, message: 'Name, address, latitude & longitude are required' });
+    }
+
+    const doc = await PickupLocation.findById(locationId);
+    if (!doc) return res.status(404).json({ success: false, message: 'Location not found' });
+
+    // Agar isDefault true hai to baaki sab false karo
+    if (isDefault) await PickupLocation.updateMany({ _id: { $ne: locationId } }, { isDefault: false });
+
+    doc.name = name;
+    doc.address = address;
+    doc.city = city;
+    doc.state = state;
+    doc.pincode = pincode;
+    doc.coordinates = { latitude: parseFloat(latitude), longitude: parseFloat(longitude) };
+    doc.contactPerson = contactPerson;
+    doc.contactPhone = contactPhone;
+    doc.isDefault = !!isDefault;
+    doc.isActive = isActive !== false && isActive !== 'false';
+
+    await doc.save();
+    return res.json({ success: true, location: doc });
+  } catch (error) {
+    console.error('[UPDATE-PICKUP] Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to update pickup location' });
+  }
+};
+
+// DELETE /admin/pickup-locations/:locationId/delete  → JSON
+exports.deletePickupLocation = async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    await PickupLocation.findByIdAndDelete(locationId);
+    return res.json({ success: true, message: 'Pickup location deleted' });
+  } catch (error) {
+    console.error('[DELETE-PICKUP] Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete pickup location' });
+  }
+};
+
+// Update order status (Admin)
+exports.updateOrderStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, remarks } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return errorResponse(res, 'Order not found', 404);
+    }
+
+    const previousStatus = order.status;
+    order.status = status;
+
+    // Update specific fields based on status
+    if (status === 'confirmed' && !order.confirmedBy) {
+      order.confirmedBy = req.user._id;
+      order.confirmedAt = new Date();
+    }
+
+    await order.save();
+
+    // Create status history
+    await OrderStatusHistory.create({
+      orderId: order._id,
+      status,
+      previousStatus,
+      remarks,
+      updatedBy: {
+        userId: req.user._id,
+        userRole: req.user.role,
+        userName: req.user.name
+      }
+    });
+
+    return successResponse(res, 'Order status updated successfully', { order });
+
+  } catch (error) {
+    console.error('Update Order Status Error:', error);
+    return errorResponse(res, error.message || 'Failed to update order status', 500);
+  }
+};
+
+
 
 module.exports = exports;

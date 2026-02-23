@@ -407,4 +407,10 @@ router.post(
   deliveryController.addDeliveryRemark
 );
 
+router.get('/:deliveryId/journey-route', 
+  protectAdmin,
+  isAdmin,
+  deliveryController.getCompletedJourneyRoute
+);
+
 module.exports = router;
