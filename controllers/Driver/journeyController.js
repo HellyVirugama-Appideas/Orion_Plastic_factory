@@ -3345,7 +3345,7 @@ exports.continueJourney = async (req, res) => {
       deliveryId,
       driverId: driver._id,
       status: {
-        $in: ['Started', 'In_transit', 'In_progress', 'Picked_up']
+        $in: ['Started', 'In_transit', 'In_progress', 'Picked_up','Arrived']
       }
     }).populate('deliveryId', 'trackingNumber recipientName recipientPhone recipientAddress');
 

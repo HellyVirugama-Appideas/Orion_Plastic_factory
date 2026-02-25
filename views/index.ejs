@@ -24,7 +24,7 @@
       position: absolute;
       top: 20px;
       left: 20px;
-      z-index: 1000;
+      /* z-index: 1000; */
       background: linear-gradient(135deg, #4CAF50, #45a049);
       color: white;
       padding: 10px 20px;
@@ -53,7 +53,7 @@
       position: absolute;
       top: 20px;
       right: 20px;
-      z-index: 1000;
+      /* z-index: 1000; */
       background: white;
       padding: 10px;
       border-radius: 8px;
@@ -294,7 +294,8 @@
     let polylines = {};  // Store route polylines for each driver
 
     function initDriversMap() {
-      const defaultCenter = { lat: 23.0225, lng: 72.5714 };
+      // const defaultCenter = { lat: 23.0225, lng: 72.5714 };
+      const defaultCenter = { lat: 25.2048, lng: 55.2708 };
 
       driversMap = new google.maps.Map(document.getElementById('driversMap'), {
         center: defaultCenter,
