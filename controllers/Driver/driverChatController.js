@@ -460,14 +460,16 @@ exports.clearChat = async (req, res) => {
     if (!req.user || !req.user._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    
+
     const driverId = req.user._id;
     const conversationId = `${driverId}_admin`;
 
     const updateResult = await ChatMessage.updateMany(
       {
         conversationId,
-        deletedForDriver: false   // only touch messages not already cleared
+        // ✅ FIX: Use $ne: true instead of === false
+        // This catches: false, null, undefined (missing field)
+        deletedForDriver: { $ne: true }
       },
       {
         $set: {
@@ -477,16 +479,6 @@ exports.clearChat = async (req, res) => {
       }
     );
 
-    // If nothing was updated → chat was already cleared or empty
-    if (updateResult.matchedCount === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'Chat is already cleared or empty',
-        clearedMessagesCount: 0
-      });
-    }
-
-    // Emit only to this driver
     if (global.io) {
       global.io.to(`driver-${driverId}`).emit('chat:cleared', {
         conversationId,
@@ -504,10 +496,7 @@ exports.clearChat = async (req, res) => {
 
   } catch (error) {
     console.error('Clear Chat Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to clear chat'
-    });
+    return res.status(500).json({ success: false, message: 'Failed to clear chat' });
   }
 };
 

@@ -163,7 +163,7 @@ const chatMessageSchema = new mongoose.Schema({
     type: Date
   },
   isDeleted: {
-    type: Boolean,
+    type: Boolean,  
     default: false
   },
   deletedAt: { type: Date },

@@ -31,7 +31,7 @@ router.patch(
     isDriver,
     chatController.editMessage
 )
-router.delete(
+router.post(
     "/message/clear",
     authenticateDriver,
     isDriver,

@@ -942,7 +942,7 @@ exports.toggleDriverStatus = async (req, res) => {
   }
 };
 
-// GET - Driver Activity Logs (Similar to vendor logs)
+// GET - Driver Activity Logs (Similar to vendor logs) 
 exports.getDriverLogs = async (req, res) => {
   try {
     const { driverId } = req.params;

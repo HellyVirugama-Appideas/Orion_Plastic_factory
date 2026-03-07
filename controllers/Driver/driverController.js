@@ -1421,6 +1421,66 @@ exports.createPin = async (req, res) => {
 //   }
 // };
 
+// exports.login = async (req, res) => {
+//   try {
+//     const { emiratesId, vehicleNumber } = req.body;
+
+//     if (!emiratesId || !vehicleNumber) {
+//       return errorResponse(res, 'Emirates ID and Vehicle Number are required', 400);
+//     }
+
+//     const emiratesIdClean = emiratesId.trim();
+//     const vehicleNumberClean = vehicleNumber.trim().toUpperCase();
+
+//     // Find driver
+//     const driver = await Driver.findOne({
+//       "governmentIds.emiratesId": emiratesIdClean,
+//       vehicleNumber: vehicleNumberClean
+//     });
+
+//     // 1️⃣ Account not found
+//     if (!driver) {
+//       return res.status(404).json({
+//         status: false,
+//         message: "No account found. Please sign up first."
+//       });
+//     } 
+
+//     // 2️⃣ Account exists but not approved
+//     if (driver.profileStatus !== 'approved') {
+//       return res.status(403).json({
+//         status: false,
+//         message: "Your account is pending admin approval. Please wait until approval to login."
+//       });
+//     }
+
+//     // 3️⃣ Wrong Emirates ID or Vehicle Number (already covered above, but extra safety)
+//     if (!driver) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid vehicle number or Emirates ID. Please check and try again."
+//       });
+//     }
+
+//     // 4️⃣ Success → PIN screen pe bhej do
+//     if (!driver.pin) {
+//       return errorResponse(res, 'PIN not set. Contact admin.', 400);
+//     }
+
+//     return successResponse(res, 'Login successful.', {
+//       driverId: driver._id,
+//       name: driver.name,
+//       phone: driver.phone,
+//       vehicleNumber: driver.vehicleNumber,
+//       message: "Login successful. Now enter your 4-digit PIN."
+//     });
+
+//   } catch (error) {
+//     console.error('Login Error:', error);
+//     return errorResponse(res, 'Server error', 500);
+//   }
+// };  
+
 exports.login = async (req, res) => {
   try {
     const { emiratesId, vehicleNumber } = req.body;
@@ -1432,55 +1492,58 @@ exports.login = async (req, res) => {
     const emiratesIdClean = emiratesId.trim();
     const vehicleNumberClean = vehicleNumber.trim().toUpperCase();
 
-    // Find driver
-    const driver = await Driver.findOne({
-      "governmentIds.emiratesId": emiratesIdClean,
-      vehicleNumber: vehicleNumberClean
+    // Check if account exists with Emirates ID only
+    const driverByEmiratesId = await Driver.findOne({
+      "governmentIds.emiratesId": emiratesIdClean
     });
 
-    // 1️⃣ Account not found
-    if (!driver) {
+    // 1) No account found at all
+    if (!driverByEmiratesId) {
       return res.status(404).json({
         status: false,
-        message: "No account found. Please sign up first."
+        message: "No account found. Please create an account to get started."
       });
     }
 
-    // 2️⃣ Account exists but not approved
+    // 2) Account found but vehicle number is wrong
+    if (driverByEmiratesId.vehicleNumber !== vehicleNumberClean) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid Emirates ID or Vehicle Number. Please check your credentials and try again."
+      });
+    }
+
+    const driver = driverByEmiratesId;
+
+    // 3) Account exists but not approved yet
     if (driver.profileStatus !== 'approved') {
       return res.status(403).json({
         status: false,
-        message: "Your account is pending admin approval. Please wait until approval to login."
+        message: "Your account is currently under review. Please wait while the admin approves your account.",
+        accountStatus: driver.profileStatus
       });
     }
 
-    // 3️⃣ Wrong Emirates ID or Vehicle Number (already covered above, but extra safety)
-    if (!driver) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid vehicle number or Emirates ID. Please check and try again."
-      });
-    }
-
-    // 4️⃣ Success → PIN screen pe bhej do
+    // 4) PIN not set
     if (!driver.pin) {
-      return errorResponse(res, 'PIN not set. Contact admin.', 400);
+      return errorResponse(res, 'PIN not set. Please contact admin.', 400);
     }
 
-    return successResponse(res, 'Login successful.', {
+    // 5) Valid approved account → success
+    return successResponse(res, 'Credentials verified successfully. Please enter your 4-digit PIN to continue.', {
       driverId: driver._id,
       name: driver.name,
       phone: driver.phone,
       vehicleNumber: driver.vehicleNumber,
-      message: "Login successful. Now enter your 4-digit PIN."
+      accountStatus: driver.profileStatus,
+      isApproved: true
     });
 
   } catch (error) {
     console.error('Login Error:', error);
     return errorResponse(res, 'Server error', 500);
   }
-};  
-
+};
 
 exports.verifyPin = async (req, res) => {
   try {
@@ -1659,7 +1722,7 @@ exports.refreshToken = async (req, res) => {
 
     if (!refreshToken) {
       return errorResponse(res, 'Refresh token required', 400);
-    }
+    } 
 
     // Verify refresh token
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
