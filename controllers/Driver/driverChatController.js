@@ -5,27 +5,88 @@ const Driver = require('../../models/Driver');
 const generateConversationId = (driverId) => `${driverId}_admin`;
 
 // Get Driver Conversations (only one: Support)
+// exports.getDriverConversations = async (req, res) => {
+//   try {
+//     // CHANGE HERE: req.driver → req.user
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({ success: false, message: 'Unauthorized' });
+//     }
+
+//     const driverId = req.user._id;
+//     const driver = req.user; // ab req.user me driver hai
+
+//     const conversationId = generateConversationId(driverId);
+
+//     const lastMessage = await ChatMessage.findOne({ conversationId })
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     const unreadCount = await ChatMessage.countDocuments({
+//       conversationId,
+//       receiverId: driverId,
+//       receiverType: 'Driver',
+//       isRead: false
+//     });
+
+//     const conversations = [{
+//       conversationId,
+//       participant: {
+//         id: 'admin',
+//         name: 'Support',
+//         type: 'admin',
+//         profileImage: '/images/support-avatar.png'
+//       },
+//       lastMessage: lastMessage ? {
+//         content: lastMessage.messageType === 'text' 
+//           ? lastMessage.content 
+//           : (lastMessage.messageType === 'image' ? 'Photo' : 'Media'),
+//         createdAt: lastMessage.createdAt,
+//         isFromMe: lastMessage.senderType === 'Driver'
+//       } : null,
+//       unreadCount,
+//       driverInfo: {
+//         name: driver.name,
+//         vehicleNumber: driver.vehicleNumber || 'Not assigned'
+//       }
+//     }];
+
+//     return res.status(200).json({
+//       success: true,
+//       data: { conversations }
+//     });
+
+//   } catch (error) {
+//     console.error('Driver Get Conversations Error:', error);
+//     return res.status(500).json({ success: false, message: 'Failed to load chats' });
+//   }
+// };
+
 exports.getDriverConversations = async (req, res) => {
   try {
-    // CHANGE HERE: req.driver → req.user
     if (!req.user || !req.user._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
     const driverId = req.user._id;
-    const driver = req.user; // ab req.user me driver hai
+    const driver = req.user;
 
     const conversationId = generateConversationId(driverId);
 
-    const lastMessage = await ChatMessage.findOne({ conversationId })
+    // ✅ FIX: Filter out messages deleted by driver
+    const lastMessage = await ChatMessage.findOne({
+      conversationId,
+      deletedForDriver: { $ne: true }   // ← only show non-deleted messages
+    })
       .sort({ createdAt: -1 })
       .lean();
 
+    // ✅ FIX: Filter out deleted messages from unread count too
     const unreadCount = await ChatMessage.countDocuments({
       conversationId,
       receiverId: driverId,
       receiverType: 'Driver',
-      isRead: false
+      isRead: false,
+      deletedForDriver: { $ne: true }   // ← don't count deleted messages
     });
 
     const conversations = [{
@@ -37,8 +98,8 @@ exports.getDriverConversations = async (req, res) => {
         profileImage: '/images/support-avatar.png'
       },
       lastMessage: lastMessage ? {
-        content: lastMessage.messageType === 'text' 
-          ? lastMessage.content 
+        content: lastMessage.messageType === 'text'
+          ? lastMessage.content
           : (lastMessage.messageType === 'image' ? 'Photo' : 'Media'),
         createdAt: lastMessage.createdAt,
         isFromMe: lastMessage.senderType === 'Driver'
@@ -455,6 +516,51 @@ exports.deleteMessage = async (req, res) => {
 };
 
 // Clear Chat (Delete for me only - driver side)
+// exports.clearChat = async (req, res) => {
+//   try {
+//     if (!req.user || !req.user._id) {
+//       return res.status(401).json({ success: false, message: 'Unauthorized' });
+//     }
+
+//     const driverId = req.user._id;
+//     const conversationId = `${driverId}_admin`;
+
+//     const updateResult = await ChatMessage.updateMany(
+//       {
+//         conversationId,
+//         // ✅ FIX: Use $ne: true instead of === false
+//         // This catches: false, null, undefined (missing field)
+//         deletedForDriver: { $ne: true }
+//       },
+//       {
+//         $set: {
+//           deletedForDriver: true,
+//           deletedAt: new Date()
+//         }
+//       }
+//     );
+
+//     if (global.io) {
+//       global.io.to(`driver-${driverId}`).emit('chat:cleared', {
+//         conversationId,
+//         clearedBy: 'driver',
+//         clearedAt: new Date(),
+//         clearedMessagesCount: updateResult.modifiedCount
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Chat cleared successfully',
+//       clearedMessagesCount: updateResult.modifiedCount
+//     });
+
+//   } catch (error) {
+//     console.error('Clear Chat Error:', error);
+//     return res.status(500).json({ success: false, message: 'Failed to clear chat' });
+//   }
+// };
+
 exports.clearChat = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
@@ -464,12 +570,18 @@ exports.clearChat = async (req, res) => {
     const driverId = req.user._id;
     const conversationId = `${driverId}_admin`;
 
+    // ✅ FIX: Use $or to catch ALL cases:
+    // - deletedForDriver: false
+    // - deletedForDriver: null
+    // - deletedForDriver field doesn't exist at all
     const updateResult = await ChatMessage.updateMany(
       {
         conversationId,
-        // ✅ FIX: Use $ne: true instead of === false
-        // This catches: false, null, undefined (missing field)
-        deletedForDriver: { $ne: true }
+        $or: [
+          { deletedForDriver: { $exists: false } },
+          { deletedForDriver: false },
+          { deletedForDriver: null }
+        ]
       },
       {
         $set: {
@@ -478,6 +590,9 @@ exports.clearChat = async (req, res) => {
         }
       }
     );
+
+    console.log(`[ClearChat] conversationId: ${conversationId}`);
+    console.log(`[ClearChat] matched: ${updateResult.matchedCount}, modified: ${updateResult.modifiedCount}`);
 
     if (global.io) {
       global.io.to(`driver-${driverId}`).emit('chat:cleared', {
@@ -499,5 +614,6 @@ exports.clearChat = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to clear chat' });
   }
 };
+
 
 
